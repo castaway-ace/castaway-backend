@@ -1,5 +1,5 @@
 {
-  "name": "music-app",
+  "name": "castaway",
   "version": "0.0.1",
   "description": "",
   "author": "",
@@ -7,7 +7,7 @@
   "license": "UNLICENSED",
   "scripts": {
     "start": "bun run src/main.ts",
-    "start:dev": "bun run --watch src/main.ts",
+    "start:dev": "nodemon",
     "start:prod": "bun run dist/main.js",
     "build": "bun build src/main.ts --outdir ./dist --target node",
     "docker:up": "docker compose up",
@@ -18,12 +18,15 @@
     "@nestjs/cli": "^11.0.16",
     "@types/bun": "latest",
     "@types/express": "^5.0.6",
-    "@types/node": "^25.0.9"
+    "@types/node": "^25.0.9",
+    "nodemon": "^3.1.11",
+    "prisma": "^7.2.0"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.12",
     "@nestjs/core": "^11.1.12",
     "@nestjs/platform-express": "^11.1.12",
+    "@prisma/client": "^7.2.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2"
   }
