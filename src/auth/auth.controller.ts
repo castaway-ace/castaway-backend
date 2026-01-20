@@ -25,7 +25,6 @@ export class AuthController {
   @Get("google")
   @UseGuards(GoogleAuthGuard)
   googleAuth() {
-    // Guard redirects to Google
   }
 
   @Get("google/callback")
@@ -36,26 +35,21 @@ export class AuthController {
   ) {
     const tokens = await this.authService.validateGoogleUser(req.user);
 
-    // Option 1: Redirect to frontend with tokens in URL (less secure)
-    // res.redirect(`http://localhost:3001/auth/callback?accessToken=${tokens.accessToken}&refreshToken=${tokens.refreshToken}`);
-
-    // Option 2: Set tokens as HTTP-only cookies (more secure)
     res.cookie("accessToken", tokens.accessToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: 15 * 60 * 1000, // 15 minutes
+      maxAge: 15 * 60 * 1000,
     });
 
     res.cookie("refreshToken", tokens.refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    // Redirect to frontend
-    res.redirect("http://localhost:3001/dashboard");
+    res.redirect("http://localhost:3000");
   }
 
   @Post("refresh")
