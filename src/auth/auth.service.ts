@@ -1,146 +1,100 @@
-import {
-    Injectable,
-    Logger,
-    UnauthorizedException,
-    InternalServerErrorException,
-} from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { PrismaService } from "../prisma/prisma.service";
 import { GoogleUser } from "./strategies/google.strategy";
-import { v4 as uuidv4 } from "uuid";
-import { AuthDto } from "./dto";
+import { FacebookUser } from './strategies/facebook.strategy';
+import { UserService } from "../user/user.service";
 
-export interface Tokens {
-    accessToken: string;
-    refreshToken: string;
-}
+type OAuthUser = GoogleUser | FacebookUser;
 
 @Injectable({})
 export class AuthService {
-    private readonly logger = new Logger(AuthService.name);
 
     constructor(
+        private jwt: JwtService,
+        private userService: UserService,
         private prisma: PrismaService,
-        private jwt: JwtService
     ) { }
 
-    async validateGoogleUser(googleUser: GoogleUser): Promise<Tokens> {
-        const { provider, providerId, email, firstName, lastName, avatar, accessToken, refreshToken } = googleUser;
-
-        this.logger.log(`Google login attempt: ${email}`);
-
-        try {
-            // Check if this Google account is already linked
-            let account = await this.prisma.account.findUnique({
-                where: {
-                    provider_providerAccountId: {
-                        provider,
-                        providerAccountId: providerId,
-                    },
-                },
-                include: { user: true },
-            });
-
-            if (account) {
-                // Update OAuth tokens
-                await this.prisma.account.update({
-                    where: { id: account.id },
-                    data: {
-                        accessToken,
-                        refreshToken,
-                    },
-                });
-
-                this.logger.log(`Existing user logged in: ${account.user.email}`);
-                return this.generateTokens(account.user.id, account.user.email);
-            }
-
-            // Check if user exists with same email
-            let user = await this.prisma.user.findUnique({
-                where: { email },
-            });
-
-            if (user) {
-                // Link Google account to existing user
-                await this.prisma.account.create({
-                    data: {
-                        provider,
-                        providerAccountId: providerId,
-                        accessToken,
-                        refreshToken,
-                        userId: user.id,
-                    },
-                });
-
-                this.logger.log(`Linked Google account to existing user: ${email}`);
-                return this.generateTokens(user.id, user.email);
-            }
-
-            // Create new user with linked Google account
-            user = await this.prisma.$transaction(async (tx) => {
-                const newUser = await tx.user.create({
-                    data: {
-                        email,
-                        firstName,
-                        lastName,
-                        avatar,
-                    },
-                });
-
-                await tx.account.create({
-                    data: {
-                        provider,
-                        providerAccountId: providerId,
-                        accessToken,
-                        refreshToken,
-                        userId: newUser.id,
-                    },
-                });
-
-                return newUser;
-            });
-
-            this.logger.log(`New user created via Google: ${email}`);
-            return this.generateTokens(user.id, user.email);
-        } catch (error) {
-            this.logger.error(`Google auth failed: ${error}`);
-            throw new InternalServerErrorException("Authentication failed");
-        }
-    }
-
-    async generateTokens(userId: string, email: string): Promise<Tokens> {
-        const payload = { sub: userId, email };
-        const family = uuidv4();
-
-        const [accessToken, refreshToken] = await Promise.all([
-            this.jwt.signAsync(payload, {
-                expiresIn: "15m",
-                secret: process.env.JWT_SECRET,
-            }),
-            this.jwt.signAsync({ ...payload, family }, {
-                expiresIn: "7d",
-                secret: process.env.JWT_REFRESH_SECRET,
-            }),
-        ]);
-
-        // Store refresh token in database
-        await this.prisma.refreshToken.create({
-            data: {
-                userId,
-                token: refreshToken,
-                family,
-                expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
-            },
+    async validateOAuthUser(oauthUser: OAuthUser) {
+        console.log('Validating OAuth user:', {
+            provider: oauthUser.provider,
+            email: oauthUser.email,
         });
 
-        return { accessToken, refreshToken };
+        // Calculate token expiration (Google tokens typically expire in 1 hour)
+        const expiresAt = Math.floor(Date.now() / 1000) + 3600;
+
+        // Find or create user, linking by email
+        const user = await this.userService.findOrCreateFromOAuth({
+            email: oauthUser.email,
+            firstName: oauthUser.firstName,
+            lastName: oauthUser.lastName,
+            avatar: oauthUser.avatar,
+            provider: oauthUser.provider,
+            providerAccountId: oauthUser.providerId,
+            accessToken: oauthUser.accessToken,
+            refreshToken: oauthUser.provider === 'google' ? oauthUser.refreshToken : undefined,
+            expiresAt,
+            scope: 'email profile',
+        });
+
+        console.log('User after OAuth validation:', {
+            userId: user?.id,
+            email: user?.email,
+            linkedProviders: user?.accounts.map(acc => acc.provider),
+        });
+
+        // Generate our own JWT tokens for the application
+        const payload = {
+            sub: user?.id,
+            email: user?.email,
+            firstName: user?.firstName,
+            lastName: user?.lastName,
+        };
+
+        const accessToken = this.jwt.sign(payload, {
+            expiresIn: '15m',
+        });
+
+        // Create refresh token with family for rotation
+        const refreshTokenFamily = this.generateTokenFamily();
+        const refreshToken = this.jwt.sign(
+            { sub: user?.id, family: refreshTokenFamily },
+            { expiresIn: '7d' },
+        );
+
+        // Store refresh token in database
+        if (user?.id) {
+            await this.prisma.refreshToken.create({
+                data: {
+                    userId: user?.id,
+                    token: refreshToken,
+                    family: refreshTokenFamily,
+                    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+                },
+            });
+        }
+
+        return {
+            accessToken,
+            refreshToken,
+            user,
+        };
     }
 
-    async refreshTokens(refreshToken: string): Promise<Tokens> {
+    async validateGoogleUser(googleUser: GoogleUser) {
+        return this.validateOAuthUser(googleUser);
+    }
+
+    async validateFacebookUser(facebookUser: FacebookUser) {
+        return this.validateOAuthUser(facebookUser);
+    }
+
+    async refreshTokens(refreshToken: string) {
         try {
-            const payload = await this.jwt.verifyAsync(refreshToken, {
-                secret: process.env.JWT_REFRESH_SECRET,
-            });
+            // Verify the refresh token
+            const payload = this.jwt.verify(refreshToken);
 
             // Check if token exists and is not revoked
             const storedToken = await this.prisma.refreshToken.findUnique({
@@ -149,86 +103,80 @@ export class AuthService {
             });
 
             if (!storedToken || storedToken.isRevoked) {
-                // Possible token theft - revoke all tokens in family
-                if (storedToken) {
-                    await this.prisma.refreshToken.updateMany({
-                        where: { family: storedToken.family },
-                        data: { isRevoked: true, revokedAt: new Date() },
-                    });
-                }
-                throw new UnauthorizedException("Invalid refresh token");
+                throw new Error('Invalid or revoked refresh token');
             }
 
-            // Revoke current token
+            if (new Date() > storedToken.expiresAt) {
+                throw new Error('Refresh token expired');
+            }
+
+            const user = storedToken.user;
+
+            // Revoke old token
             await this.prisma.refreshToken.update({
                 where: { id: storedToken.id },
-                data: { isRevoked: true, revokedAt: new Date() },
+                data: {
+                    isRevoked: true,
+                    revokedAt: new Date(),
+                },
             });
 
-            // Generate new tokens with same family
-            return this.generateTokensWithFamily(
-                storedToken.user.id,
-                storedToken.user.email,
-                storedToken.family
+            // Generate new tokens
+            const newAccessToken = this.jwt.sign(
+                {
+                    sub: user.id,
+                    email: user.email,
+                    firstName: user.firstName,
+                    lastName: user.lastName,
+                },
+                { expiresIn: '15m' },
             );
+
+            const newRefreshToken = this.jwt.sign(
+                { sub: user.id, family: storedToken.family },
+                { expiresIn: '7d' },
+            );
+
+            // Store new refresh token
+            await this.prisma.refreshToken.create({
+                data: {
+                    userId: user.id,
+                    token: newRefreshToken,
+                    family: storedToken.family,
+                    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+                },
+            });
+
+            return {
+                accessToken: newAccessToken,
+                refreshToken: newRefreshToken,
+            };
         } catch (error) {
-            if (error instanceof UnauthorizedException) {
-                throw error;
-            }
-            throw new UnauthorizedException("Invalid refresh token");
+            throw new Error('Invalid refresh token');
         }
     }
 
-    private async generateTokensWithFamily(
-        userId: string,
-        email: string,
-        family: string
-    ): Promise<Tokens> {
-        const payload = { sub: userId, email };
-
-        const [accessToken, refreshToken] = await Promise.all([
-            this.jwt.signAsync(payload, {
-                expiresIn: "15m",
-                secret: process.env.JWT_SECRET,
-            }),
-            this.jwt.signAsync({ ...payload, family }, {
-                expiresIn: "7d",
-                secret: process.env.JWT_REFRESH_SECRET,
-            }),
-        ]);
-
-        await this.prisma.refreshToken.create({
-            data: {
-                userId,
-                token: refreshToken,
-                family,
-                expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            },
+    async logout(userId: string, refreshToken: string) {
+        // Revoke the refresh token
+        const token = await this.prisma.refreshToken.findUnique({
+            where: { token: refreshToken },
         });
 
-        return { accessToken, refreshToken };
+        if (token && token.userId === userId) {
+            await this.prisma.refreshToken.update({
+                where: { id: token.id },
+                data: {
+                    isRevoked: true,
+                    revokedAt: new Date(),
+                },
+            });
+        }
+
+        console.log('User logged out:', userId);
+        return true;
     }
 
-    async logout(userId: string, refreshToken: string): Promise<void> {
-        await this.prisma.refreshToken.updateMany({
-            where: {
-                userId,
-                token: refreshToken,
-            },
-            data: {
-                isRevoked: true,
-                revokedAt: new Date(),
-            },
-        });
-    }
-
-    async logoutAll(userId: string): Promise<void> {
-        await this.prisma.refreshToken.updateMany({
-            where: { userId },
-            data: {
-                isRevoked: true,
-                revokedAt: new Date(),
-            },
-        });
+    private generateTokenFamily(): string {
+        return `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
     }
 }
