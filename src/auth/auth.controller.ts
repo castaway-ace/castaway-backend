@@ -39,7 +39,7 @@ export class AuthController {
     @Req() req: RequestWithGoogleUser,
     @Res() res: Response
   ) {
-    const tokens = await this.authService.validateGoogleUser(req.user);
+    const tokens = await this.authService.validateOAuthUser(req.user);
 
     res.cookie("accessToken", tokens.accessToken, {
       httpOnly: true,
@@ -70,7 +70,7 @@ export class AuthController {
     @Req() req: RequestWithFacebookUser,
     @Res() res: Response
   ) {
-    const tokens = await this.authService.validateFacebookUser(req.user);
+    const tokens = await this.authService.validateOAuthUser(req.user);
 
     res.cookie('accessToken', tokens.accessToken, {
       httpOnly: true,

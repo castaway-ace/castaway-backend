@@ -1,6 +1,26 @@
 import { Injectable } from "@nestjs/common";
 import { PassportStrategy } from "@nestjs/passport";
-import { Strategy, VerifyCallback, Profile } from "passport-google-oauth20";
+import { Strategy, VerifyCallback } from "passport-google-oauth20";
+
+interface GoogleProfile {
+  id: string;
+  displayName: string;
+  name?: {
+    familyName?: string;
+    givenName?: string;
+  };
+  emails?: Array<{ value: string; verified?: boolean }>;
+  photos?: Array<{ value: string }>;
+  _json: {
+    sub: string;
+    email: string;
+    email_verified: boolean;
+    given_name?: string;
+    family_name?: string;
+    picture?: string;
+    locale?: string;
+  };
+}
 
 export interface GoogleUser {
   provider: "google";
@@ -11,6 +31,7 @@ export interface GoogleUser {
   avatar: string;
   accessToken: string;
   refreshToken: string | undefined;
+  expiresAt: number | undefined;
 }
 
 @Injectable()
@@ -27,7 +48,8 @@ export class GoogleStrategy extends PassportStrategy(Strategy, "google") {
   async validate(
     accessToken: string,
     refreshToken: string | undefined,
-    profile: Profile,
+    expiresAt: number,
+    profile: GoogleProfile,
     done: VerifyCallback
   ): Promise<void> {
     const { id, name, emails, photos } = profile;
@@ -41,6 +63,7 @@ export class GoogleStrategy extends PassportStrategy(Strategy, "google") {
       avatar: photos?.[0]?.value || "",
       accessToken,
       refreshToken,
+      expiresAt,
     };
 
     done(null, user);

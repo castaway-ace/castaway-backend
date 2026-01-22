@@ -1,6 +1,32 @@
 import { Injectable } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
-import { Strategy, Profile } from 'passport-facebook';
+import { Strategy } from 'passport-facebook';
+
+interface FacebookProfile {
+  id: string;
+  displayName: string;
+  name?: {
+    familyName?: string;
+    givenName?: string;
+    middleName?: string;
+  };
+  emails?: Array<{ value: string }>;
+  photos?: Array<{ value: string }>;
+  _json: {
+    id: string;
+    email?: string;
+    first_name?: string;
+    last_name?: string;
+    picture?: {
+      data: {
+        url: string;
+        width: number;
+        height: number;
+        is_silhouette: boolean;
+      };
+    };
+  };
+}
 
 export interface FacebookUser {
   provider: 'facebook';
@@ -9,7 +35,8 @@ export interface FacebookUser {
   firstName: string;
   lastName: string;
   avatar: string;
-  accessToken: string;
+  accessToken: string;  
+  expiresAt: number;
 }
 
 @Injectable()
@@ -26,8 +53,8 @@ export class FacebookStrategy extends PassportStrategy(Strategy, 'facebook') {
 
   async validate(
     accessToken: string,
-    refreshToken: string,
-    profile: Profile,
+    expiresAt: number,
+    profile: FacebookProfile,
     done: (error: any, user?: any, info?: any) => void
   ): Promise<void> {
     const { id, name, emails, photos } = profile;
@@ -40,6 +67,7 @@ export class FacebookStrategy extends PassportStrategy(Strategy, 'facebook') {
       lastName: name?.familyName || '',
       avatar: photos?.[0]?.value || '',
       accessToken,
+      expiresAt,
     };
 
     done(null, user);
