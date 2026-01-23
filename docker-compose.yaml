@@ -42,6 +42,26 @@ services:
       postgres:
         condition: service_healthy
     command: bun run start:dev
+  
+  prisma-studio:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+    container_name: castaway-prisma-studio
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@postgres:${DB_PORT}/${DB_NAME}
+    ports:
+      - "5555:5555"
+    volumes:
+      - ./backend/prisma:/app/prisma
+    networks:
+      - castaway-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: bunx prisma studio --port 5555 --browser none
 
 networks:
   castaway-network:
