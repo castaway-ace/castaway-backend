@@ -8,11 +8,13 @@ postgres_data/
 
 # Dependencies
 node_modules/
-bun.lockb
+**/node_modules/
 
 # Build outputs
 dist/
 build/
+**/dist/
+**/build/
 
 # Logs
 *.log
@@ -29,4 +31,4 @@ logs/
 Thumbs.db
 
 # Prisma
-backend/prisma/migrations/**/migration.sql
+backend/prisma/migrations/
