@@ -91,6 +91,20 @@ services:
       postgres:
         condition: service_healthy
     command: npx prisma studio --port 5555 --browser none
+  
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: castaway-tunnel
+    restart: unless-stopped
+    command: tunnel run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    networks:
+      - castaway-network
+    depends_on:
+      - backend
+    profiles:
+      - production
 
 networks:
   castaway-network:
