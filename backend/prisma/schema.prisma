@@ -15,70 +15,45 @@ datasource db {
 
 model User {
   id        String   @id @default(uuid())
-  email     String   @unique @db.VarChar(255)
-  username  String?  @unique @db.VarChar(255)
-  firstName String?  @map("first_name")
-  lastName  String?  @map("last_name")
+  email     String   @unique
+  name      String?
   avatar    String?
+
+  providers     OAuthProvider[]
+  refreshTokens RefreshToken[]
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
-
-  accounts      Account[]
-  sessions      Session[]
-  refreshTokens RefreshToken[]
 
   @@map("users")
 }
 
-model Account {
+model OAuthProvider  {
   id                String   @id @default(uuid())
   userId            String   @map("user_id")
-  provider          String // "google", "apple", "spotify"
-  providerAccountId String   @map("provider_account_id")
+  provider          String
+  providerId        String   @map("provider_id")
   accessToken       String?  @map("access_token") @db.Text
   refreshToken      String?  @map("refresh_token") @db.Text
-  expiresAt         Int?     @map("expires_at")
-  scope             String?
-  idToken           String?  @map("id_token") @db.Text
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([provider, providerAccountId])
+  @@unique([provider, providerId])
   @@map("accounts")
-}
-
-model Session {
-  id           String   @id @default(uuid())
-  userId       String   @map("user_id")
-  deviceId     String   @map("device_id")
-  deviceName   String?  @map("device_name")
-  deviceType   String?  @map("device_type") // "mobile", "desktop", "web"
-  ipAddress    String?  @map("ip_address")
-  userAgent    String?  @map("user_agent") @db.Text
-  lastActiveAt DateTime @default(now()) @map("last_active_at")
-  expiresAt    DateTime @map("expires_at")
-  createdAt    DateTime @default(now()) @map("created_at")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("sessions")
 }
 
 model RefreshToken {
   id        String    @id @default(uuid())
   userId    String    @map("user_id")
   token     String    @unique
-  family    String // For refresh token rotation
-  isRevoked Boolean   @default(false) @map("is_revoked")
   expiresAt DateTime  @map("expires_at")
-  createdAt DateTime  @default(now()) @map("created_at")
-  revokedAt DateTime? @map("revoked_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([token])
-  @@index([userId])
+  createdAt DateTime  @default(now()) @map("created_at")
+
   @@map("refresh_tokens")
 }

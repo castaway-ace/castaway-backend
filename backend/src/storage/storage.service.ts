@@ -13,11 +13,11 @@ export class StorageService {
     @Inject('MINIO_CLIENT') private readonly minioClient: Minio.Client,
     private readonly configService: ConfigService,
   ) {
-    this.bucketName = this.configService.get<string>('storage.bucketName', 'castaway-audio');
-    this.region = this.configService.get<string>(
-      'storage.region',
-      'us-west-2',
+    this.bucketName = this.configService.get<string>(
+      'storage.bucketName',
+      'castaway-audio',
     );
+    this.region = this.configService.get<string>('storage.region', 'us-west-2');
   }
 
   /**
@@ -26,18 +26,20 @@ export class StorageService {
   async ensureBucketExists(): Promise<void> {
     try {
       const exists = await this.minioClient.bucketExists(this.bucketName);
-      
+
       if (!exists) {
         await this.minioClient.makeBucket(this.bucketName, this.region);
         this.logger.log(`Bucket "${this.bucketName}" created successfully`);
-        
+
         // Set bucket policy to allow public read access for audio files
         await this.setBucketPolicy();
       } else {
         this.logger.log(`Bucket "${this.bucketName}" already exists`);
       }
     } catch (error) {
-      this.logger.error(`Error ensuring bucket exists: ${error.message}`);
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error ensuring bucket exists: ${errorMessage}`);
       throw error;
     }
   }
@@ -66,7 +68,9 @@ export class StorageService {
       );
       this.logger.log('Bucket policy set for public read access');
     } catch (error) {
-      this.logger.warn(`Could not set bucket policy: ${error.message}`);
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      this.logger.warn(`Could not set bucket policy: ${errorMessage}`);
     }
   }
 
@@ -106,7 +110,9 @@ export class StorageService {
         size: fileBuffer.length,
       };
     } catch (error) {
-      this.logger.error(`Error uploading file "${fileName}": ${error.message}`);
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error uploading file "${fileName}": ${errorMessage}`);
       throw error;
     }
   }
@@ -118,11 +124,16 @@ export class StorageService {
    */
   async getFile(fileName: string): Promise<Readable> {
     try {
-      const stream = await this.minioClient.getObject(this.bucketName, fileName);
+      const stream = await this.minioClient.getObject(
+        this.bucketName,
+        fileName,
+      );
       this.logger.log(`Retrieved file "${fileName}"`);
       return stream;
     } catch (error) {
-      this.logger.error(`Error getting file "${fileName}": ${error.message}`);
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error getting file "${fileName}": ${errorMessage}`);
       throw error;
     }
   }
@@ -134,10 +145,17 @@ export class StorageService {
    */
   async getFileStats(fileName: string): Promise<Minio.BucketItemStat> {
     try {
-      const stats = await this.minioClient.statObject(this.bucketName, fileName);
+      const stats = await this.minioClient.statObject(
+        this.bucketName,
+        fileName,
+      );
       return stats;
     } catch (error) {
-      this.logger.error(`Error getting file stats for "${fileName}": ${error.message}`);
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(
+        `Error getting file stats for "${fileName}": ${errorMessage}`,
+      );
       throw error;
     }
   }
@@ -151,7 +169,9 @@ export class StorageService {
       await this.minioClient.removeObject(this.bucketName, fileName);
       this.logger.log(`File "${fileName}" deleted successfully`);
     } catch (error) {
-      this.logger.error(`Error deleting file "${fileName}": ${error.message}`);
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error deleting file "${fileName}": ${errorMessage}`);
       throw error;
     }
   }
@@ -180,7 +200,9 @@ export class StorageService {
         });
       });
     } catch (error) {
-      this.logger.error(`Error listing files: ${error.message}`);
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error listing files: ${errorMessage}`);
       throw error;
     }
   }
@@ -195,6 +217,7 @@ export class StorageService {
       await this.minioClient.statObject(this.bucketName, fileName);
       return true;
     } catch (error) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       if (error.code === 'NotFound') {
         return false;
       }

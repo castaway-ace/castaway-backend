@@ -14,3 +14,6 @@ build/
 
 # Logs
 *.log
+/generated/prisma
+
+/generated/prisma

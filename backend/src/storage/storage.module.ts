@@ -1,8 +1,18 @@
 import { Module, OnModuleInit } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ConfigService } from '@nestjs/config';
 import * as Minio from 'minio';
-import { StorageService } from './storage.service';
-import { StorageController } from './storage.controller';
+import { StorageService } from './storage.service.js';
+import { StorageController } from './storage.controller.js';
+
+interface StorageConfig {
+  endpoint: string;
+  port: number;
+  accessKey: string;
+  secretKey: string;
+  useSSL: boolean;
+  bucketName: string;
+  region: string;
+}
 
 @Module({
   controllers: [StorageController],
@@ -10,8 +20,12 @@ import { StorageController } from './storage.controller';
     {
       provide: 'MINIO_CLIENT',
       useFactory: (configService: ConfigService) => {
-        const config = configService.get('storage');
-        
+        const config = configService.get<StorageConfig>('storage');
+
+        if (!config) {
+          throw new Error('Storage configuration not found');
+        }
+
         return new Minio.Client({
           endPoint: config.endpoint,
           port: config.port,
