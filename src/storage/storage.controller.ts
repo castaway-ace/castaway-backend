@@ -22,16 +22,16 @@ export class StorageController {
   private readonly logger = new Logger(StorageController.name);
 
   private readonly ALLOWED_MIME_TYPES = [
-    'audio/mpeg', // MP3
-    'audio/mp3', // MP3 (alternative)
-    'audio/flac', // FLAC
-    'audio/x-flac', // FLAC (alternative)
-    'audio/wav', // WAV
-    'audio/x-wav', // WAV (alternative)
-    'audio/ogg', // OGG
-    'audio/aac', // AAC
-    'audio/mp4', // M4A
-    'audio/x-m4a', // M4A (alternative)
+    'audio/mpeg',
+    'audio/mp3',
+    'audio/flac',
+    'audio/x-flac',
+    'audio/wav',
+    'audio/x-wav',
+    'audio/ogg',
+    'audio/aac',
+    'audio/mp4',
+    'audio/x-m4a',
   ];
 
   private readonly MAX_FILE_SIZE = 50 * 1024 * 1024;

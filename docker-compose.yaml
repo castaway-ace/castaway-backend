@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME}
     ports:
-      - "${DB_PORT:-5432}:5432"
+      - "${DB_PORT}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -21,22 +21,21 @@ services:
     
   backend:
     build:
-      context: ./backend
       dockerfile: Dockerfile
       target: development
     container_name: castaway-backend
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@postgres:${DB_PORT}/${DB_NAME}
-      BACKEND_PORT: ${BACKEND_PORT:-3000}
+      BACKEND_PORT: ${BACKEND_PORT}
 
-      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio}
-      MINIO_PORT: ${MINIO_PORT:-9000}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT}
+      MINIO_PORT: ${MINIO_PORT}
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-      MINIO_USE_SSL: ${MINIO_USE_SSL:-false}
-      MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME:-castaway-audio}
-      MINIO_REGION: ${MINIO_REGION:-us-west-2}
+      MINIO_USE_SSL: ${MINIO_USE_SSL}
+      MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME}
+      MINIO_REGION: ${MINIO_REGION}
 
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
@@ -49,17 +48,17 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
     ports:
-      - "${BACKEND_PORT:-3000}:3000"
+      - "${BACKEND_PORT}:3000"
     volumes:
-      - ./backend/src:/app/src
-      - ./backend/prisma:/app/prisma
+      - ./src:/app/src
+      - ./prisma:/app/prisma
       - /app/node_modules
     networks:
       - castaway-network
     depends_on:
       postgres:
         condition: service_healthy
-    command: npm run start:dev
+    command: sh -c "npx prisma migrate deploy && npm run start:dev"
   
   minio:
     image: minio/minio:latest
@@ -69,12 +68,12 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     ports:
-      - "${MINIO_API_PORT:-9000}:9000"
-      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+      - "${MINIO_API_PORT}:9000"
+      - "${MINIO_CONSOLE_PORT}:9001"
     volumes:
       - minio_data:/data
     networks:
-      - castaway-network
+      - castaway-network              
     command: server /data --console-address ":9001"
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
@@ -84,7 +83,6 @@ services:
   
   prisma-studio:
     build:
-      context: ./backend
       dockerfile: Dockerfile
       target: development
     container_name: castaway-prisma-studio
@@ -95,7 +93,7 @@ services:
     ports:
       - "5555:5555"
     volumes:
-      - ./backend/prisma:/app/prisma
+      - ./prisma:/app/prisma
       - /app/node_modules
     networks:
       - castaway-network

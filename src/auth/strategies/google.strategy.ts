@@ -1,17 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
-import { Strategy, Profile } from 'passport-facebook';
+import { Profile, Strategy, VerifyCallback } from 'passport-google-oauth20';
 import { ConfigService } from '@nestjs/config';
 
 @Injectable()
-export class FacebookStrategy extends PassportStrategy(Strategy, 'facebook') {
-  constructor(private configService: ConfigService) {
+export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
+  constructor(private config: ConfigService) {
     super({
-      clientID: process.env.FACEBOOK_APP_ID || '',
-      clientSecret: process.env.FACEBOOK_APP_SECRET || '',
-      callbackURL: process.env.FACEBOOK_CALLBACK_URL || '',
-      scope: ['email'],
-      profileFields: ['emails', 'name', 'photos'],
+      clientID: config.get<string>('auth.google.clientID', ''),
+      clientSecret: config.get<string>('auth.google.clientSecret', ''),
+      callbackURL: config.get<string>('auth.google.callbackURL', ''),
+      scope: ['email', 'profile'],
     });
   }
 
@@ -19,12 +18,12 @@ export class FacebookStrategy extends PassportStrategy(Strategy, 'facebook') {
     accessToken: string,
     refreshToken: string,
     profile: Profile,
-    done: (err: any, user: any, info?: any) => void,
+    done: VerifyCallback,
   ): any {
     const { id, name, emails, photos } = profile;
 
     const user = {
-      provider: 'facebook',
+      provider: 'google',
       providerId: id,
       email: emails && emails[0] ? emails[0].value : null,
       name: `${name?.givenName} ${name?.familyName}`,

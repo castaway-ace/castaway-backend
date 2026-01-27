@@ -37,12 +37,17 @@ interface JwtPayload {
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
+  private readonly jwtSecret: string;
+  private readonly jwtRefresh: string;
 
   constructor(
     private jwt: JwtService,
     private prisma: PrismaService,
     private config: ConfigService,
-  ) {}
+  ) {
+    this.jwtSecret = this.config.get<string>('auth.jwt.secret', '');
+    this.jwtRefresh = this.config.get<string>('auth.jwtRefresh.secret', '');
+  }
 
   async oauthLogin(oauthUser: OAuthUserData) {
     try {
@@ -123,7 +128,6 @@ export class AuthService {
           where: { id: user.id },
           data: {
             name: name || user.name,
-
             avatar: avatar || user.avatar,
           },
         });
@@ -135,11 +139,8 @@ export class AuthService {
       return {
         user: {
           id: user.id,
-
           email: user.email,
-
           name: user.name,
-
           avatar: user.avatar,
         },
         ...tokens,
@@ -158,25 +159,22 @@ export class AuthService {
   private async generateTokens(user: UserWithProviders): Promise<Tokens> {
     const payload: JwtPayload = {
       sub: user.id,
-
       email: user.email,
-
       name: user.name,
     };
 
     const [accessToken, refreshToken] = await Promise.all([
       this.jwt.signAsync(payload, {
         expiresIn: '15m',
-        secret: process.env.JWT_SECRET,
+        secret: this.jwtSecret,
       }),
 
       this.jwt.signAsync(payload, {
         expiresIn: '7d',
-        secret: process.env.JWT_REFRESH_SECRET,
+        secret: this.jwtRefresh,
       }),
     ]);
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     const hashedToken = await bcrypt.hash(refreshToken, 10);
 
     // Calculate expiration (7 days from now)
@@ -186,7 +184,6 @@ export class AuthService {
     await this.prisma.refreshToken.create({
       data: {
         userId: user.id,
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         token: hashedToken,
         expiresAt,
       },
@@ -199,7 +196,7 @@ export class AuthService {
     try {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const payload = await this.jwt.verifyAsync(refreshToken, {
-        secret: process.env.JWT_REFRESH_SECRET,
+        secret: this.jwtRefresh,
       });
 
       const user = await this.prisma.user.findUnique({
@@ -214,7 +211,6 @@ export class AuthService {
 
       const storedToken = await this.findMatchingToken(
         refreshToken,
-
         user.refreshTokens,
       );
 
@@ -255,7 +251,6 @@ export class AuthService {
     tokens: RefreshToken[],
   ): Promise<RefreshToken | null> {
     for (const storedToken of tokens) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       const matches = await bcrypt.compare(refreshToken, storedToken.token);
       if (matches) {
         return storedToken;

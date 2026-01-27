@@ -1,5 +1,19 @@
-.env
-.env.local
 node_modules/
+
+# Prisma
+src/generated/
+
+# Build output
 dist/
-postgres_data/
+build/
+
+# Environment
+.env
+.env.test
+.env.local
+
+# Logs
+*.log
+/generated/prisma
+
+/generated/prisma

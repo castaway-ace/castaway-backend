@@ -15,7 +15,6 @@ import { GoogleOAuthGuard } from './guards/google-oauth.guard.js';
 import { FacebookOAuthGuard } from './guards/facebook-oauth.guard.js';
 import { ConfigService } from '@nestjs/config';
 import { JwtAuthGuard } from './guards/jwt-oauth.guard.js';
-import { AuthConfig } from '../config/config.types.js';
 
 interface RequestWithUser extends Request {
   user: {
@@ -64,17 +63,13 @@ export class AuthController {
 
       // Set tokens in HTTP-only cookies
       this.setAuthCookies(res, result.accessToken, result.refreshToken);
-
-      // Redirect to frontend
-      const authConfig = this.config.get<AuthConfig>('auth');
-      const frontendUrl = authConfig?.frontendUrl || 'http://localhost:3000';
-      res.redirect(`${frontendUrl}/auth/success`);
+      res.redirect(`/auth/success`);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
 
       this.logger.error(`Google auth failed: ${errorMessage}`);
-      res.redirect(`${this.config.get('auth.frontendUrl')}/auth/error`);
+      res.redirect(`/auth/error`);
     }
   }
 
@@ -104,18 +99,13 @@ export class AuthController {
       // Set tokens in HTTP-only cookies
       this.setAuthCookies(res, result.accessToken, result.refreshToken);
 
-      // Redirect to frontend
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      const authConfig = this.config.get<AuthConfig>('auth');
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-      const frontendUrl = authConfig?.frontendUrl || 'http://localhost:3000';
-      res.redirect(`${frontendUrl}/auth/success`);
+      res.redirect(`auth/success`);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
 
       this.logger.error(`Google auth failed: ${errorMessage}`);
-      res.redirect(`${this.config.get('auth.frontendUrl')}/auth/error`);
+      res.redirect(`/auth/error`);
     }
   }
 

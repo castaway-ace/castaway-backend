@@ -15,9 +15,8 @@ export default registerAs('auth', () => ({
     callbackURL: process.env.GOOGLE_CALLBACK_URL || '',
   },
   facebook: {
-    clientID: process.env.FACEBOOK_APP_ID || '',
-    clientSecret: process.env.FACEBOOK_APP_SECRET || '',
+    appId: process.env.FACEBOOK_APP_ID || '',
+    appSecret: process.env.FACEBOOK_APP_SECRET || '',
     callbackURL: process.env.FACEBOOK_CALLBACK_URL || '',
   },
-  frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
 }));

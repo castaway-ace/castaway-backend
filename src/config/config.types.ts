@@ -25,7 +25,6 @@ export interface AuthConfig {
   jwtRefresh: JwtRefreshConfig;
   google: GoogleOAuthConfig;
   facebook: FacebookOAuthConfig;
-  frontendUrl: string;
 }
 
 export interface StorageConfig {

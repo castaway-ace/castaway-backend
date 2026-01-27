@@ -3,16 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import * as Minio from 'minio';
 import { StorageService } from './storage.service.js';
 import { StorageController } from './storage.controller.js';
-
-interface StorageConfig {
-  endpoint: string;
-  port: number;
-  accessKey: string;
-  secretKey: string;
-  useSSL: boolean;
-  bucketName: string;
-  region: string;
-}
+import { StorageConfig } from 'src/config/config.types.js';
 
 @Module({
   controllers: [StorageController],
