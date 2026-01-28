@@ -7,6 +7,7 @@
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
+  moduleFormat    = "cjs"
 }
 
 datasource db {
@@ -56,4 +57,77 @@ model RefreshToken {
   createdAt DateTime  @default(now()) @map("created_at")
 
   @@map("refresh_tokens")
+}
+
+model Artist {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  albums    Album[]
+  tracks    TrackArtist[]
+  artistArtPath String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("artists")
+}
+
+model Album {
+  id           String   @id @default(uuid())
+  title        String
+  artist       Artist   @relation(fields: [artistId], references: [id])
+  artistId     String
+  releaseYear  Int?
+  genre        String?
+  albumArtKey  String?
+  tracks       Track[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([title, artistId])
+
+  @@map("albums")
+}
+
+model Track {
+  id           String     @id @default(uuid())
+  title        String
+  album        Album      @relation(fields: [albumId], references: [id])
+  albumId      String
+  artists      TrackArtist[] 
+  trackNumber  Int?
+  discNumber   Int?
+  duration     Int?
+  audioFile    AudioFile?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@map("tracks")
+}
+
+model TrackArtist {
+  track     Track    @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  trackId   String
+  artist    Artist   @relation(fields: [artistId], references: [id], onDelete: Cascade)
+  artistId  String
+  order     Int      @default(0)
+  
+  @@id([trackId, artistId])
+  
+  @@map("track_artists")
+}
+
+model AudioFile {
+  id         String   @id @default(uuid())
+  track      Track    @relation(fields: [trackId], references: [id])
+  trackId    String   @unique
+  storageKey  String
+  format     String
+  bitrate    Int?
+  sampleRate Int?
+  fileSize   BigInt
+  checksum   String   @unique
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+   @@map("audio_files")
 }

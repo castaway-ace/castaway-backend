@@ -49,6 +49,7 @@ services:
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
     ports:
       - "${BACKEND_PORT}:3000"
+      - "${PRISMA_PORT}:5555"
     volumes:
       - ./src:/app/src
       - ./prisma:/app/prisma
@@ -80,27 +81,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-  
-  prisma-studio:
-    build:
-      dockerfile: Dockerfile
-      target: development
-    container_name: castaway-prisma-studio
-    restart: unless-stopped
-    environment:
-      DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@postgres:${DB_PORT}/${DB_NAME}
-      HOST: 0.0.0.0
-    ports:
-      - "5555:5555"
-    volumes:
-      - ./prisma:/app/prisma
-      - /app/node_modules
-    networks:
-      - castaway-network
-    depends_on:
-      postgres:
-        condition: service_healthy
-    command: npx prisma studio --port 5555 --browser none
   
   cloudflared:
     image: cloudflare/cloudflared:latest

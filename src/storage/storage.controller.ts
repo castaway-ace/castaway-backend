@@ -1,129 +1,50 @@
 import {
   Controller,
-  Post,
   Get,
   Param,
-  UploadedFile,
-  UseInterceptors,
   Res,
   HttpStatus,
   Logger,
-  BadRequestException,
   Headers,
-  UseGuards,
+  NotFoundException,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
 import { type Response } from 'express';
 import { StorageService } from './storage.service.js';
-import { JwtAuthGuard } from '../auth/guards/jwt-oauth.guard.js';
 
 @Controller('storage')
 export class StorageController {
   private readonly logger = new Logger(StorageController.name);
 
-  private readonly ALLOWED_MIME_TYPES = [
-    'audio/mpeg',
-    'audio/mp3',
-    'audio/flac',
-    'audio/x-flac',
-    'audio/wav',
-    'audio/x-wav',
-    'audio/ogg',
-    'audio/aac',
-    'audio/mp4',
-    'audio/x-m4a',
-  ];
-
-  private readonly MAX_FILE_SIZE = 50 * 1024 * 1024;
-
-  constructor(private readonly storageService: StorageService) {}
+  constructor(private readonly storage: StorageService) {}
 
   /**
-   * Test endpoint to upload a file
-   * POST /storage/upload
+   * Stream an audio file with range request support
+   * GET /storage/stream/tracks/:storageKey
+   * Example: /storage/stream/tracks/abc123.mp3
    */
-  @Post('upload')
-  @UseGuards(JwtAuthGuard)
-  @UseInterceptors(FileInterceptor('file'))
-  async uploadFile(@UploadedFile() file: Express.Multer.File) {
-    if (!file) {
-      return {
-        statusCode: HttpStatus.BAD_REQUEST,
-        message: 'No file provided',
-      };
-    }
-
-    // Validate file type
-    if (!this.ALLOWED_MIME_TYPES.includes(file.mimetype)) {
-      throw new BadRequestException(
-        `Invalid file type. Allowed types: ${this.ALLOWED_MIME_TYPES.join(', ')}`,
-      );
-    }
-
-    // Validate file size
-    if (file.size > this.MAX_FILE_SIZE) {
-      throw new BadRequestException(
-        `File too large. Maximum size: ${this.MAX_FILE_SIZE / 1024 / 1024}MB`,
-      );
-    }
-
-    try {
-      const result = await this.storageService.uploadFile(
-        file.originalname,
-        file.buffer,
-        file.mimetype,
-        {
-          originalName: file.originalname,
-          uploadedAt: new Date().toISOString(),
-        },
-      );
-
-      return {
-        statusCode: HttpStatus.OK,
-        message: 'File uploaded successfully',
-        data: result,
-      };
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(`Upload failed: ${errorMessage}`);
-      return {
-        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-        message: 'Upload failed',
-        error: errorMessage,
-      };
-    }
-  }
-
-  /**
-   * Test endpoint to download a file
-   * GET /storage/download/:filename
-   */
-  @Get('stream/:filename')
-  async streamFile(
-    @Param('filename') filename: string,
+  @Get('stream/tracks/:storageKey')
+  async streamTrack(
+    @Param('storageKey') storageKey: string,
     @Headers('range') range: string,
     @Res() res: Response,
   ) {
     try {
-      // Check if file exists
-      const exists = await this.storageService.fileExists(filename);
+      const fullStorageKey = `tracks/${storageKey}`;
 
+      // Check if file exists
+      const exists = await this.storage.fileExists(fullStorageKey);
       if (!exists) {
-        return res.status(HttpStatus.NOT_FOUND).json({
-          message: 'File not found',
-        });
+        throw new NotFoundException('Track not found');
       }
 
       // Get file stats for content type and size
-      const stats = await this.storageService.getFileStats(filename);
+      const stats = await this.storage.getFileStats(fullStorageKey);
 
       // Set content type (critical for audio playback)
-      res.setHeader(
-        'Content-Type',
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-        stats.metaData['content-type'] || 'audio/mpeg',
-      );
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      const contentType = stats.metaData['content-type'] || 'audio/mpeg';
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+      res.setHeader('Content-Type', contentType);
 
       // Enable caching for better performance
       res.setHeader('Cache-Control', 'public, max-age=31536000');
@@ -136,43 +57,74 @@ export class StorageController {
         const end = parts[1] ? parseInt(parts[1], 10) : stats.size - 1;
         const chunkSize = end - start + 1;
 
+        // Validate range
+        if (start >= stats.size || end >= stats.size) {
+          res.status(HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE);
+          res.setHeader('Content-Range', `bytes */${stats.size}`);
+          return res.end();
+        }
+
         // Set partial content headers
         res.status(HttpStatus.PARTIAL_CONTENT);
         res.setHeader('Content-Range', `bytes ${start}-${end}/${stats.size}`);
         res.setHeader('Content-Length', chunkSize);
 
         this.logger.log(
-          `Streaming ${filename} [${start}-${end}/${stats.size}]`,
+          `Streaming ${storageKey} [${start}-${end}/${stats.size}]`,
         );
+
+        // Use getFileRange for efficient partial streaming
+        const fileStream = await this.storage.getFileRange(
+          fullStorageKey,
+          start,
+          chunkSize,
+        );
+
+        fileStream.pipe(res);
+
+        fileStream.on('error', (error) => {
+          this.logger.error(`Stream error for ${storageKey}: ${error.message}`);
+          if (!res.headersSent) {
+            res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+              message: 'Stream error',
+            });
+          }
+        });
       } else {
         // Full file request
         res.setHeader('Content-Length', stats.size);
-        res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+        res.setHeader(
+          'Content-Disposition',
+          `inline; filename="${storageKey}"`,
+        );
 
         this.logger.log(
-          `Streaming ${filename} [full file: ${stats.size} bytes]`,
+          `Streaming ${storageKey} [full file: ${stats.size} bytes]`,
         );
+
+        const fileStream = await this.storage.getFile(fullStorageKey);
+
+        fileStream.pipe(res);
+
+        fileStream.on('error', (error) => {
+          this.logger.error(`Stream error for ${storageKey}: ${error.message}`);
+          if (!res.headersSent) {
+            res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+              message: 'Stream error',
+            });
+          }
+        });
       }
-
-      // Get file stream
-      const fileStream = await this.storageService.getFile(filename);
-
-      // Pipe the stream to response
-      fileStream.pipe(res);
-
-      fileStream.on('error', (error) => {
-        this.logger.error(`Stream error for ${filename}: ${error.message}`);
-        if (!res.headersSent) {
-          res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
-            message: 'Stream error',
-          });
-        }
-      });
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(`Download failed: ${errorMessage}`);
+      this.logger.error(`Streaming failed: ${errorMessage}`);
       if (!res.headersSent) {
+        if (error instanceof NotFoundException) {
+          return res.status(HttpStatus.NOT_FOUND).json({
+            message: 'Track not found',
+          });
+        }
         return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
           message: 'Streaming failed',
           error: errorMessage,
@@ -182,29 +134,65 @@ export class StorageController {
   }
 
   /**
-   * Test endpoint to list all files
-   * GET /storage/files
+   * Stream album art
+   * GET /storage/stream/album-art/:storageKey
+   * Example: /storage/stream/album-art/abc123.jpg
    */
-  @Get('files')
-  @UseGuards(JwtAuthGuard)
-  async listFiles() {
+  @Get('stream/album-art/:storageKey')
+  async streamAlbumArt(
+    @Param('storageKey') storageKey: string,
+    @Res() res: Response,
+  ) {
     try {
-      const files = await this.storageService.listFiles();
+      const fullStorageKey = `album-art/${storageKey}`;
 
-      return {
-        statusCode: HttpStatus.OK,
-        message: 'Files retrieved successfully',
-        data: files,
-      };
+      // Check if file exists
+      const exists = await this.storage.fileExists(fullStorageKey);
+      if (!exists) {
+        throw new NotFoundException('Album art not found');
+      }
+
+      // Get file stats
+      const stats = await this.storage.getFileStats(fullStorageKey);
+
+      // Set headers for image
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      const contentType = stats.metaData['content-type'] || 'image/jpeg';
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Length', stats.size);
+      res.setHeader('Cache-Control', 'public, max-age=31536000');
+
+      this.logger.log(`Streaming album art: ${storageKey}`);
+
+      const fileStream = await this.storage.getFile(fullStorageKey);
+      fileStream.pipe(res);
+
+      fileStream.on('error', (error) => {
+        this.logger.error(
+          `Stream error for album art ${storageKey}: ${error.message}`,
+        );
+        if (!res.headersSent) {
+          res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+            message: 'Stream error',
+          });
+        }
+      });
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(`List files failed: ${errorMessage}`);
-      return {
-        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-        message: 'Failed to list files',
-        error: errorMessage,
-      };
+      this.logger.error(`Album art streaming failed: ${errorMessage}`);
+      if (!res.headersSent) {
+        if (error instanceof NotFoundException) {
+          return res.status(HttpStatus.NOT_FOUND).json({
+            message: 'Album art not found',
+          });
+        }
+        return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+          message: 'Streaming failed',
+          error: errorMessage,
+        });
+      }
     }
   }
 }

@@ -3,11 +3,26 @@ import { ConfigService } from '@nestjs/config';
 import * as Minio from 'minio';
 import { Readable } from 'stream';
 
+export interface TrackUploadResult {
+  storageKey: string;
+  size: number;
+  etag: string;
+}
+
+export interface AlbumArtUploadResult {
+  storageKey: string;
+  size: number;
+  etag: string;
+}
+
 @Injectable()
 export class StorageService {
   private readonly logger = new Logger(StorageService.name);
   private readonly bucketName: string;
   private readonly region: string;
+
+  private readonly TRACK_PREFIX = 'tracks/';
+  private readonly ALBUM_ART_PREFIX = 'album-art/';
 
   constructor(
     @Inject('MINIO_CLIENT') private readonly minioClient: Minio.Client,
@@ -31,7 +46,6 @@ export class StorageService {
         await this.minioClient.makeBucket(this.bucketName, this.region);
         this.logger.log(`Bucket "${this.bucketName}" created successfully`);
 
-        // Set bucket policy to allow public read access for audio files
         await this.setBucketPolicy();
       } else {
         this.logger.log(`Bucket "${this.bucketName}" already exists`);
@@ -82,79 +96,174 @@ export class StorageService {
    * @param metadata - Optional metadata to attach to the file
    * @returns Object containing bucket name, file name, and size
    */
-  async uploadFile(
-    fileName: string,
+  async uploadTrack(
+    checksum: string,
+    fileExtension: string,
     fileBuffer: Buffer,
     contentType: string,
     metadata?: Record<string, string>,
-  ): Promise<{ bucket: string; fileName: string; size: number }> {
+  ): Promise<TrackUploadResult> {
+    const storageKey = `${this.TRACK_PREFIX}${checksum}.${fileExtension}`;
+
     try {
       const metaData = {
         'Content-Type': contentType,
         ...metadata,
       };
 
-      await this.minioClient.putObject(
+      const uploadInfo = await this.minioClient.putObject(
         this.bucketName,
-        fileName,
+        storageKey,
         fileBuffer,
         fileBuffer.length,
         metaData,
       );
 
-      this.logger.log(`File "${fileName}" uploaded successfully`);
+      this.logger.log(`Track uploaded successfully: ${storageKey}`);
 
       return {
-        bucket: this.bucketName,
-        fileName,
+        storageKey,
         size: fileBuffer.length,
+        etag: uploadInfo.etag,
       };
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(`Error uploading file "${fileName}": ${errorMessage}`);
+      this.logger.error(`Error uploading track: ${errorMessage}`);
       throw error;
     }
   }
 
   /**
-   * Gets a file from MinIO
-   * @param fileName - Name of the file to retrieve
+   * Uploads album art to MinIO
+   * Checks if art with same checksum already exists to avoid duplicates
+   * @param artChecksum - Checksum of the album art (for deduplication)
+   * @param fileExtension - File extension (jpg, png, etc.)
+   * @param imageBuffer - Image content as Buffer
+   * @param contentType - MIME type of the image
+   * @returns Storage key, size, and etag
+   */
+  async uploadAlbumArt(
+    artChecksum: string,
+    fileExtension: string,
+    imageBuffer: Buffer,
+    contentType: string,
+  ): Promise<AlbumArtUploadResult> {
+    const storageKey = `${this.ALBUM_ART_PREFIX}${artChecksum}.${fileExtension}`;
+
+    try {
+      // Check if this exact album art already exists
+      const exists = await this.fileExists(storageKey);
+
+      if (exists) {
+        const stats = await this.getFileStats(storageKey);
+        this.logger.log(`Album art already exists: ${storageKey}`);
+        return {
+          storageKey,
+          size: stats.size,
+          etag: stats.etag,
+        };
+      }
+
+      // Upload new album art
+      const metaData = {
+        'Content-Type': contentType,
+      };
+
+      const uploadInfo = await this.minioClient.putObject(
+        this.bucketName,
+        storageKey,
+        imageBuffer,
+        imageBuffer.length,
+        metaData,
+      );
+
+      this.logger.log(`Album art uploaded successfully: ${storageKey}`);
+
+      return {
+        storageKey,
+        size: imageBuffer.length,
+        etag: uploadInfo.etag,
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error uploading album art: ${errorMessage}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Gets a file from MinIO by storage key
+   * @param storageKey - Full storage key including prefix
    * @returns Readable stream of the file
    */
-  async getFile(fileName: string): Promise<Readable> {
+  async getFile(storageKey: string): Promise<Readable> {
     try {
       const stream = await this.minioClient.getObject(
         this.bucketName,
-        fileName,
+        storageKey,
       );
-      this.logger.log(`Retrieved file "${fileName}"`);
+      this.logger.log(`Retrieved file: ${storageKey}`);
       return stream;
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(`Error getting file "${fileName}": ${errorMessage}`);
+      this.logger.error(`Error getting file "${storageKey}": ${errorMessage}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Gets a partial file from MinIO (for range requests)
+   * @param storageKey - Full storage key including prefix
+   * @param offset - Byte offset to start reading from
+   * @param length - Number of bytes to read
+   * @returns Readable stream of the file portion
+   */
+  async getFileRange(
+    storageKey: string,
+    offset: number,
+    length: number,
+  ): Promise<Readable> {
+    try {
+      const stream = await this.minioClient.getPartialObject(
+        this.bucketName,
+        storageKey,
+        offset,
+        length,
+      );
+      this.logger.log(
+        `Retrieved partial file: ${storageKey} (${offset}-${offset + length})`,
+      );
+      return stream;
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(
+        `Error getting partial file "${storageKey}": ${errorMessage}`,
+      );
       throw error;
     }
   }
 
   /**
    * Gets file metadata without downloading the file
-   * @param fileName - Name of the file
+   * @param storageKey - Full storage key including prefix
    * @returns File statistics including size, ETag, and metadata
    */
-  async getFileStats(fileName: string): Promise<Minio.BucketItemStat> {
+  async getFileStats(storageKey: string): Promise<Minio.BucketItemStat> {
     try {
       const stats = await this.minioClient.statObject(
         this.bucketName,
-        fileName,
+        storageKey,
       );
       return stats;
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(
-        `Error getting file stats for "${fileName}": ${errorMessage}`,
+        `Error getting file stats for "${storageKey}": ${errorMessage}`,
       );
       throw error;
     }
@@ -162,26 +271,42 @@ export class StorageService {
 
   /**
    * Deletes a file from MinIO
-   * @param fileName - Name of the file to delete
+   * @param storageKey - Full storage key including prefix
    */
-  async deleteFile(fileName: string): Promise<void> {
+  async deleteFile(storageKey: string): Promise<void> {
     try {
-      await this.minioClient.removeObject(this.bucketName, fileName);
-      this.logger.log(`File "${fileName}" deleted successfully`);
+      await this.minioClient.removeObject(this.bucketName, storageKey);
+      this.logger.log(`File deleted successfully: ${storageKey}`);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(`Error deleting file "${fileName}": ${errorMessage}`);
+      this.logger.error(`Error deleting file "${storageKey}": ${errorMessage}`);
       throw error;
     }
   }
 
   /**
-   * Lists all files in the bucket with optional prefix filter
+   * Lists all track files
+   * @returns Array of file information
+   */
+  async listTracks(): Promise<Minio.BucketItem[]> {
+    return this.listFiles(this.TRACK_PREFIX);
+  }
+
+  /**
+   * Lists all album art files
+   * @returns Array of file information
+   */
+  async listAlbumArt(): Promise<Minio.BucketItem[]> {
+    return this.listFiles(this.ALBUM_ART_PREFIX);
+  }
+
+  /**
+   * Lists files with optional prefix filter
    * @param prefix - Optional prefix to filter files
    * @returns Array of file information
    */
-  async listFiles(prefix?: string): Promise<Minio.BucketItem[]> {
+  private async listFiles(prefix?: string): Promise<Minio.BucketItem[]> {
     try {
       const stream = this.minioClient.listObjects(
         this.bucketName,
@@ -195,7 +320,9 @@ export class StorageService {
         stream.on('data', (obj: Minio.BucketItem) => files.push(obj));
         stream.on('error', reject);
         stream.on('end', () => {
-          this.logger.log(`Listed ${files.length} files`);
+          this.logger.log(
+            `Listed ${files.length} files${prefix ? ` with prefix "${prefix}"` : ''}`,
+          );
           resolve(files);
         });
       });
@@ -209,18 +336,49 @@ export class StorageService {
 
   /**
    * Checks if a file exists in the bucket
-   * @param fileName - Name of the file to check
+   * @param storageKey - Full storage key including prefix
    * @returns True if file exists, false otherwise
    */
-  async fileExists(fileName: string): Promise<boolean> {
+  async fileExists(storageKey: string): Promise<boolean> {
     try {
-      await this.minioClient.statObject(this.bucketName, fileName);
+      await this.minioClient.statObject(this.bucketName, storageKey);
       return true;
     } catch (error) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      if (error.code === 'NotFound') {
+      if (
+        error instanceof Error &&
+        'code' in error &&
+        error.code === 'NotFound'
+      ) {
         return false;
       }
+      throw error;
+    }
+  }
+
+  /**
+   * Generates a presigned URL for temporary access to a file
+   * Useful for mobile apps to download files directly from MinIO
+   * @param storageKey - Full storage key including prefix
+   * @param expirySeconds - URL expiry time in seconds (default: 24 hours)
+   * @returns Presigned URL
+   */
+  async getPresignedUrl(
+    storageKey: string,
+    expirySeconds: number = 86400,
+  ): Promise<string> {
+    try {
+      const url = await this.minioClient.presignedGetObject(
+        this.bucketName,
+        storageKey,
+        expirySeconds,
+      );
+      return url;
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(
+        `Error generating presigned URL for "${storageKey}": ${errorMessage}`,
+      );
       throw error;
     }
   }

@@ -5,8 +5,9 @@ import { ConfigModule } from '@nestjs/config';
 import { StorageModule } from './storage/storage.module.js';
 import storageConfig from './config/storage.config.js';
 import { AuthModule } from './auth/auth.module.js';
-import { PrismaService } from './prisma/prisma.service.js';
 import authConfig from './config/auth.config.js';
+import { PrismaModule } from './prisma/prisma.module.js';
+import { MusicModule } from './music/music.module.js';
 
 @Module({
   imports: [
@@ -16,8 +17,10 @@ import authConfig from './config/auth.config.js';
     }),
     StorageModule,
     AuthModule,
+    PrismaModule,
+    MusicModule,
   ],
   controllers: [AppController],
-  providers: [AppService, PrismaService],
+  providers: [AppService],
 })
 export class AppModule {}
