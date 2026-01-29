@@ -53,7 +53,6 @@ export class MusicService {
     const checksum = this.calculateChecksum(file.buffer);
 
     // Step 2: Check for exact duplicate (now that checksum is unique)
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     const existingFile = await this.prisma.audioFile.findUnique({
       where: { checksum },
       include: {
@@ -63,7 +62,6 @@ export class MusicService {
 
     if (existingFile) {
       throw new ConflictException(
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         `This exact file already exists as track: ${existingFile.track.title}`,
       );
     }
@@ -72,7 +70,6 @@ export class MusicService {
     const metadata = await this.extractMetadata(file.buffer, file.mimetype);
 
     // Step 4: Check for metadata-based duplicates
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const potentialDuplicate = await this.findMetadataDuplicate(metadata);
 
     if (potentialDuplicate) {
@@ -102,7 +99,6 @@ export class MusicService {
     }
 
     // Step 7: Create database records (transaction)
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const track = await this.createTrackWithMetadata(
       metadata,
       audioUpload.storageKey,
@@ -112,7 +108,6 @@ export class MusicService {
     );
 
     return {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       trackId: track.id,
       duplicate: !!potentialDuplicate,
       message: potentialDuplicate
@@ -129,7 +124,6 @@ export class MusicService {
 
     // Filter by artist name
     if (filter.artist) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       where.artists = {
         some: {
           artist: {
@@ -144,7 +138,6 @@ export class MusicService {
 
     // Filter by album title
     if (filter.album) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       where.album = {
         title: {
           contains: filter.album,
@@ -153,9 +146,7 @@ export class MusicService {
       };
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     const tracks = await this.prisma.track.findMany({
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       where,
       include: {
         album: {
@@ -180,12 +171,9 @@ export class MusicService {
     });
 
     // Transform to clean response format
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     return tracks.map((track) => {
       // Sort artists by order in application code
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       const sortedArtists = [...track.artists].sort(
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         (a, b) => a.order - b.order,
       );
 
@@ -227,7 +215,6 @@ export class MusicService {
    * Get a single track by ID
    */
   async getTrack(id: string) {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     const track = await this.prisma.track.findUnique({
       where: { id },
       include: {
@@ -250,7 +237,6 @@ export class MusicService {
     }
 
     // Sort artists by order in application code
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
     const sortedArtists = [...track.artists].sort((a, b) => a.order - b.order);
 
     return {
@@ -290,7 +276,6 @@ export class MusicService {
    * Get all albums
    */
   async getAlbums() {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     const albums = await this.prisma.album.findMany({
       include: {
         artist: true,
@@ -303,7 +288,6 @@ export class MusicService {
       orderBy: [{ artist: { name: 'asc' } }, { releaseYear: 'asc' }],
     });
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     return albums.map((album) => ({
       id: album.id,
       title: album.title,
@@ -315,9 +299,7 @@ export class MusicService {
         name: album.artist.name,
       },
       trackCount: album.tracks.length,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       totalDuration: album.tracks.reduce(
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-member-access
         (sum, track) => sum + (track.duration || 0),
         0,
       ),
@@ -328,7 +310,6 @@ export class MusicService {
    * Get all tracks in an album
    */
   async getAlbumTracks(albumId: string) {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     const album = await this.prisma.album.findUnique({
       where: { id: albumId },
       include: {
@@ -395,7 +376,6 @@ export class MusicService {
    * Get all artists
    */
   async getArtists() {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     const artists = await this.prisma.artist.findMany({
       include: {
         albums: {
@@ -422,7 +402,6 @@ export class MusicService {
    * Get all albums by an artist
    */
   async getArtistAlbums(artistId: string) {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     const artist = await this.prisma.artist.findUnique({
       where: { id: artistId },
       include: {
@@ -551,7 +530,6 @@ export class MusicService {
     album: string;
     artists: string[];
   }) {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     const tracks = await this.prisma.track.findMany({
       where: {
         title: metadata.title,
@@ -569,12 +547,10 @@ export class MusicService {
     });
 
     for (const track of tracks) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-member-access
       const trackArtists = track.artists.map((ta) => ta.artist.name).sort();
       const newArtists = [...metadata.artists].sort();
 
       if (JSON.stringify(trackArtists) === JSON.stringify(newArtists)) {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-return
         return track;
       }
     }
@@ -647,7 +623,6 @@ export class MusicService {
       // 5. Create track-artist relationships
       await Promise.all(
         trackArtists.map((artist, index) =>
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-return
           tx.trackArtist.create({
             data: {
               trackId: track.id,
@@ -671,7 +646,6 @@ export class MusicService {
         },
       });
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-return
       return track;
     });
   }

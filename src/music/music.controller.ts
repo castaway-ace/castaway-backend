@@ -92,7 +92,6 @@ export class MusicController {
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ) {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const tracks = await this.musicService.getTracks({
       artist,
       album,
@@ -102,7 +101,6 @@ export class MusicController {
 
     return {
       statusCode: HttpStatus.OK,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       data: tracks,
     };
   }
@@ -127,12 +125,10 @@ export class MusicController {
    */
   @Get('albums')
   async getAlbums() {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const albums = await this.musicService.getAlbums();
 
     return {
       statusCode: HttpStatus.OK,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       data: albums,
     };
   }
@@ -157,12 +153,10 @@ export class MusicController {
    */
   @Get('artists')
   async getArtists() {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const artists = await this.musicService.getArtists();
 
     return {
       statusCode: HttpStatus.OK,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       data: artists,
     };
   }

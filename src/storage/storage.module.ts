@@ -10,19 +10,19 @@ import { StorageConfig } from 'src/config/config.types.js';
   providers: [
     {
       provide: 'MINIO_CLIENT',
-      useFactory: (configService: ConfigService) => {
-        const config = configService.get<StorageConfig>('storage');
+      useFactory: (config: ConfigService) => {
+        const storageConfig = config.get<StorageConfig>('storage');
 
-        if (!config) {
+        if (!storageConfig) {
           throw new Error('Storage configuration not found');
         }
 
         return new Minio.Client({
-          endPoint: config.endpoint,
-          port: config.port,
-          useSSL: config.useSSL,
-          accessKey: config.accessKey,
-          secretKey: config.secretKey,
+          endPoint: storageConfig.endpoint,
+          port: storageConfig.port,
+          useSSL: storageConfig.useSSL,
+          accessKey: storageConfig.accessKey,
+          secretKey: storageConfig.secretKey,
         });
       },
       inject: [ConfigService],
@@ -32,9 +32,9 @@ import { StorageConfig } from 'src/config/config.types.js';
   exports: ['MINIO_CLIENT', StorageService],
 })
 export class StorageModule implements OnModuleInit {
-  constructor(private readonly storageService: StorageService) {}
+  constructor(private readonly storage: StorageService) {}
 
   async onModuleInit() {
-    await this.storageService.ensureBucketExists();
+    await this.storage.ensureBucketExists();
   }
 }
