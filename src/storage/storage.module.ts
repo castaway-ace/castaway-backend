@@ -1,12 +1,10 @@
 import { Module, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as Minio from 'minio';
+import { Client } from 'minio';
 import { StorageService } from './storage.service.js';
-import { StorageController } from './storage.controller.js';
 import { StorageConfig } from 'src/config/config.types.js';
 
 @Module({
-  controllers: [StorageController],
   providers: [
     {
       provide: 'MINIO_CLIENT',
@@ -17,7 +15,7 @@ import { StorageConfig } from 'src/config/config.types.js';
           throw new Error('Storage configuration not found');
         }
 
-        return new Minio.Client({
+        return new Client({
           endPoint: storageConfig.endpoint,
           port: storageConfig.port,
           useSSL: storageConfig.useSSL,
@@ -29,7 +27,7 @@ import { StorageConfig } from 'src/config/config.types.js';
     },
     StorageService,
   ],
-  exports: ['MINIO_CLIENT', StorageService],
+  exports: [StorageService],
 })
 export class StorageModule implements OnModuleInit {
   constructor(private readonly storage: StorageService) {}

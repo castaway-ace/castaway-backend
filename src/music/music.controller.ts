@@ -7,10 +7,14 @@ import {
   UploadedFile,
   UseInterceptors,
   UseGuards,
+  Headers,
+  Res,
   BadRequestException,
   HttpStatus,
   Logger,
+  NotFoundException,
 } from '@nestjs/common';
+import { type Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { MusicService } from './music.service.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-oauth.guard.js';
@@ -120,12 +124,12 @@ export class MusicController {
   }
 
   /**
-   * Get all albums
+   * Get all albums by an artist
    * GET /music/albums
    */
-  @Get('albums')
-  async getAlbums() {
-    const albums = await this.musicService.getAlbums();
+  @Get('albums/:id')
+  async getArtistAlbums(@Param('id') id: string) {
+    const albums = await this.musicService.getArtistAlbums(id);
 
     return {
       statusCode: HttpStatus.OK,
@@ -161,17 +165,29 @@ export class MusicController {
     };
   }
 
-  /**
-   * Get all albums by an artist
-   * GET /music/artists/:id/albums
-   */
-  @Get('artists/:id/albums')
-  async getArtistAlbums(@Param('id') id: string) {
-    const albums = await this.musicService.getArtistAlbums(id);
+  @Get('tracks/:id/stream')
+  async streamTrack(
+    @Param('id') id: string,
+    @Headers('range') range: string,
+    @Res() res: Response,
+  ) {
+    const track = await this.musicService.getTrack(id);
 
-    return {
-      statusCode: HttpStatus.OK,
-      data: albums,
-    };
+    if (!track.audioFile) {
+      throw new NotFoundException('Audio file not found for this track');
+    }
+
+    await this.musicService.streamTrack(track.audioFile.storageKey, range, res);
+  }
+
+  @Get('albums/:id/art')
+  async getAlbumArt(@Param('id') id: string, @Res() res: Response) {
+    const albumArtKey = await this.musicService.getAlbumArtKey(id);
+
+    if (!albumArtKey) {
+      throw new NotFoundException('Album art not found');
+    }
+
+    await this.musicService.streamImage(albumArtKey, res);
   }
 }

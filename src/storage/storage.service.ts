@@ -3,13 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import * as Minio from 'minio';
 import { Readable } from 'stream';
 
-export interface TrackUploadResult {
-  storageKey: string;
-  size: number;
-  etag: string;
-}
-
-export interface AlbumArtUploadResult {
+export interface StorageUploadResult {
   storageKey: string;
   size: number;
   etag: string;
@@ -20,9 +14,6 @@ export class StorageService {
   private readonly logger = new Logger(StorageService.name);
   private readonly bucketName: string;
   private readonly region: string;
-
-  private readonly TRACK_PREFIX = 'tracks/';
-  private readonly ALBUM_ART_PREFIX = 'album-art/';
 
   constructor(
     @Inject('MINIO_CLIENT') private readonly minioClient: Minio.Client,
@@ -35,9 +26,6 @@ export class StorageService {
     this.region = this.configService.get<string>('storage.region', 'us-west-2');
   }
 
-  /**
-   * Ensures the bucket exists, creates it if it does not
-   */
   async ensureBucketExists(): Promise<void> {
     try {
       const exists = await this.minioClient.bucketExists(this.bucketName);
@@ -58,10 +46,6 @@ export class StorageService {
     }
   }
 
-  /**
-   * Sets bucket policy for public read access
-   * This allows audio files to be streamed without authentication
-   */
   private async setBucketPolicy(): Promise<void> {
     const policy = {
       Version: '2012-10-17',
@@ -88,23 +72,12 @@ export class StorageService {
     }
   }
 
-  /**
-   * Uploads a file to MinIO
-   * @param fileName - Name to store the file as
-   * @param fileBuffer - File content as Buffer
-   * @param contentType - MIME type of the file
-   * @param metadata - Optional metadata to attach to the file
-   * @returns Object containing bucket name, file name, and size
-   */
-  async uploadTrack(
-    checksum: string,
-    fileExtension: string,
-    fileBuffer: Buffer,
+  async uploadFile(
+    key: string,
+    buffer: Buffer,
     contentType: string,
     metadata?: Record<string, string>,
-  ): Promise<TrackUploadResult> {
-    const storageKey = `${this.TRACK_PREFIX}${checksum}.${fileExtension}`;
-
+  ): Promise<StorageUploadResult> {
     try {
       const metaData = {
         'Content-Type': contentType,
@@ -113,82 +86,21 @@ export class StorageService {
 
       const uploadInfo = await this.minioClient.putObject(
         this.bucketName,
-        storageKey,
-        fileBuffer,
-        fileBuffer.length,
+        key,
+        buffer,
+        buffer.length,
         metaData,
       );
 
-      this.logger.log(`Track uploaded successfully: ${storageKey}`);
-
       return {
-        storageKey,
-        size: fileBuffer.length,
+        storageKey: key,
+        size: buffer.length,
         etag: uploadInfo.etag,
       };
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`Error uploading track: ${errorMessage}`);
-      throw error;
-    }
-  }
-
-  /**
-   * Uploads album art to MinIO
-   * Checks if art with same checksum already exists to avoid duplicates
-   * @param artChecksum - Checksum of the album art (for deduplication)
-   * @param fileExtension - File extension (jpg, png, etc.)
-   * @param imageBuffer - Image content as Buffer
-   * @param contentType - MIME type of the image
-   * @returns Storage key, size, and etag
-   */
-  async uploadAlbumArt(
-    artChecksum: string,
-    fileExtension: string,
-    imageBuffer: Buffer,
-    contentType: string,
-  ): Promise<AlbumArtUploadResult> {
-    const storageKey = `${this.ALBUM_ART_PREFIX}${artChecksum}.${fileExtension}`;
-
-    try {
-      // Check if this exact album art already exists
-      const exists = await this.fileExists(storageKey);
-
-      if (exists) {
-        const stats = await this.getFileStats(storageKey);
-        this.logger.log(`Album art already exists: ${storageKey}`);
-        return {
-          storageKey,
-          size: stats.size,
-          etag: stats.etag,
-        };
-      }
-
-      // Upload new album art
-      const metaData = {
-        'Content-Type': contentType,
-      };
-
-      const uploadInfo = await this.minioClient.putObject(
-        this.bucketName,
-        storageKey,
-        imageBuffer,
-        imageBuffer.length,
-        metaData,
-      );
-
-      this.logger.log(`Album art uploaded successfully: ${storageKey}`);
-
-      return {
-        storageKey,
-        size: imageBuffer.length,
-        etag: uploadInfo.etag,
-      };
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(`Error uploading album art: ${errorMessage}`);
       throw error;
     }
   }
@@ -281,55 +193,6 @@ export class StorageService {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`Error deleting file "${storageKey}": ${errorMessage}`);
-      throw error;
-    }
-  }
-
-  /**
-   * Lists all track files
-   * @returns Array of file information
-   */
-  async listTracks(): Promise<Minio.BucketItem[]> {
-    return this.listFiles(this.TRACK_PREFIX);
-  }
-
-  /**
-   * Lists all album art files
-   * @returns Array of file information
-   */
-  async listAlbumArt(): Promise<Minio.BucketItem[]> {
-    return this.listFiles(this.ALBUM_ART_PREFIX);
-  }
-
-  /**
-   * Lists files with optional prefix filter
-   * @param prefix - Optional prefix to filter files
-   * @returns Array of file information
-   */
-  private async listFiles(prefix?: string): Promise<Minio.BucketItem[]> {
-    try {
-      const stream = this.minioClient.listObjects(
-        this.bucketName,
-        prefix,
-        true, // recursive
-      );
-
-      const files: Minio.BucketItem[] = [];
-
-      return new Promise((resolve, reject) => {
-        stream.on('data', (obj: Minio.BucketItem) => files.push(obj));
-        stream.on('error', reject);
-        stream.on('end', () => {
-          this.logger.log(
-            `Listed ${files.length} files${prefix ? ` with prefix "${prefix}"` : ''}`,
-          );
-          resolve(files);
-        });
-      });
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(`Error listing files: ${errorMessage}`);
       throw error;
     }
   }

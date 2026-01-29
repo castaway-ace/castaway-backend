@@ -2,12 +2,18 @@ import {
   Injectable,
   ConflictException,
   NotFoundException,
+  HttpStatus,
+  Logger,
 } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service.js';
-import { StorageService } from '../storage/storage.service.js';
+import {
+  StorageService,
+  StorageUploadResult,
+} from '../storage/storage.service.js';
+import { type Response } from 'express';
 import * as mm from 'music-metadata';
 import { createHash } from 'crypto';
 import { Prisma } from 'src/generated/prisma/client.js';
+import { MusicRepository } from './music.repository.js';
 
 interface UploadResult {
   trackId: string;
@@ -40,9 +46,13 @@ interface ExtractedMetadata {
 
 @Injectable()
 export class MusicService {
+  private readonly TRACK_PREFIX = 'tracks/';
+  private readonly ALBUM_ART_PREFIX = 'album-art/';
+  private readonly logger = new Logger(MusicService.name);
+
   constructor(
-    private prisma: PrismaService,
     private storage: StorageService,
+    private readonly musicRepository: MusicRepository,
   ) {}
 
   /**
@@ -52,13 +62,8 @@ export class MusicService {
     // Step 1: Calculate checksum
     const checksum = this.calculateChecksum(file.buffer);
 
-    // Step 2: Check for exact duplicate (now that checksum is unique)
-    const existingFile = await this.prisma.audioFile.findUnique({
-      where: { checksum },
-      include: {
-        track: true,
-      },
-    });
+    const existingFile =
+      await this.musicRepository.findAudioFileByChecksum(checksum);
 
     if (existingFile) {
       throw new ConflictException(
@@ -78,10 +83,11 @@ export class MusicService {
       );
     }
 
+    const storageKey = `${this.TRACK_PREFIX}${checksum}.${metadata.format}`;
+
     // Step 5: Upload audio file to MinIO
-    const audioUpload = await this.storage.uploadTrack(
-      checksum,
-      metadata.format,
+    const audioUpload: StorageUploadResult = await this.storage.uploadFile(
+      storageKey,
       file.buffer,
       file.mimetype,
       {
@@ -99,13 +105,26 @@ export class MusicService {
     }
 
     // Step 7: Create database records (transaction)
-    const track = await this.createTrackWithMetadata(
-      metadata,
-      audioUpload.storageKey,
+    const track = await this.musicRepository.createTrackWithRelations({
+      metadata: {
+        title: metadata.title,
+        album: metadata.album,
+        albumArtist: metadata.albumArtist,
+        artists: metadata.artists,
+        trackNumber: metadata.trackNumber,
+        discNumber: metadata.discNumber,
+        releaseYear: metadata.releaseYear,
+        genre: metadata.genre,
+        duration: metadata.duration,
+        format: metadata.format,
+        bitrate: metadata.bitrate,
+        sampleRate: metadata.sampleRate,
+      },
+      audioKey: audioUpload.storageKey,
       albumArtKey,
       checksum,
-      audioUpload.size,
-    );
+      fileSize: audioUpload.size,
+    });
 
     return {
       trackId: track.id,
@@ -146,28 +165,9 @@ export class MusicService {
       };
     }
 
-    const tracks = await this.prisma.track.findMany({
-      where,
-      include: {
-        album: {
-          include: {
-            artist: true,
-          },
-        },
-        artists: {
-          include: {
-            artist: true,
-          },
-        },
-        audioFile: true,
-      },
-      orderBy: [
-        { album: { title: 'asc' } },
-        { discNumber: 'asc' },
-        { trackNumber: 'asc' },
-      ],
-      take: filter.limit || 50,
-      skip: filter.offset || 0,
+    const tracks = await this.musicRepository.findTracks(where, {
+      take: filter.limit,
+      skip: filter.offset,
     });
 
     // Transform to clean response format
@@ -176,7 +176,6 @@ export class MusicService {
       const sortedArtists = [...track.artists].sort(
         (a, b) => a.order - b.order,
       );
-
       return {
         id: track.id,
         title: track.title,
@@ -215,22 +214,7 @@ export class MusicService {
    * Get a single track by ID
    */
   async getTrack(id: string) {
-    const track = await this.prisma.track.findUnique({
-      where: { id },
-      include: {
-        album: {
-          include: {
-            artist: true,
-          },
-        },
-        artists: {
-          include: {
-            artist: true,
-          },
-        },
-        audioFile: true,
-      },
-    });
+    const track = await this.musicRepository.findTrackById(id);
 
     if (!track) {
       throw new NotFoundException(`Track with ID ${id} not found`);
@@ -272,61 +256,50 @@ export class MusicService {
     };
   }
 
-  /**
-   * Get all albums
-   */
-  async getAlbums() {
-    const albums = await this.prisma.album.findMany({
-      include: {
-        artist: true,
-        tracks: {
-          include: {
-            audioFile: true,
-          },
-        },
-      },
-      orderBy: [{ artist: { name: 'asc' } }, { releaseYear: 'asc' }],
-    });
+  async getArtists() {
+    const artists = await this.musicRepository.findAllArtists();
 
-    return albums.map((album) => ({
-      id: album.id,
-      title: album.title,
-      releaseYear: album.releaseYear,
-      genre: album.genre,
-      albumArtKey: album.albumArtKey,
-      artist: {
-        id: album.artist.id,
-        name: album.artist.name,
-      },
-      trackCount: album.tracks.length,
-      totalDuration: album.tracks.reduce(
-        (sum, track) => sum + (track.duration || 0),
-        0,
-      ),
+    return artists.map((artist) => ({
+      id: artist.id,
+      name: artist.name,
+      albumCount: artist.albums.length,
+      trackCount: artist.tracks.length,
     }));
+  }
+
+  /**
+   * Get all albums by an artist
+   */
+  async getArtistAlbums(artistId: string) {
+    const artist = await this.musicRepository.findArtistById(artistId);
+
+    if (!artist) {
+      throw new NotFoundException(`Artist with ID ${artistId} not found`);
+    }
+
+    return {
+      id: artist.id,
+      name: artist.name,
+      albums: artist.albums.map((album) => ({
+        id: album.id,
+        title: album.title,
+        releaseYear: album.releaseYear,
+        genre: album.genre,
+        albumArtKey: album.albumArtKey,
+        trackCount: album.tracks.length,
+        totalDuration: album.tracks.reduce(
+          (sum, track) => sum + (track.duration || 0),
+          0,
+        ),
+      })),
+    };
   }
 
   /**
    * Get all tracks in an album
    */
   async getAlbumTracks(albumId: string) {
-    const album = await this.prisma.album.findUnique({
-      where: { id: albumId },
-      include: {
-        artist: true,
-        tracks: {
-          include: {
-            artists: {
-              include: {
-                artist: true,
-              },
-            },
-            audioFile: true,
-          },
-          orderBy: [{ discNumber: 'asc' }, { trackNumber: 'asc' }],
-        },
-      },
-    });
+    const album = await this.musicRepository.findAlbumWithTracks(albumId);
 
     if (!album) {
       throw new NotFoundException(`Album with ID ${albumId} not found`);
@@ -373,73 +346,119 @@ export class MusicService {
   }
 
   /**
-   * Get all artists
+   * Stream a track (audio file)
    */
-  async getArtists() {
-    const artists = await this.prisma.artist.findMany({
-      include: {
-        albums: {
-          include: {
-            tracks: true,
-          },
-        },
-        tracks: true,
-      },
-      orderBy: {
-        name: 'asc',
-      },
-    });
+  async streamTrack(
+    storageKey: string,
+    range: string | undefined,
+    res: Response,
+  ): Promise<void> {
+    try {
+      const stats = await this.storage.getFileStats(storageKey);
 
-    return artists.map((artist) => ({
-      id: artist.id,
-      name: artist.name,
-      albumCount: artist.albums.length,
-      trackCount: artist.tracks.length,
-    }));
+      const contentType = this.getContentType(stats.metaData, 'audio/mpeg');
+
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Cache-Control', 'public, max-age=31536000');
+      res.setHeader('Accept-Ranges', 'bytes');
+
+      if (range) {
+        const parts = range.replace(/bytes=/, '').split('-');
+        const start = parseInt(parts[0], 10);
+        const end = parts[1] ? parseInt(parts[1], 10) : stats.size - 1;
+        const chunkSize = end - start + 1;
+
+        if (start >= stats.size || end >= stats.size) {
+          res.status(HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE);
+          res.setHeader('Content-Range', `bytes */${stats.size}`);
+          res.end();
+          return;
+        }
+
+        res.status(HttpStatus.PARTIAL_CONTENT);
+        res.setHeader('Content-Range', `bytes ${start}-${end}/${stats.size}`);
+        res.setHeader('Content-Length', chunkSize);
+
+        this.logger.log(
+          `Streaming ${storageKey} [${start}-${end}/${stats.size}]`,
+        );
+
+        const fileStream = await this.storage.getFileRange(
+          storageKey,
+          start,
+          chunkSize,
+        );
+
+        fileStream.pipe(res);
+
+        fileStream.on('error', (error) => {
+          this.logger.error(`Stream error for ${storageKey}: ${error.message}`);
+          if (!res.headersSent) {
+            res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+              message: 'Stream error',
+            });
+          }
+        });
+      } else {
+        res.setHeader('Content-Length', stats.size);
+        res.setHeader(
+          'Content-Disposition',
+          `inline; filename="${storageKey}"`,
+        );
+
+        this.logger.log(
+          `Streaming ${storageKey} [full file: ${stats.size} bytes]`,
+        );
+
+        const fileStream = await this.storage.getFile(storageKey);
+
+        fileStream.pipe(res);
+
+        fileStream.on('error', (error) => {
+          this.logger.error(`Stream error for ${storageKey}: ${error.message}`);
+          if (!res.headersSent) {
+            res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+              message: 'Stream error',
+            });
+          }
+        });
+      }
+    } catch (error) {
+      this.handleStreamError(error, res);
+    }
   }
 
   /**
-   * Get all albums by an artist
+   * Stream an image (album art)
    */
-  async getArtistAlbums(artistId: string) {
-    const artist = await this.prisma.artist.findUnique({
-      where: { id: artistId },
-      include: {
-        albums: {
-          include: {
-            tracks: {
-              include: {
-                audioFile: true,
-              },
-            },
-          },
-          orderBy: {
-            releaseYear: 'asc',
-          },
-        },
-      },
-    });
+  async streamImage(storageKey: string, res: Response): Promise<void> {
+    try {
+      const stats = await this.storage.getFileStats(storageKey);
 
-    if (!artist) {
-      throw new NotFoundException(`Artist with ID ${artistId} not found`);
+      const contentType = this.getContentType(stats.metaData, 'image/jpeg');
+
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Length', stats.size);
+      res.setHeader('Cache-Control', 'public, max-age=31536000');
+
+      this.logger.log(`Streaming image: ${storageKey}`);
+
+      const fileStream = await this.storage.getFile(storageKey);
+      fileStream.pipe(res);
+
+      fileStream.on('error', (error) => {
+        this.logger.error(
+          `Stream error for image ${storageKey}: ${error.message}`,
+        );
+        if (!res.headersSent) {
+          res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+            message: 'Stream error',
+          });
+        }
+      });
+    } catch (error) {
+      this.handleStreamError(error, res);
     }
-
-    return {
-      id: artist.id,
-      name: artist.name,
-      albums: artist.albums.map((album) => ({
-        id: album.id,
-        title: album.title,
-        releaseYear: album.releaseYear,
-        genre: album.genre,
-        albumArtKey: album.albumArtKey,
-        trackCount: album.tracks.length,
-        totalDuration: album.tracks.reduce(
-          (sum, track) => sum + (track.duration || 0),
-          0,
-        ),
-      })),
-    };
   }
 
   /**
@@ -477,6 +496,18 @@ export class MusicService {
     };
   }
 
+  async getAlbumArtKey(albumId: string): Promise<string | null> {
+    const album = await this.musicRepository.findAlbumById(albumId, {
+      select: { id: true, albumArtKey: true },
+    });
+
+    if (!album) {
+      throw new NotFoundException('Album not found');
+    }
+
+    return album.albumArtKey;
+  }
+
   /**
    * Parse artist string into array, handling multiple artists
    */
@@ -504,7 +535,6 @@ export class MusicService {
    * Upload album art to storage with deduplication
    */
   private async uploadAlbumArt(picture: mm.IPicture) {
-    // Generate checksum for deduplication
     const imageBuffer = Buffer.from(picture.data);
 
     const artChecksum = createHash('sha256')
@@ -514,9 +544,10 @@ export class MusicService {
 
     const extension = picture.format.split('/')[1] || 'jpg';
 
-    return await this.storage.uploadAlbumArt(
-      artChecksum,
-      extension,
+    const storageKey = `${this.ALBUM_ART_PREFIX}${artChecksum}.${extension}`;
+
+    return await this.storage.uploadFile(
+      storageKey,
       imageBuffer,
       picture.format,
     );
@@ -530,21 +561,10 @@ export class MusicService {
     album: string;
     artists: string[];
   }) {
-    const tracks = await this.prisma.track.findMany({
-      where: {
-        title: metadata.title,
-        album: {
-          title: metadata.album,
-        },
-      },
-      include: {
-        artists: {
-          include: {
-            artist: true,
-          },
-        },
-      },
-    });
+    const tracks = await this.musicRepository.findTracksByMetadata(
+      metadata.title,
+      metadata.album,
+    );
 
     for (const track of tracks) {
       const trackArtists = track.artists.map((ta) => ta.artist.name).sort();
@@ -558,95 +578,34 @@ export class MusicService {
     return null;
   }
 
-  /**
-   * Create track and related records in database transaction
-   */
-  private async createTrackWithMetadata(
-    metadata: ExtractedMetadata,
-    audioKey: string,
-    albumArtKey: string | undefined,
-    checksum: string,
-    fileSize: number,
-  ) {
-    return await this.prisma.$transaction(async (tx) => {
-      // 1. Create or find album artist (now that name is unique)
-      const albumArtist = await tx.artist.upsert({
-        where: { name: metadata.albumArtist },
-        update: {},
-        create: { name: metadata.albumArtist },
-      });
+  private getContentType(
+    metaData: Record<string, any>,
+    defaultType: string,
+  ): string {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    const contentType = metaData['content-type'];
+    if (typeof contentType === 'string') {
+      return contentType;
+    }
+    return defaultType;
+  }
 
-      // 2. Create or find album
-      const album = await tx.album.upsert({
-        where: {
-          title_artistId: {
-            title: metadata.album,
-            artistId: albumArtist.id,
-          },
-        },
-        update: {
-          genre: metadata.genre ?? undefined,
-          albumArtKey: albumArtKey ?? undefined,
-          releaseYear: metadata.releaseYear ?? undefined,
-        },
-        create: {
-          title: metadata.album,
-          artistId: albumArtist.id,
-          releaseYear: metadata.releaseYear,
-          genre: metadata.genre,
-          albumArtKey,
-        },
-      });
+  private handleStreamError(error: unknown, res: Response): void {
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error';
+    this.logger.error(`Streaming failed: ${errorMessage}`);
 
-      // 3. Create or find track artists (now that name is unique)
-      const trackArtists = await Promise.all(
-        metadata.artists.map((name: string) =>
-          tx.artist.upsert({
-            where: { name },
-            update: {},
-            create: { name },
-          }),
-        ),
-      );
-
-      // 4. Create track
-      const track = await tx.track.create({
-        data: {
-          title: metadata.title,
-          albumId: album.id,
-          trackNumber: metadata.trackNumber,
-          discNumber: metadata.discNumber,
-          duration: metadata.duration,
-        },
-      });
-
-      // 5. Create track-artist relationships
-      await Promise.all(
-        trackArtists.map((artist, index) =>
-          tx.trackArtist.create({
-            data: {
-              trackId: track.id,
-              artistId: artist.id,
-              order: index,
-            },
-          }),
-        ),
-      );
-
-      // 6. Create audio file record
-      await tx.audioFile.create({
-        data: {
-          trackId: track.id,
-          storageKey: audioKey,
-          format: metadata.format,
-          bitrate: metadata.bitrate,
-          sampleRate: metadata.sampleRate,
-          fileSize: BigInt(fileSize),
-          checksum,
-        },
-      });
-
-      return track;
-    });
+    if (!res.headersSent) {
+      if (error instanceof NotFoundException) {
+        res.status(HttpStatus.NOT_FOUND).json({
+          message: 'File not found',
+        });
+      } else {
+        res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+          message: 'Streaming failed',
+          error: errorMessage,
+        });
+      }
+    }
   }
 }

@@ -171,12 +171,16 @@ export class AuthService {
   }
 
   async refreshTokens(refreshToken: string): Promise<Tokens> {
-    const payload = await this.jwt.verifyAsync<JwtVerifiedPayload>(
-      refreshToken,
-      {
+    let payload: JwtVerifiedPayload;
+
+    try {
+      payload = await this.jwt.verifyAsync<JwtVerifiedPayload>(refreshToken, {
         secret: this.jwtRefresh,
-      },
-    );
+      });
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (error) {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
 
     const user = await this.userRepository.findById(payload.sub);
 
