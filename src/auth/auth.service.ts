@@ -8,8 +8,9 @@ import {
   User,
 } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { OAuthLoginResponse, UserResponse } from '../auth/dto/auth.dto.js';
 
-interface OAuthUserData {
+export interface OAuthUserData {
   provider: string;
   providerId: string;
   email: string;
@@ -34,11 +35,19 @@ interface JwtPayload {
   name: string | null;
 }
 
+interface JwtVerifiedPayload extends JwtPayload {
+  iat: number;
+  exp: number;
+}
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
   private readonly jwtSecret: string;
   private readonly jwtRefresh: string;
+  private readonly ACCESS_TOKEN_EXPIRY = '15m';
+  private readonly REFRESH_TOKEN_EXPIRY = '7d';
+  private readonly REFRESH_TOKEN_EXPIRY_DAYS = 7;
 
   constructor(
     private jwt: JwtService,
@@ -49,108 +58,129 @@ export class AuthService {
     this.jwtRefresh = this.config.get<string>('auth.jwtRefresh.secret', '');
   }
 
-  async oauthLogin(oauthUser: OAuthUserData) {
-    try {
-      const {
+  async oauthLogin(oauthUser: OAuthUserData): Promise<OAuthLoginResponse> {
+    const {
+      provider,
+      providerId,
+      email,
+      name,
+      avatar,
+      accessToken,
+      refreshToken,
+    } = oauthUser;
+
+    if (!email) {
+      throw new UnauthorizedException('Email not provided by OAuth provider');
+    }
+
+    // Find or create user
+    let user = await this.prisma.user.findUnique({
+      where: { email },
+      include: { providers: true },
+    });
+
+    if (!user) {
+      user = await this.createUserWithProvider(
+        email,
+        name,
+        avatar,
         provider,
         providerId,
-        email,
+        accessToken,
+        refreshToken,
+      );
+
+      this.logger.log(`New user created: ${email} via ${provider}`);
+    } else {
+      await this.updateUserAndProvider(
+        user,
+        provider,
+        providerId,
         name,
         avatar,
         accessToken,
         refreshToken,
-      } = oauthUser;
+      );
+    }
+    const tokens = await this.generateTokens(user);
 
-      if (!email) {
-        throw new UnauthorizedException('Email not provided by OAuth provider');
-      }
+    return {
+      user: this.mapUserResponse(user),
+      ...tokens,
+    };
+  }
 
-      // Find or create user
-      let user = await this.prisma.user.findUnique({
-        where: { email },
-        include: { providers: true },
+  private async createUserWithProvider(
+    email: string,
+    name: string,
+    avatar: string | null,
+    provider: string,
+    providerId: string,
+    accessToken: string,
+    refreshToken: string | null,
+  ): Promise<UserWithProviders> {
+    return await this.prisma.user.create({
+      data: {
+        email,
+        name,
+        avatar,
+        providers: {
+          create: {
+            provider,
+            providerId,
+            accessToken,
+            refreshToken,
+          },
+        },
+      },
+      include: { providers: true },
+    });
+  }
+
+  private async updateUserAndProvider(
+    user: UserWithProviders,
+    provider: string,
+    providerId: string,
+    name: string,
+    avatar: string | null,
+    accessToken: string,
+    refreshToken: string | null,
+  ): Promise<void> {
+    const existingProvider = user.providers.find(
+      (p) => p.provider === provider && p.providerId === providerId,
+    );
+
+    if (!existingProvider) {
+      await this.prisma.oAuthProvider.create({
+        data: {
+          userId: user.id,
+          provider,
+          providerId,
+          accessToken,
+          refreshToken,
+        },
       });
 
-      if (!user) {
-        // Create new user
-        user = await this.prisma.user.create({
-          data: {
-            email,
-            name,
-            avatar,
-            providers: {
-              create: {
-                provider,
-                providerId,
-                accessToken,
-                refreshToken,
-              },
-            },
-          },
-          include: { providers: true },
-        });
-
-        this.logger.log(`New user created: ${email} via ${provider}`);
-      } else {
-        // Check if this provider is already linked
-        const existingProvider = user.providers.find(
-          (p) => p.provider === provider && p.providerId === providerId,
-        );
-
-        if (!existingProvider) {
-          // Link new provider to existing user
-          await this.prisma.oAuthProvider.create({
-            data: {
-              userId: user.id,
-              provider,
-              providerId,
-              accessToken,
-              refreshToken,
-            },
-          });
-
-          this.logger.log(`Linked ${provider} account to user: ${email}`);
-        } else {
-          // Update existing provider tokens
-          await this.prisma.oAuthProvider.update({
-            where: { id: existingProvider.id },
-            data: {
-              accessToken,
-              refreshToken,
-            },
-          });
-
-          this.logger.log(`Updated ${provider} tokens for user: ${email}`);
-        }
-
-        // Update user info if changed
-        await this.prisma.user.update({
-          where: { id: user.id },
-          data: {
-            name: name || user.name,
-            avatar: avatar || user.avatar,
-          },
-        });
-      }
-
-      // Generate JWT tokens
-      const tokens = await this.generateTokens(user);
-
-      return {
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          avatar: user.avatar,
+      this.logger.log(`Linked ${provider} account to user: ${user.email}`);
+    } else {
+      await this.prisma.oAuthProvider.update({
+        where: { id: existingProvider.id },
+        data: {
+          accessToken,
+          refreshToken,
         },
-        ...tokens,
-      };
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(`OAuth login failed: ${errorMessage}`);
-      throw error;
+      });
+
+      this.logger.log(`Updated ${provider} tokens for user: ${user.email}`);
     }
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        name: name || user.name,
+        avatar: avatar || user.avatar,
+      },
+    });
   }
 
   /**
@@ -165,21 +195,20 @@ export class AuthService {
 
     const [accessToken, refreshToken] = await Promise.all([
       this.jwt.signAsync(payload, {
-        expiresIn: '15m',
+        expiresIn: this.ACCESS_TOKEN_EXPIRY,
         secret: this.jwtSecret,
       }),
 
       this.jwt.signAsync(payload, {
-        expiresIn: '7d',
+        expiresIn: this.REFRESH_TOKEN_EXPIRY,
         secret: this.jwtRefresh,
       }),
     ]);
 
     const hashedToken = await bcrypt.hash(refreshToken, 10);
 
-    // Calculate expiration (7 days from now)
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
+    expiresAt.setDate(expiresAt.getDate() + this.REFRESH_TOKEN_EXPIRY_DAYS);
 
     await this.prisma.refreshToken.create({
       data: {
@@ -193,57 +222,84 @@ export class AuthService {
   }
 
   async refreshTokens(refreshToken: string): Promise<Tokens> {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      const payload = await this.jwt.verifyAsync(refreshToken, {
+    const payload = await this.jwt.verifyAsync<JwtVerifiedPayload>(
+      refreshToken,
+      {
         secret: this.jwtRefresh,
-      });
+      },
+    );
 
-      const user = await this.prisma.user.findUnique({
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-        where: { id: payload.sub },
-        include: { refreshTokens: true, providers: true },
-      });
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+      include: { refreshTokens: true, providers: true },
+    });
 
-      if (!user) {
-        throw new UnauthorizedException('User not found');
-      }
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
 
-      const storedToken = await this.findMatchingToken(
-        refreshToken,
-        user.refreshTokens,
-      );
+    const storedToken = await this.findMatchingToken(
+      refreshToken,
+      user.refreshTokens,
+    );
 
-      if (!storedToken) {
-        throw new UnauthorizedException('Invalid refresh token');
-      }
+    if (!storedToken) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
 
-      // Check if token is expired
-      if (storedToken.expiresAt < new Date()) {
-        await this.prisma.refreshToken.delete({
-          where: { id: storedToken.id },
-        });
-        throw new UnauthorizedException('Refresh token expired');
-      }
-
-      const tokens = await this.generateTokens(user);
-
+    // Check if token is expired
+    if (storedToken.expiresAt < new Date()) {
       await this.prisma.refreshToken.delete({
         where: { id: storedToken.id },
       });
-
-      return tokens;
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(`Token refresh failed: ${errorMessage}`);
-
-      if (error instanceof UnauthorizedException) {
-        throw error;
-      }
-
-      throw new UnauthorizedException('Invalid refresh token');
+      throw new UnauthorizedException('Refresh token expired');
     }
+
+    return await this.rotateRefreshToken(user, storedToken.id);
+  }
+
+  private async rotateRefreshToken(
+    user: UserWithProviders,
+    oldTokenId: string,
+  ): Promise<Tokens> {
+    return await this.prisma.$transaction(async (tx) => {
+      await tx.refreshToken.delete({
+        where: { id: oldTokenId },
+      });
+
+      const payload: JwtPayload = {
+        sub: user.id,
+        email: user.email,
+        name: user.name,
+      };
+
+      const [accessToken, refreshToken] = await Promise.all([
+        this.jwt.signAsync(payload, {
+          expiresIn: this.ACCESS_TOKEN_EXPIRY,
+          secret: this.jwtSecret,
+        }),
+
+        this.jwt.signAsync(payload, {
+          expiresIn: this.REFRESH_TOKEN_EXPIRY,
+          secret: this.jwtRefresh,
+        }),
+      ]);
+
+      const hashedToken = await bcrypt.hash(refreshToken, 10);
+
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + this.REFRESH_TOKEN_EXPIRY_DAYS);
+
+      await tx.refreshToken.create({
+        data: {
+          userId: user.id,
+          token: hashedToken,
+          expiresAt,
+        },
+      });
+
+      return { accessToken, refreshToken };
+    });
   }
 
   private async findMatchingToken(
@@ -264,6 +320,15 @@ export class AuthService {
       where: { userId },
     });
 
-    this.logger.log(`User logged out: ${userId}`);
+    this.logger.log(`User logged out: ${userId}`, { userId });
+  }
+
+  private mapUserResponse(user: User): UserResponse {
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      avatar: user.avatar,
+    };
   }
 }

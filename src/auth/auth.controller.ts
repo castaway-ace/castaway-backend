@@ -7,14 +7,14 @@ import {
   Res,
   HttpStatus,
   Logger,
-  UnauthorizedException,
+  Body,
 } from '@nestjs/common';
 import { type Request, type Response } from 'express';
-import { AuthService } from './auth.service.js';
+import { AuthService, type OAuthUserData } from './auth.service.js';
 import { GoogleOAuthGuard } from './guards/google-oauth.guard.js';
 import { FacebookOAuthGuard } from './guards/facebook-oauth.guard.js';
-import { ConfigService } from '@nestjs/config';
 import { JwtAuthGuard } from './guards/jwt-oauth.guard.js';
+import { RefreshTokenDto, type AuthResponse } from './dto/auth.dto.js';
 
 interface RequestWithUser extends Request {
   user: {
@@ -25,52 +25,36 @@ interface RequestWithUser extends Request {
 }
 
 interface RequestWithOAuthUser extends Request {
-  user: {
-    provider: string;
-    providerId: string;
-    email: string;
-    name: string;
-    avatar: string | null;
-    accessToken: string;
-    refreshToken: string | null;
-  };
+  user: OAuthUserData;
 }
 
 @Controller('auth')
 export class AuthController {
   private readonly logger = new Logger(AuthController.name);
-  configService: any;
 
-  constructor(
-    private auth: AuthService,
-    private config: ConfigService,
-  ) {}
+  constructor(private auth: AuthService) {}
 
+  /**
+   * Initiate Google OAuth flow
+   * GET /auth/google
+   */
   @Get('google')
   @UseGuards(GoogleOAuthGuard)
   async googleAuth() {
-    // Guard redirects to Google
+    // Guard handles the redirect to Google
   }
 
+  /**
+   * Google OAuth callback handler
+   * GET /auth/google/callback
+   */
   @Get('google/callback')
   @UseGuards(GoogleOAuthGuard)
   async googleAuthCallback(
     @Req() req: RequestWithOAuthUser,
     @Res() res: Response,
   ) {
-    try {
-      const result = await this.auth.oauthLogin(req.user);
-
-      // Set tokens in HTTP-only cookies
-      this.setAuthCookies(res, result.accessToken, result.refreshToken);
-      res.redirect(`/auth/success`);
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error';
-
-      this.logger.error(`Google auth failed: ${errorMessage}`);
-      res.redirect(`/auth/error`);
-    }
+    await this.handleOAuthCallback(req, res, 'Google');
   }
 
   /**
@@ -80,11 +64,11 @@ export class AuthController {
   @Get('facebook')
   @UseGuards(FacebookOAuthGuard)
   async facebookAuth() {
-    // Guard redirects to Facebook
+    // Guard handles the redirect to Facebook
   }
 
   /**
-   * Facebook OAuth callback
+   * Facebook OAuth callback handler
    * GET /auth/facebook/callback
    */
   @Get('facebook/callback')
@@ -93,81 +77,36 @@ export class AuthController {
     @Req() req: RequestWithOAuthUser,
     @Res() res: Response,
   ) {
-    try {
-      const result = await this.auth.oauthLogin(req.user);
-
-      // Set tokens in HTTP-only cookies
-      this.setAuthCookies(res, result.accessToken, result.refreshToken);
-
-      res.redirect(`auth/success`);
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error';
-
-      this.logger.error(`Google auth failed: ${errorMessage}`);
-      res.redirect(`/auth/error`);
-    }
+    await this.handleOAuthCallback(req, res, 'Facebook');
   }
 
+  /**
+   * Refresh access token using refresh token
+   * POST /auth/refresh
+   */
   @Post('refresh')
-  async refreshTokens(@Req() req: Request, @Res() res: Response) {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      const refreshToken = req.cookies?.refresh_token;
-
-      if (!refreshToken) {
-        throw new UnauthorizedException('No refresh token provided');
-      }
-
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-      const tokens = await this.auth.refreshTokens(refreshToken);
-
-      // Set new tokens in cookies
-      this.setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
-
-      res.json({
-        statusCode: HttpStatus.OK,
-        message: 'Tokens refreshed successfully',
-      });
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(`Token refresh failed: ${errorMessage}`);
-
-      // Clear invalid cookies
-      res.clearCookie('access_token');
-      res.clearCookie('refresh_token');
-
-      res.status(HttpStatus.UNAUTHORIZED).json({
-        statusCode: HttpStatus.UNAUTHORIZED,
-        message: 'Invalid refresh token',
-      });
-    }
+  async refreshTokens(@Body() body: RefreshTokenDto) {
+    const tokens = await this.auth.refreshTokens(body.refreshToken);
+    return {
+      statusCode: HttpStatus.OK,
+      message: 'Tokens refreshed successfully',
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+    };
   }
 
+  /**
+   * Logout current user
+   * POST /auth/logout
+   */
   @Post('logout')
   @UseGuards(JwtAuthGuard)
-  async logout(@Req() req: RequestWithUser, @Res() res: Response) {
-    try {
-      await this.auth.logout(req.user.userId);
-
-      // Clear cookies
-      res.clearCookie('access_token');
-      res.clearCookie('refresh_token');
-
-      res.json({
-        statusCode: HttpStatus.OK,
-        message: 'Logged out successfully',
-      });
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error';
-
-      this.logger.error(`Google auth failed: ${errorMessage}`);
-      res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
-        message: 'Logout failed',
-      });
-    }
+  async logout(@Req() req: RequestWithUser): Promise<AuthResponse> {
+    await this.auth.logout(req.user.userId);
+    return {
+      statusCode: HttpStatus.OK,
+      message: 'Logged out successfully',
+    };
   }
 
   /**
@@ -183,30 +122,25 @@ export class AuthController {
     };
   }
 
-  /**
-   * Helper: Set auth cookies
-   */
-  private setAuthCookies(
+  private async handleOAuthCallback(
+    req: RequestWithOAuthUser,
     res: Response,
-    accessToken: string,
-    refreshToken: string,
-  ) {
-    const isProduction = this.config.get('NODE_ENV') === 'production';
+    provider: string,
+  ): Promise<void> {
+    try {
+      const result = await this.auth.oauthLogin(req.user);
 
-    // Access token cookie (15 minutes)
-    res.cookie('access_token', accessToken, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: 'lax',
-      maxAge: 15 * 60 * 1000, // 15 minutes
-    });
+      const redirectUrl = `castaway://auth/callback?access_token=${result.accessToken}&refresh_token=${result.refreshToken}`;
 
-    // Refresh token cookie (7 days)
-    res.cookie('refresh_token', refreshToken, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    });
+      res.redirect(redirectUrl);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+
+      this.logger.error(`${provider} auth failed: ${errorMessage}`);
+      res.redirect(
+        `castaway://auth/error?message=${encodeURIComponent(errorMessage)}`,
+      );
+    }
   }
 }
