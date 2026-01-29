@@ -16,8 +16,6 @@ export interface OAuthUserData {
   email: string;
   name: string;
   avatar: string | null;
-  accessToken: string;
-  refreshToken: string | null;
 }
 
 type UserWithProviders = User & {
@@ -59,21 +57,12 @@ export class AuthService {
   }
 
   async oauthLogin(oauthUser: OAuthUserData): Promise<OAuthLoginResponse> {
-    const {
-      provider,
-      providerId,
-      email,
-      name,
-      avatar,
-      accessToken,
-      refreshToken,
-    } = oauthUser;
+    const { provider, providerId, email, name, avatar } = oauthUser;
 
     if (!email) {
       throw new UnauthorizedException('Email not provided by OAuth provider');
     }
 
-    // Find or create user
     let user = await this.prisma.user.findUnique({
       where: { email },
       include: { providers: true },
@@ -86,8 +75,6 @@ export class AuthService {
         avatar,
         provider,
         providerId,
-        accessToken,
-        refreshToken,
       );
 
       this.logger.log(`New user created: ${email} via ${provider}`);
@@ -98,8 +85,6 @@ export class AuthService {
         providerId,
         name,
         avatar,
-        accessToken,
-        refreshToken,
       );
     }
     const tokens = await this.generateTokens(user);
@@ -116,8 +101,6 @@ export class AuthService {
     avatar: string | null,
     provider: string,
     providerId: string,
-    accessToken: string,
-    refreshToken: string | null,
   ): Promise<UserWithProviders> {
     return await this.prisma.user.create({
       data: {
@@ -128,8 +111,6 @@ export class AuthService {
           create: {
             provider,
             providerId,
-            accessToken,
-            refreshToken,
           },
         },
       },
@@ -143,8 +124,6 @@ export class AuthService {
     providerId: string,
     name: string,
     avatar: string | null,
-    accessToken: string,
-    refreshToken: string | null,
   ): Promise<void> {
     const existingProvider = user.providers.find(
       (p) => p.provider === provider && p.providerId === providerId,
@@ -156,31 +135,21 @@ export class AuthService {
           userId: user.id,
           provider,
           providerId,
-          accessToken,
-          refreshToken,
         },
       });
 
       this.logger.log(`Linked ${provider} account to user: ${user.email}`);
-    } else {
-      await this.prisma.oAuthProvider.update({
-        where: { id: existingProvider.id },
-        data: {
-          accessToken,
-          refreshToken,
-        },
-      });
-
-      this.logger.log(`Updated ${provider} tokens for user: ${user.email}`);
     }
 
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: {
-        name: name || user.name,
-        avatar: avatar || user.avatar,
-      },
-    });
+    if (name || avatar) {
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          ...(name && { name }),
+          ...(avatar && { avatar }),
+        },
+      });
+    }
   }
 
   /**
@@ -321,6 +290,25 @@ export class AuthService {
     });
 
     this.logger.log(`User logged out: ${userId}`, { userId });
+  }
+
+  async exchangeAuthorizationCode(code: string): Promise<Tokens> {
+    const authCode = await this.prisma.authorizationCode.findUnique({
+      where: { code },
+      include: { user: { include: { providers: true } } },
+    });
+
+    if (!authCode || authCode.expiresAt < new Date()) {
+      throw new UnauthorizedException('Invalid or expired authorization code');
+    }
+
+    // Delete the code immediately (single use)
+    await this.prisma.authorizationCode.delete({
+      where: { id: authCode.id },
+    });
+
+    // Generate and return tokens
+    return this.generateTokens(authCode.user);
   }
 
   private mapUserResponse(user: User): UserResponse {

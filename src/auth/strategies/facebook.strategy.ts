@@ -5,7 +5,7 @@ import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class FacebookStrategy extends PassportStrategy(Strategy, 'facebook') {
-  constructor(private config: ConfigService) {
+  constructor(config: ConfigService) {
     super({
       clientID: config.get<string>('auth.facebook.appId', ''),
       clientSecret: config.get<string>('auth.facebook.appSecret', ''),
@@ -16,8 +16,8 @@ export class FacebookStrategy extends PassportStrategy(Strategy, 'facebook') {
   }
 
   validate(
-    accessToken: string,
-    refreshToken: string,
+    _accessToken: string,
+    _refreshToken: string,
     profile: Profile,
     done: (err: any, user: any, info?: any) => void,
   ): any {
@@ -29,8 +29,6 @@ export class FacebookStrategy extends PassportStrategy(Strategy, 'facebook') {
       email: emails && emails[0] ? emails[0].value : null,
       name: `${name?.givenName} ${name?.familyName}`,
       avatar: photos && photos[0] ? photos[0].value : null,
-      accessToken,
-      refreshToken,
     };
 
     done(null, user);

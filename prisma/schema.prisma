@@ -22,6 +22,7 @@ model User {
 
   providers     OAuthProvider[]
   refreshTokens RefreshToken[]
+  authorizationCodes AuthorizationCode[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -34,8 +35,6 @@ model OAuthProvider  {
   userId            String   @map("user_id")
   provider          String
   providerId        String   @map("provider_id")
-  accessToken       String?  @map("access_token") @db.Text
-  refreshToken      String?  @map("refresh_token") @db.Text
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -57,6 +56,16 @@ model RefreshToken {
   createdAt DateTime  @default(now()) @map("created_at")
 
   @@map("refresh_tokens")
+}
+
+model AuthorizationCode {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Artist {

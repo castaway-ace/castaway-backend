@@ -5,7 +5,7 @@ import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
-  constructor(private config: ConfigService) {
+  constructor(config: ConfigService) {
     super({
       clientID: config.get<string>('auth.google.clientID', ''),
       clientSecret: config.get<string>('auth.google.clientSecret', ''),
@@ -15,8 +15,8 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
   }
 
   validate(
-    accessToken: string,
-    refreshToken: string,
+    _accessToken: string,
+    _refreshToken: string,
     profile: Profile,
     done: VerifyCallback,
   ): any {
@@ -28,8 +28,6 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
       email: emails && emails[0] ? emails[0].value : null,
       name: `${name?.givenName} ${name?.familyName}`,
       avatar: photos && photos[0] ? photos[0].value : null,
-      accessToken,
-      refreshToken,
     };
 
     done(null, user);

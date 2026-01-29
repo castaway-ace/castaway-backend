@@ -10,11 +10,13 @@ import {
   Body,
 } from '@nestjs/common';
 import { type Request, type Response } from 'express';
-import { AuthService, type OAuthUserData } from './auth.service.js';
+import { AuthService, Tokens, type OAuthUserData } from './auth.service.js';
 import { GoogleOAuthGuard } from './guards/google-oauth.guard.js';
 import { FacebookOAuthGuard } from './guards/facebook-oauth.guard.js';
 import { JwtAuthGuard } from './guards/jwt-oauth.guard.js';
 import { RefreshTokenDto, type AuthResponse } from './dto/auth.dto.js';
+import { PrismaService } from '../prisma/prisma.service.js';
+import { randomBytes } from 'crypto';
 
 interface RequestWithUser extends Request {
   user: {
@@ -32,7 +34,10 @@ interface RequestWithOAuthUser extends Request {
 export class AuthController {
   private readonly logger = new Logger(AuthController.name);
 
-  constructor(private auth: AuthService) {}
+  constructor(
+    private auth: AuthService,
+    private prisma: PrismaService,
+  ) {}
 
   /**
    * Initiate Google OAuth flow
@@ -129,9 +134,19 @@ export class AuthController {
   ): Promise<void> {
     try {
       const result = await this.auth.oauthLogin(req.user);
-      const redirectUrl = `castaway://auth/callback?access_token=${result.accessToken}&refresh_token=${result.refreshToken}`;
 
-      res.redirect(redirectUrl);
+      const authCode = randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+
+      await this.prisma.authorizationCode.create({
+        data: {
+          code: authCode,
+          userId: result.user.id,
+          expiresAt,
+        },
+      });
+
+      res.redirect(`castaway://auth/callback?code=${authCode}`);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
@@ -141,5 +156,10 @@ export class AuthController {
         `castaway://auth/error?message=${encodeURIComponent(errorMessage)}`,
       );
     }
+  }
+
+  @Post('exchange')
+  async exchangeCodeForTokens(@Body() dto: { code: string }): Promise<Tokens> {
+    return this.auth.exchangeAuthorizationCode(dto.code);
   }
 }
