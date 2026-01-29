@@ -129,7 +129,6 @@ export class AuthController {
   ): Promise<void> {
     try {
       const result = await this.auth.oauthLogin(req.user);
-
       const redirectUrl = `castaway://auth/callback?access_token=${result.accessToken}&refresh_token=${result.refreshToken}`;
 
       res.redirect(redirectUrl);
