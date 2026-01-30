@@ -9,26 +9,19 @@ import {
   Logger,
   Body,
 } from '@nestjs/common';
-import { type Request, type Response } from 'express';
-import { AuthService, Tokens, type OAuthUserData } from './auth.service.js';
+import { type Response } from 'express';
 import { GoogleOAuthGuard } from './guards/google-oauth.guard.js';
 import { FacebookOAuthGuard } from './guards/facebook-oauth.guard.js';
 import { JwtAuthGuard } from './guards/jwt-oauth.guard.js';
 import { RefreshTokenDto, type AuthResponse } from './dto/auth.dto.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { randomBytes } from 'crypto';
-
-interface RequestWithUser extends Request {
-  user: {
-    userId: string;
-    email: string;
-    name: string | null;
-  };
-}
-
-interface RequestWithOAuthUser extends Request {
-  user: OAuthUserData;
-}
+import { AuthService } from './auth.service.js';
+import type {
+  RequestWithOAuthUser,
+  RequestWithUser,
+  Tokens,
+} from './auth.types.js';
 
 @Controller('auth')
 export class AuthController {

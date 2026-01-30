@@ -2,7 +2,7 @@ import { Module, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Client } from 'minio';
 import { StorageService } from './storage.service.js';
-import { StorageConfig } from 'src/config/config.types.js';
+import { StorageConfig } from '../config/config.types.js';
 
 @Module({
   providers: [

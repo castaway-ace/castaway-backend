@@ -4,45 +4,23 @@ import {
   NotFoundException,
   HttpStatus,
   Logger,
+  ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
-import {
-  StorageService,
-  StorageUploadResult,
-} from '../storage/storage.service.js';
+import { StorageService } from '../storage/storage.service.js';
 import { type Response } from 'express';
 import * as mm from 'music-metadata';
 import { createHash } from 'crypto';
-import { Prisma } from 'src/generated/prisma/client.js';
+import { Prisma } from '../generated/prisma/client.js';
 import { MusicRepository } from './music.repository.js';
-
-interface UploadResult {
-  trackId: string;
-  duplicate: boolean;
-  message: string;
-}
-
-interface TrackFilter {
-  artist?: string;
-  album?: string;
-  limit?: number;
-  offset?: number;
-}
-
-interface ExtractedMetadata {
-  title: string;
-  album: string;
-  artists: string[];
-  albumArtist: string;
-  trackNumber: number | null;
-  discNumber: number | null;
-  releaseYear: number | null;
-  genre: string | null;
-  duration: number;
-  format: string;
-  bitrate: number | null;
-  sampleRate: number | null;
-  picture?: mm.IPicture;
-}
+import {
+  AlbumUploadResult,
+  ExtractedMetadata,
+  TrackFilter,
+  TrackWithRelations,
+  UploadResult,
+} from './music.types.js';
+import { StorageUploadResult } from '../storage/storage.types.js';
 
 @Injectable()
 export class MusicService {
@@ -54,6 +32,8 @@ export class MusicService {
     private storage: StorageService,
     private readonly musicRepository: MusicRepository,
   ) {}
+
+  // ==================== UPLOAD ====================
 
   /**
    * Upload a track with automatic metadata extraction and storage
@@ -134,6 +114,48 @@ export class MusicService {
         : 'Uploaded successfully',
     };
   }
+
+  /**
+   * Upload multiple tracks as an album
+   */
+  async uploadAlbum(files: Express.Multer.File[]): Promise<AlbumUploadResult> {
+    if (!files || files.length === 0) {
+      throw new BadRequestException('No files provided');
+    }
+
+    const results: string[] = [];
+    const duplicates: string[] = [];
+    const failures: Array<{ filename: string; error: string }> = [];
+
+    for (const file of files) {
+      try {
+        const result = await this.uploadTrack(file);
+        results.push(result.trackId);
+        if (result.duplicate) {
+          duplicates.push(file.originalname);
+        }
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : 'Unknown error';
+        failures.push({
+          filename: file.originalname,
+          error: errorMessage,
+        });
+        this.logger.error(
+          `Failed to upload ${file.originalname}: ${errorMessage}`,
+        );
+      }
+    }
+
+    return {
+      trackIds: results,
+      duplicates,
+      failures,
+      message: `Uploaded ${results.length} tracks. ${duplicates.length} duplicates detected. ${failures.length} failures.`,
+    };
+  }
+
+  // ==================== TRACKS ====================
 
   /**
    * Get tracks with optional filtering
@@ -256,6 +278,8 @@ export class MusicService {
     };
   }
 
+  // ==================== ARTISTS ====================
+
   async getArtists() {
     const artists = await this.musicRepository.findAllArtists();
 
@@ -294,6 +318,8 @@ export class MusicService {
       })),
     };
   }
+
+  // ==================== ALBUMS ====================
 
   /**
    * Get all tracks in an album
@@ -344,6 +370,546 @@ export class MusicService {
       }),
     };
   }
+
+  /**
+   * Get album art key
+   */
+  async getAlbumArtKey(albumId: string): Promise<string | null> {
+    const album = await this.musicRepository.findAlbumById(albumId, {
+      select: { id: true, albumArtKey: true },
+    });
+
+    if (!album) {
+      throw new NotFoundException('Album not found');
+    }
+
+    return album.albumArtKey;
+  }
+
+  // ==================== PLAYLISTS ====================
+
+  /**
+   * Get all playlists for a user
+   */
+  async getPlaylists(userId: string) {
+    const playlists = await this.musicRepository.findAllPlaylists(userId);
+
+    return playlists.map((playlist) => ({
+      id: playlist.id,
+      name: playlist.name,
+      description: playlist.description,
+      isPublic: playlist.isPublic,
+      coverImage: playlist.coverImage,
+      trackCount: playlist.tracks.length,
+      createdAt: playlist.createdAt,
+      updatedAt: playlist.updatedAt,
+    }));
+  }
+
+  /**
+   * Get a single playlist with tracks
+   */
+  async getPlaylist(playlistId: string, userId: string) {
+    const playlist = await this.musicRepository.findPlaylistById(playlistId);
+
+    if (!playlist) {
+      throw new NotFoundException(`Playlist with ID ${playlistId} not found`);
+    }
+
+    // Check if user has access (owner or public)
+    if (playlist.userId !== userId && !playlist.isPublic) {
+      throw new ForbiddenException('You do not have access to this playlist');
+    }
+
+    return {
+      id: playlist.id,
+      name: playlist.name,
+      description: playlist.description,
+      isPublic: playlist.isPublic,
+      coverImage: playlist.coverImage,
+      owner: {
+        id: playlist.user.id,
+        name: playlist.user.name,
+        email: playlist.user.email,
+      },
+      tracks: playlist.tracks.map((pt) => ({
+        playlistTrackId: pt.id,
+        position: pt.position,
+        addedAt: pt.addedAt,
+        track: this.formatTrackResponse(pt.track),
+      })),
+      createdAt: playlist.createdAt,
+      updatedAt: playlist.updatedAt,
+    };
+  }
+
+  /**
+   * Create a new playlist
+   */
+  async createPlaylist(
+    userId: string,
+    data: {
+      name: string;
+      description?: string;
+      isPublic?: boolean;
+    },
+  ) {
+    const playlist = await this.musicRepository.createPlaylist({
+      userId,
+      name: data.name,
+      description: data.description,
+      isPublic: data.isPublic,
+    });
+
+    return {
+      id: playlist.id,
+      name: playlist.name,
+      description: playlist.description,
+      isPublic: playlist.isPublic,
+      createdAt: playlist.createdAt,
+    };
+  }
+
+  /**
+   * Update playlist metadata
+   */
+  async updatePlaylist(
+    playlistId: string,
+    userId: string,
+    data: {
+      name?: string;
+      description?: string;
+      isPublic?: boolean;
+      coverImage?: string;
+    },
+  ) {
+    const playlist = await this.musicRepository.findPlaylistById(playlistId);
+
+    if (!playlist) {
+      throw new NotFoundException(`Playlist with ID ${playlistId} not found`);
+    }
+
+    if (playlist.userId !== userId) {
+      throw new ForbiddenException(
+        'You do not have permission to update this playlist',
+      );
+    }
+
+    const updated = await this.musicRepository.updatePlaylist(playlistId, data);
+
+    return {
+      id: updated.id,
+      name: updated.name,
+      description: updated.description,
+      isPublic: updated.isPublic,
+      coverImage: updated.coverImage,
+      updatedAt: updated.updatedAt,
+    };
+  }
+
+  /**
+   * Delete a playlist
+   */
+  async deletePlaylist(playlistId: string, userId: string) {
+    const playlist = await this.musicRepository.findPlaylistById(playlistId);
+
+    if (!playlist) {
+      throw new NotFoundException(`Playlist with ID ${playlistId} not found`);
+    }
+
+    if (playlist.userId !== userId) {
+      throw new ForbiddenException(
+        'You do not have permission to delete this playlist',
+      );
+    }
+
+    await this.musicRepository.deletePlaylist(playlistId);
+
+    return {
+      message: 'Playlist deleted successfully',
+    };
+  }
+
+  /**
+   * Add tracks to playlist
+   */
+  async addTracksToPlaylist(
+    playlistId: string,
+    userId: string,
+    trackIds: string[],
+  ) {
+    const playlist = await this.musicRepository.findPlaylistById(playlistId);
+
+    if (!playlist) {
+      throw new NotFoundException(`Playlist with ID ${playlistId} not found`);
+    }
+
+    if (playlist.userId !== userId) {
+      throw new ForbiddenException(
+        'You do not have permission to modify this playlist',
+      );
+    }
+
+    await this.musicRepository.addTracksToPlaylist(playlistId, trackIds);
+
+    return {
+      message: `Added ${trackIds.length} tracks to playlist`,
+    };
+  }
+
+  /**
+   * Remove track from playlist
+   */
+  async removeTrackFromPlaylist(
+    playlistId: string,
+    trackId: string,
+    userId: string,
+  ) {
+    const playlist = await this.musicRepository.findPlaylistById(playlistId);
+
+    if (!playlist) {
+      throw new NotFoundException(`Playlist with ID ${playlistId} not found`);
+    }
+
+    if (playlist.userId !== userId) {
+      throw new ForbiddenException(
+        'You do not have permission to modify this playlist',
+      );
+    }
+
+    await this.musicRepository.removeTrackFromPlaylist(playlistId, trackId);
+
+    return {
+      message: 'Track removed from playlist',
+    };
+  }
+
+  /**
+   * Reorder tracks in a playlist
+   */
+  async reorderPlaylistTracks(
+    playlistId: string,
+    userId: string,
+    updates: Array<{ id: string; position: number }>,
+  ) {
+    const playlist = await this.musicRepository.findPlaylistById(playlistId);
+
+    if (!playlist) {
+      throw new NotFoundException(`Playlist with ID ${playlistId} not found`);
+    }
+
+    if (playlist.userId !== userId) {
+      throw new ForbiddenException(
+        'You do not have permission to modify this playlist',
+      );
+    }
+
+    await this.musicRepository.reorderPlaylistTracks(updates);
+
+    return {
+      message: 'Playlist tracks reordered successfully',
+    };
+  }
+
+  // ==================== USER LIBRARY ====================
+
+  /**
+   * Add track to user library
+   */
+  async addToLibrary(userId: string, trackId: string) {
+    const track = await this.musicRepository.findTrackById(trackId);
+
+    if (!track) {
+      throw new NotFoundException(`Track with ID ${trackId} not found`);
+    }
+
+    try {
+      await this.musicRepository.addToLibrary(userId, trackId);
+      return {
+        message: 'Track added to library',
+      };
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        if (error.code === 'P2002') {
+          throw new ConflictException('Track already in library');
+        }
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Remove track from user library
+   */
+  async removeFromLibrary(userId: string, trackId: string) {
+    try {
+      await this.musicRepository.removeFromLibrary(userId, trackId);
+      return {
+        message: 'Track removed from library',
+      };
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        if (error.code === 'P2025') {
+          throw new NotFoundException('Track not found in library');
+        }
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Get all tracks in user library
+   */
+  async getLibraryTracks(
+    userId: string,
+    options?: { limit?: number; offset?: number },
+  ) {
+    const libraryEntries = await this.musicRepository.getLibraryTracks(userId, {
+      take: options?.limit,
+      skip: options?.offset,
+    });
+
+    return libraryEntries.map((entry) => ({
+      addedAt: entry.addedAt,
+      track: this.formatTrackResponse(entry.track),
+    }));
+  }
+
+  /**
+   * Get distinct artists from user library
+   */
+  async getLibraryArtists(userId: string) {
+    const artists = await this.musicRepository.getLibraryArtists(userId);
+
+    return artists.map((artist) => ({
+      id: artist.id,
+      name: artist.name,
+    }));
+  }
+
+  /**
+   * Get distinct albums from user library
+   */
+  async getLibraryAlbums(userId: string) {
+    const albums = await this.musicRepository.getLibraryAlbums(userId);
+
+    return albums.map((album) => ({
+      id: album.id,
+      title: album.title,
+      releaseYear: album.releaseYear,
+      genre: album.genre,
+      albumArtKey: album.albumArtKey,
+      artist: {
+        id: album.artist.id,
+        name: album.artist.name,
+      },
+    }));
+  }
+
+  // ==================== LISTENING HISTORY ====================
+
+  /**
+   * Record a track play
+   */
+  async recordPlay(userId: string, trackId: string, duration?: number) {
+    const track = await this.musicRepository.findTrackById(trackId);
+
+    if (!track) {
+      throw new NotFoundException(`Track with ID ${trackId} not found`);
+    }
+
+    // Record in history
+    await this.musicRepository.recordPlay(userId, trackId, duration);
+
+    // Update track play statistics
+    await this.musicRepository.updateTrackPlayStats(trackId);
+
+    return {
+      message: 'Play recorded',
+    };
+  }
+
+  /**
+   * Get recent plays for user
+   */
+  async getRecentPlays(userId: string, limit?: number) {
+    const history = await this.musicRepository.getRecentPlays(
+      userId,
+      limit || 50,
+    );
+
+    return history.map((entry) => ({
+      playedAt: entry.playedAt,
+      duration: entry.duration,
+      track: this.formatTrackResponse(entry.track),
+    }));
+  }
+
+  /**
+   * Get play statistics for a track
+   */
+  async getTrackStats(trackId: string) {
+    const stats = await this.musicRepository.getTrackStats(trackId);
+
+    return {
+      trackId: stats.trackId,
+      playCount: stats.playCount,
+      lastPlayedAt: stats.lastPlayedAt,
+      totalPlays: stats.historyCount,
+    };
+  }
+
+  // ==================== QUEUE ====================
+
+  /**
+   * Get user queue
+   */
+  async getQueue(userId: string) {
+    const queue = await this.musicRepository.getOrCreateQueue(userId);
+
+    return {
+      currentTrack: queue.currentTrack
+        ? this.formatTrackResponse(queue.currentTrack)
+        : null,
+      position: queue.position,
+      shuffleEnabled: queue.shuffleEnabled,
+      repeatMode: queue.repeatMode,
+      items: queue.queueItems.map(
+        (item: {
+          id: string;
+          position: number;
+          track: TrackWithRelations;
+        }) => ({
+          id: item.id,
+          position: item.position,
+          track: this.formatTrackResponse(item.track),
+        }),
+      ),
+    };
+  }
+
+  /**
+   * Set queue from source (playlist, album, or track list)
+   */
+  async setQueue(userId: string, trackIds: string[], currentTrackId?: string) {
+    await this.musicRepository.setQueueItems(userId, trackIds);
+
+    if (currentTrackId) {
+      await this.musicRepository.updateQueue(userId, {
+        currentTrackId,
+        position: 0,
+      });
+    }
+
+    return {
+      message: 'Queue set successfully',
+    };
+  }
+
+  /**
+   * Update queue state
+   */
+  async updateQueue(
+    userId: string,
+    data: {
+      currentTrackId?: string;
+      position?: number;
+      shuffleEnabled?: boolean;
+      repeatMode?: 'OFF' | 'ONE' | 'ALL';
+    },
+  ) {
+    await this.musicRepository.updateQueue(userId, data);
+
+    return {
+      message: 'Queue updated',
+    };
+  }
+
+  /**
+   * Add tracks to queue
+   */
+  async addToQueue(userId: string, trackIds: string[]) {
+    await this.musicRepository.addToQueue(userId, trackIds);
+
+    return {
+      message: `Added ${trackIds.length} tracks to queue`,
+    };
+  }
+
+  /**
+   * Remove item from queue
+   */
+  async removeFromQueue(itemId: string) {
+    await this.musicRepository.removeFromQueue(itemId);
+
+    return {
+      message: 'Item removed from queue',
+    };
+  }
+
+  /**
+   * Reorder queue items
+   */
+  async reorderQueue(updates: Array<{ id: string; position: number }>) {
+    await this.musicRepository.reorderQueue(updates);
+
+    return {
+      message: 'Queue reordered successfully',
+    };
+  }
+
+  // ==================== SEARCH ====================
+
+  /**
+   * Search tracks, artists, and albums
+   */
+  async search(query: string, type: 'all' | 'track' | 'artist' | 'album') {
+    if (!query || query.trim().length === 0) {
+      throw new BadRequestException('Search query cannot be empty');
+    }
+
+    const results = await this.musicRepository.search(query, type);
+
+    const response: {
+      tracks?: unknown[];
+      artists?: unknown[];
+      albums?: unknown[];
+    } = {};
+
+    if ('tracks' in results && results.tracks) {
+      response.tracks = results.tracks.map((track) =>
+        this.formatTrackResponse(track),
+      );
+    }
+
+    if ('artists' in results && results.artists) {
+      response.artists = results.artists.map((artist) => ({
+        id: artist.id,
+        name: artist.name,
+        albumCount: artist.albums.length,
+        trackCount: artist.tracks.length,
+      }));
+    }
+
+    if ('albums' in results && results.albums) {
+      response.albums = results.albums.map((album) => ({
+        id: album.id,
+        title: album.title,
+        releaseYear: album.releaseYear,
+        genre: album.genre,
+        albumArtKey: album.albumArtKey,
+        trackCount: album.tracks.length,
+        artist: {
+          id: album.artist.id,
+          name: album.artist.name,
+        },
+      }));
+    }
+
+    return response;
+  }
+
+  // ==================== STREAMING ====================
 
   /**
    * Stream a track (audio file)
@@ -461,6 +1027,8 @@ export class MusicService {
     }
   }
 
+  // ==================== PRIVATE HELPERS ====================
+
   /**
    * Calculate SHA-256 checksum of a file buffer
    */
@@ -494,18 +1062,6 @@ export class MusicService {
       sampleRate: metadata.format.sampleRate ?? null,
       picture: common.picture?.[0],
     };
-  }
-
-  async getAlbumArtKey(albumId: string): Promise<string | null> {
-    const album = await this.musicRepository.findAlbumById(albumId, {
-      select: { id: true, albumArtKey: true },
-    });
-
-    if (!album) {
-      throw new NotFoundException('Album not found');
-    }
-
-    return album.albumArtKey;
   }
 
   /**
@@ -576,6 +1132,76 @@ export class MusicService {
     }
 
     return null;
+  }
+
+  /**
+   * Format track response with consistent structure
+   */
+  private formatTrackResponse(track: {
+    id: string;
+    title: string;
+    trackNumber: number | null;
+    discNumber: number | null;
+    duration: number | null;
+    artists: Array<{
+      order: number;
+      artist: {
+        id: string;
+        name: string;
+      };
+    }>;
+    album: {
+      id: string;
+      title: string;
+      releaseYear: number | null;
+      genre: string | null;
+      albumArtKey: string | null;
+      artist: {
+        id: string;
+        name: string;
+      };
+    };
+    audioFile?: {
+      storageKey: string;
+      format: string;
+      bitrate: number | null;
+      sampleRate: number | null;
+      fileSize: bigint;
+    } | null;
+  }) {
+    const sortedArtists = [...track.artists].sort((a, b) => a.order - b.order);
+
+    return {
+      id: track.id,
+      title: track.title,
+      trackNumber: track.trackNumber,
+      discNumber: track.discNumber,
+      duration: track.duration,
+      artists: sortedArtists.map((ta) => ({
+        id: ta.artist.id,
+        name: ta.artist.name,
+      })),
+      album: {
+        id: track.album.id,
+        title: track.album.title,
+        releaseYear: track.album.releaseYear,
+        genre: track.album.genre,
+        albumArtKey: track.album.albumArtKey,
+        artist: {
+          id: track.album.artist.id,
+          name: track.album.artist.name,
+        },
+      },
+      audioFile: track.audioFile
+        ? {
+            storageKey: track.audioFile.storageKey,
+            format: track.audioFile.format,
+            bitrate: track.audioFile.bitrate,
+            sampleRate: track.audioFile.sampleRate,
+            fileSize: track.audioFile.fileSize.toString(),
+          }
+        : null,
+    };
   }
 
   private getContentType(

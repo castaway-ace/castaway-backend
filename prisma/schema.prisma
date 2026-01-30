@@ -159,7 +159,7 @@ model Playlist {
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   isPublic    Boolean  @default(false)
-  coverImage  String? // MinIO path if custom cover
+  coverImage  String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -175,7 +175,7 @@ model PlaylistTrack {
   playlist   Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
   trackId    String
   track      Track    @relation(fields: [trackId], references: [id], onDelete: Cascade)
-  position   Int // For custom ordering
+  position   Int
   addedAt    DateTime @default(now())
 
   @@unique([playlistId, trackId])
@@ -205,7 +205,7 @@ model ListeningHistory {
   trackId  String
   track    Track    @relation(fields: [trackId], references: [id], onDelete: Cascade)
   playedAt DateTime @default(now())
-  duration Int? // Seconds listened, if you track completion
+  duration Int?
 
   @@index([userId, playedAt])
   @@index([trackId])
@@ -216,9 +216,9 @@ model PlaybackQueue {
   id             String     @id @default(uuid())
   userId         String     @unique
   user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  currentSongId  String?
-  currentSong    Track?     @relation(fields: [currentSongId], references: [id], onDelete: SetNull)
-  position       Int        @default(0) // Position in current track (seconds)
+  currentTrackId  String?
+  currentTrack    Track?     @relation(fields: [currentTrackId], references: [id], onDelete: SetNull)
+  position       Int        @default(0)
   shuffleEnabled Boolean    @default(false)
   repeatMode     RepeatMode @default(OFF)
   updatedAt      DateTime   @updatedAt

@@ -4,32 +4,15 @@ import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { RefreshToken, User } from '../generated/prisma/client.js';
 import { OAuthLoginResponse, UserResponse } from '../auth/dto/auth.dto.js';
-import { UserRepository, UserWithProviders } from '../user/user.repository.js';
+import { UserRepository } from '../user/user.repository.js';
 import { TokenRepository } from './token.repository.js';
-
-export interface OAuthUserData {
-  provider: string;
-  providerId: string;
-  email: string;
-  name: string;
-  avatar: string | null;
-}
-
-export interface Tokens {
-  accessToken: string;
-  refreshToken: string;
-}
-
-interface JwtPayload {
-  sub: string;
-  email: string;
-  name: string | null;
-}
-
-interface JwtVerifiedPayload extends JwtPayload {
-  iat: number;
-  exp: number;
-}
+import {
+  JwtPayload,
+  JwtVerifiedPayload,
+  OAuthUserData,
+  Tokens,
+} from './auth.types.js';
+import { UserWithProviders } from '../user/user.types.js';
 
 @Injectable()
 export class AuthService {

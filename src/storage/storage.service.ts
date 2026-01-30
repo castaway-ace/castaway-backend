@@ -2,12 +2,7 @@ import { Injectable, Inject, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as Minio from 'minio';
 import { Readable } from 'stream';
-
-export interface StorageUploadResult {
-  storageKey: string;
-  size: number;
-  etag: string;
-}
+import { StorageUploadResult } from './storage.types.js';
 
 @Injectable()
 export class StorageService {
