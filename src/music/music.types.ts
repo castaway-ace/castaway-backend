@@ -4,32 +4,6 @@ import * as mm from 'music-metadata';
 // ==================== PRISMA-GENERATED TYPES ====================
 
 /**
- * Track with all relations (artists, album, audioFile)
- * Generated from Prisma schema
- */
-export type TrackWithRelations = Prisma.TrackGetPayload<{
-  include: {
-    artists: { include: { artist: true } };
-    album: { include: { artist: true } };
-    audioFile: true;
-  };
-}>;
-
-/**
- * Album with artist relation
- * Generated from Prisma schema
- */
-export type AlbumWithArtist = Prisma.AlbumGetPayload<{
-  include: { artist: true };
-}>;
-
-/**
- * Artist (base model)
- * Generated from Prisma schema
- */
-export type Artist = Prisma.ArtistGetPayload<Record<string, never>>;
-
-/**
  * Playlist with tracks and user
  * Generated from Prisma schema
  */
