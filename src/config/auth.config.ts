@@ -4,6 +4,7 @@ export default registerAs('auth', () => ({
   jwt: {
     secret: process.env.JWT_SECRET || '',
   },
+  allowedEmails: process.env.ALLOWED_EMAILS || '',
   jwtRefresh: {
     secret: process.env.JWT_REFRESH_SECRET || '',
   },

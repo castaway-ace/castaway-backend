@@ -36,6 +36,7 @@ export class AuthService {
   private readonly logger = new Logger(AuthService.name);
   private readonly jwtSecret: string;
   private readonly jwtRefresh: string;
+  private readonly allowedEmails: string;
   private readonly ACCESS_TOKEN_EXPIRY = '15m';
   private readonly REFRESH_TOKEN_EXPIRY = '7d';
   private readonly REFRESH_TOKEN_EXPIRY_DAYS = 7;
@@ -48,6 +49,7 @@ export class AuthService {
   ) {
     this.jwtSecret = this.config.get<string>('auth.jwt.secret', '');
     this.jwtRefresh = this.config.get<string>('auth.jwtRefresh.secret', '');
+    this.allowedEmails = this.config.get<string>('auth.allowedEmails', '');
   }
 
   async oauthLogin(oauthUser: OAuthUserData): Promise<OAuthLoginResponse> {
@@ -56,6 +58,8 @@ export class AuthService {
     if (!email) {
       throw new UnauthorizedException('Email not provided by OAuth provider');
     }
+
+    this.validateEmailAccess(email);
 
     let user = await this.userRepository.findByEmail(email);
 
@@ -279,5 +283,30 @@ export class AuthService {
       name: user.name,
       avatar: user.avatar,
     };
+  }
+
+  private validateEmailAccess(email: string): void {
+    const allowedEmails = this.allowedEmails
+      .split(',')
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean);
+
+    if (allowedEmails.length === 0) {
+      this.logger.warn(
+        'No allowed emails configured. Denying access by default.',
+      );
+      throw new UnauthorizedException(
+        'Access control not configured. Please contact the administrator.',
+      );
+    }
+
+    if (!allowedEmails.includes(email.toLowerCase())) {
+      this.logger.warn(`Access denied for unauthorized email: ${email}`);
+      throw new UnauthorizedException(
+        'Access denied. This application is private.',
+      );
+    }
+
+    this.logger.log(`Access granted for whitelisted email: ${email}`);
   }
 }
