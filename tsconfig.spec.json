@@ -1,0 +1,13 @@
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+      "module": "ESNext",
+      "moduleResolution": "bundler",
+      "esModuleInterop": true,
+      "allowSyntheticDefaultImports": true,
+      "verbatimModuleSyntax": false,
+      "resolvePackageJsonExports": false
+    },
+    "include": ["src/**/*.spec.ts", "src/**/*.test.ts"],
+    "exclude": ["node_modules", "dist"]
+  }
