@@ -1,4 +1,3 @@
-// src/auth/auth.controller.spec.ts
 import { Test, TestingModule } from '@nestjs/testing';
 import { HttpStatus } from '@nestjs/common';
 import { AuthController } from './auth.controller.js';
@@ -7,13 +6,12 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { GoogleOAuthGuard } from './guards/google-oauth.guard.js';
 import { FacebookOAuthGuard } from './guards/facebook-oauth.guard.js';
 import { JwtAuthGuard } from './guards/jwt-oauth.guard.js';
-import type {
-  RequestWithOAuthUser,
-  RequestWithUser,
-  Tokens,
-} from './auth.types.js';
+import type { RequestWithUser, Tokens } from './auth.types.js';
 import { Response } from 'express';
-import { AuthorizationCode } from '../generated/prisma/client.js';
+import { AuthorizationCode, UserRole } from '../generated/prisma/client.js';
+import { UserWithProviders } from 'src/user/user.types.js';
+
+const fixedDate = new Date('2026-02-01');
 
 describe('AuthController', () => {
   let controller: AuthController;
@@ -48,12 +46,44 @@ describe('AuthController', () => {
     refreshToken: 'mock-refresh-token',
   };
 
-  const mockOAuthUser = {
-    provider: 'google',
-    providerId: 'google-123',
+  const mockOAuthUser: UserWithProviders = {
+    id: 'user-123',
     email: 'test@example.com',
     name: 'Test User',
     avatar: 'https://example.com/avatar.jpg',
+    role: UserRole.USER,
+    createdAt: fixedDate,
+    updatedAt: fixedDate,
+    providers: [
+      {
+        id: 'provider-123',
+        userId: 'user-123',
+        name: 'google',
+        providerId: 'google-123',
+        createdAt: fixedDate,
+        updatedAt: fixedDate,
+      },
+    ],
+  };
+
+  const mockFacebookOAuthUser: UserWithProviders = {
+    id: 'user-123',
+    email: 'test@example.com',
+    name: 'Test User',
+    avatar: 'https://example.com/avatar.jpg',
+    role: UserRole.USER,
+    createdAt: fixedDate,
+    updatedAt: fixedDate,
+    providers: [
+      {
+        id: 'provider-123',
+        userId: 'user-123',
+        name: 'facebook',
+        providerId: 'facebook-123',
+        createdAt: fixedDate,
+        updatedAt: fixedDate,
+      },
+    ],
   };
 
   beforeEach(async () => {
@@ -124,13 +154,13 @@ describe('AuthController', () => {
   });
 
   describe('googleAuthCallback', () => {
-    let mockRequest: RequestWithOAuthUser;
+    let mockRequest: RequestWithUser;
     let mockResponse: Partial<Response>;
 
     beforeEach(() => {
       mockRequest = {
         user: mockOAuthUser,
-      } as RequestWithOAuthUser;
+      } as unknown as RequestWithUser;
 
       mockResponse = {
         redirect: jest.fn(),
@@ -144,7 +174,7 @@ describe('AuthController', () => {
         code: expect.any(String) as string,
         userId: 'user-123',
         expiresAt: expect.any(Date) as Date,
-        createdAt: new Date(),
+        createdAt: fixedDate,
       });
 
       await controller.googleAuthCallback(
@@ -171,8 +201,8 @@ describe('AuthController', () => {
         id: 'auth-code-id',
         code: 'test-code',
         userId: 'user-123',
-        expiresAt: new Date(),
-        createdAt: new Date(),
+        expiresAt: fixedDate,
+        createdAt: fixedDate,
       });
 
       const beforeCall = Date.now();
@@ -201,8 +231,8 @@ describe('AuthController', () => {
         id: 'auth-code-id',
         code: 'test-code',
         userId: 'user-123',
-        expiresAt: new Date(),
-        createdAt: new Date(),
+        expiresAt: fixedDate,
+        createdAt: fixedDate,
       });
 
       await controller.googleAuthCallback(
@@ -261,20 +291,45 @@ describe('AuthController', () => {
         'castaway://auth/error?message=Unknown%20error',
       );
     });
+
+    it('should handle UnauthorizedException with appropriate message', async () => {
+      const error = new Error('Error: User not authorized');
+      authService.oauthLogin.mockRejectedValue(error);
+
+      await controller.googleAuthCallback(
+        mockRequest,
+        mockResponse as Response,
+      );
+
+      expect(mockResponse.redirect).toHaveBeenCalledWith(
+        'castaway://auth/error?message=Error%3A%20User%20not%20authorized',
+      );
+      expect(prismaService.authorizationCode.create).not.toHaveBeenCalled();
+    });
+
+    it('should handle network timeout errors', async () => {
+      const error = new Error('ETIMEDOUT');
+      authService.oauthLogin.mockRejectedValue(error);
+
+      await controller.googleAuthCallback(
+        mockRequest,
+        mockResponse as Response,
+      );
+
+      expect(mockResponse.redirect).toHaveBeenCalledWith(
+        'castaway://auth/error?message=ETIMEDOUT',
+      );
+    });
   });
 
   describe('facebookAuthCallback', () => {
-    let mockRequest: RequestWithOAuthUser;
+    let mockRequest: RequestWithUser;
     let mockResponse: Partial<Response>;
 
     beforeEach(() => {
       mockRequest = {
-        user: {
-          ...mockOAuthUser,
-          provider: 'facebook',
-          providerId: 'facebook-123',
-        },
-      } as RequestWithOAuthUser;
+        user: mockFacebookOAuthUser,
+      } as unknown as RequestWithUser;
 
       mockResponse = {
         redirect: jest.fn(),
@@ -287,8 +342,8 @@ describe('AuthController', () => {
         id: 'auth-code-id',
         code: 'test-code',
         userId: 'user-123',
-        expiresAt: new Date(),
-        createdAt: new Date(),
+        expiresAt: fixedDate,
+        createdAt: fixedDate,
       });
 
       await controller.facebookAuthCallback(
@@ -296,7 +351,9 @@ describe('AuthController', () => {
         mockResponse as Response,
       );
 
-      expect(authService.oauthLogin).toHaveBeenCalledWith(mockRequest.user);
+      expect(authService.oauthLogin).toHaveBeenCalledWith(
+        mockFacebookOAuthUser,
+      );
       expect(mockResponse.redirect).toHaveBeenCalledWith(
         expect.stringMatching(/^castaway:\/\/auth\/callback\?code=.+$/),
       );
@@ -351,12 +408,8 @@ describe('AuthController', () => {
   describe('logout', () => {
     it('should logout user successfully', async () => {
       const mockRequest = {
-        user: {
-          userId: 'user-123',
-          email: 'test@example.com',
-          name: 'Test User',
-        },
-      } as RequestWithUser;
+        user: mockOAuthUser,
+      } as unknown as RequestWithUser;
 
       authService.logout.mockResolvedValue(undefined);
 
@@ -371,12 +424,8 @@ describe('AuthController', () => {
 
     it('should handle logout errors', async () => {
       const mockRequest = {
-        user: {
-          userId: 'user-123',
-          email: 'test@example.com',
-          name: 'Test User',
-        },
-      } as RequestWithUser;
+        user: mockOAuthUser,
+      } as unknown as RequestWithUser;
 
       authService.logout.mockRejectedValue(new Error('Logout failed'));
 
@@ -389,21 +438,31 @@ describe('AuthController', () => {
   describe('getCurrentUser', () => {
     it('should return current user information', () => {
       const mockRequest = {
-        user: {
-          userId: 'user-123',
-          email: 'test@example.com',
-          name: 'Test User',
-        },
-      } as RequestWithUser;
+        user: mockOAuthUser,
+      } as unknown as RequestWithUser;
 
       const result = controller.getCurrentUser(mockRequest);
 
       expect(result).toEqual({
         statusCode: HttpStatus.OK,
         user: {
-          userId: 'user-123',
+          avatar: 'https://example.com/avatar.jpg',
+          id: 'user-123',
           email: 'test@example.com',
           name: 'Test User',
+          providers: [
+            {
+              id: 'provider-123',
+              userId: 'user-123',
+              name: 'google',
+              providerId: 'google-123',
+              createdAt: fixedDate,
+              updatedAt: fixedDate,
+            },
+          ],
+          role: UserRole.USER,
+          createdAt: fixedDate,
+          updatedAt: fixedDate,
         },
       });
     });

@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
-  CreateUserWithProviderData,
   UpdateUserData,
   UserWithProviders,
   UserWithProvidersAndTokens,
@@ -50,28 +49,31 @@ export class UserRepository {
    * Create a new user with an initial OAuth provider
    */
   async createWithProvider(
-    data: CreateUserWithProviderData,
+    user: UserWithProviders,
   ): Promise<UserWithProviders> {
-    const { email, name, avatar, provider, providerId } = data;
+    const { email, name, avatar, providers } = user;
 
-    const user = await this.prisma.user.create({
+    const createdUser = await this.prisma.user.create({
       data: {
         email,
         name,
         avatar,
         providers: {
           create: {
-            provider,
-            providerId,
+            name: providers[0].name as string,
+            providerId: providers[0].providerId,
           },
         },
       },
       include: { providers: true },
     });
 
-    this.logger.log(`Created new user: ${email} via ${provider}`);
+    this.logger.log(`Created new user: ${email} via ${providers[0].name}`);
 
-    return user;
+    return {
+      ...createdUser,
+      providers,
+    };
   }
 
   /**
@@ -102,18 +104,20 @@ export class UserRepository {
    */
   async linkProvider(
     userId: string,
-    provider: string,
+    providerName: string,
     providerId: string,
   ): Promise<void> {
     await this.prisma.oAuthProvider.create({
       data: {
         userId,
-        provider,
+        name: providerName,
         providerId,
       },
     });
 
-    this.logger.log(`Linked ${provider} account to user ID: ${userId}`);
+    this.logger.log(
+      `Linked ${providerName} account to user ID: ${userId} with provider ID: ${providerId}`,
+    );
   }
 
   /**
@@ -121,11 +125,11 @@ export class UserRepository {
    */
   hasProvider(
     user: UserWithProviders,
-    provider: string,
+    providerName: string,
     providerId: string,
   ): boolean {
     return user.providers.some(
-      (p) => p.provider === provider && p.providerId === providerId,
+      (p) => p.name === providerName && p.providerId === providerId,
     );
   }
 }

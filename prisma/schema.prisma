@@ -18,6 +18,7 @@ model User {
   id     String  @id @default(uuid())
   email  String  @unique
   name   String?
+  role   UserRole @default(USER)
   avatar String?
 
   providers          OAuthProvider[]
@@ -37,15 +38,14 @@ model User {
 model OAuthProvider {
   id         String @id @default(uuid())
   userId     String @map("user_id")
-  provider   String
-  providerId String @map("provider_id")
+  name       String @map("name") @unique
+  providerId String @map("provider_id") @unique
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  @@unique([provider, providerId])
   @@map("accounts")
 }
 
@@ -105,6 +105,7 @@ model Album {
 model Track {
   id               String             @id @default(uuid())
   title            String
+  isPublic         Boolean  @default(false)
   album            Album              @relation(fields: [albumId], references: [id])
   albumId          String
   artists          TrackArtist[]
@@ -140,7 +141,7 @@ model AudioFile {
   id         String   @id @default(uuid())
   track      Track    @relation(fields: [trackId], references: [id])
   trackId    String   @unique
-  storageKey String
+  storageKey String   @unique
   format     String
   bitrate    Int?
   sampleRate Int?
@@ -244,4 +245,9 @@ enum RepeatMode {
   OFF
   ONE
   ALL
+}
+
+enum UserRole {
+  ADMIN
+  USER
 }

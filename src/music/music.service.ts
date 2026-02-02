@@ -158,8 +158,12 @@ export class MusicService {
   /**
    * Get tracks with optional filtering
    */
-  async getTracks(filter: TrackFilter) {
+  async getTracks(filter: TrackFilter, userId?: string) {
     const where: Prisma.TrackWhereInput = {};
+
+    if (!userId) {
+      where.isPublic = true;
+    }
 
     // Filter by artist name
     if (filter.artist) {
@@ -233,10 +237,14 @@ export class MusicService {
   /**
    * Get a single track by ID
    */
-  async getTrack(id: string) {
+  async getTrack(id: string, userId?: string) {
     const track = await this.musicRepository.findTrackById(id);
 
     if (!track) {
+      throw new NotFoundException(`Track with ID ${id} not found`);
+    }
+
+    if (!userId && !track.isPublic) {
       throw new NotFoundException(`Track with ID ${id} not found`);
     }
 
@@ -290,10 +298,27 @@ export class MusicService {
     };
   }
 
+  async verifyTrackAccess(storageKey: string, userId?: string): Promise<void> {
+    const audioFile =
+      await this.musicRepository.findAudioFileByStorageKey(storageKey);
+
+    if (!audioFile) {
+      throw new NotFoundException('Track not found');
+    }
+
+    if (!userId && !audioFile.track.isPublic) {
+      throw new NotFoundException('Track not found');
+    }
+  }
+
+  async updateTrackVisibility(trackId: string, isPublic: boolean) {
+    return this.musicRepository.updateTrackVisibility(trackId, isPublic);
+  }
+
   // ==================== ARTISTS ====================
 
-  async getArtists() {
-    const artists = await this.musicRepository.findAllArtists();
+  async getArtists(userId?: string) {
+    const artists = await this.musicRepository.findAllArtists(userId);
 
     return artists.map((artist) => ({
       id: artist.id,
@@ -306,8 +331,8 @@ export class MusicService {
   /**
    * Get all albums by an artist
    */
-  async getArtistAlbums(artistId: string) {
-    const artist = await this.musicRepository.findArtistById(artistId);
+  async getArtistAlbums(artistId: string, userId?: string) {
+    const artist = await this.musicRepository.findArtistById(artistId, userId);
 
     if (!artist) {
       throw new NotFoundException(`Artist with ID ${artistId} not found`);
@@ -336,8 +361,11 @@ export class MusicService {
   /**
    * Get all tracks in an album
    */
-  async getAlbumTracks(albumId: string) {
-    const album = await this.musicRepository.findAlbumWithTracks(albumId);
+  async getAlbumTracks(albumId: string, userId?: string) {
+    const album = await this.musicRepository.findAlbumWithTracks(
+      albumId,
+      userId,
+    );
 
     if (!album) {
       throw new NotFoundException(`Album with ID ${albumId} not found`);
@@ -403,12 +431,16 @@ export class MusicService {
   /**
    * Search tracks, artists, and albums
    */
-  async search(query: string, type: 'all' | 'track' | 'artist' | 'album') {
+  async search(
+    query: string,
+    type: 'all' | 'track' | 'artist' | 'album',
+    userId?: string,
+  ) {
     if (!query || query.trim().length === 0) {
       throw new BadRequestException('Search query cannot be empty');
     }
 
-    const results = await this.musicRepository.search(query, type);
+    const results = await this.musicRepository.search(query, type, userId);
 
     const response: {
       tracks?: unknown[];

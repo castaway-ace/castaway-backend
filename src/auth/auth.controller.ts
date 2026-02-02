@@ -17,11 +17,8 @@ import { RefreshTokenDto, type AuthResponse } from './dto/auth.dto.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { randomBytes } from 'crypto';
 import { AuthService } from './auth.service.js';
-import type {
-  RequestWithOAuthUser,
-  RequestWithUser,
-  Tokens,
-} from './auth.types.js';
+import type { RequestWithUser, Tokens } from './auth.types.js';
+import type { UserWithProviders } from '../user/user.types.js';
 
 @Controller('auth')
 export class AuthController {
@@ -48,11 +45,8 @@ export class AuthController {
    */
   @Get('google/callback')
   @UseGuards(GoogleOAuthGuard)
-  async googleAuthCallback(
-    @Req() req: RequestWithOAuthUser,
-    @Res() res: Response,
-  ) {
-    await this.handleOAuthCallback(req, res, 'Google');
+  async googleAuthCallback(@Req() req: RequestWithUser, @Res() res: Response) {
+    await this.handleOAuthCallback(req.user, res, 'Google');
   }
 
   /**
@@ -72,10 +66,10 @@ export class AuthController {
   @Get('facebook/callback')
   @UseGuards(FacebookOAuthGuard)
   async facebookAuthCallback(
-    @Req() req: RequestWithOAuthUser,
+    @Req() req: RequestWithUser,
     @Res() res: Response,
   ) {
-    await this.handleOAuthCallback(req, res, 'Facebook');
+    await this.handleOAuthCallback(req.user, res, 'Facebook');
   }
 
   /**
@@ -100,7 +94,7 @@ export class AuthController {
   @Post('logout')
   @UseGuards(JwtAuthGuard)
   async logout(@Req() req: RequestWithUser): Promise<AuthResponse> {
-    await this.auth.logout(req.user.userId);
+    await this.auth.logout(req.user.id);
     return {
       statusCode: HttpStatus.OK,
       message: 'Logged out successfully',
@@ -121,12 +115,12 @@ export class AuthController {
   }
 
   private async handleOAuthCallback(
-    req: RequestWithOAuthUser,
+    user: UserWithProviders,
     res: Response,
     provider: string,
   ): Promise<void> {
     try {
-      const result = await this.auth.oauthLogin(req.user);
+      await this.auth.oauthLogin(user);
 
       const authCode = randomBytes(32).toString('hex');
       const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
@@ -134,7 +128,7 @@ export class AuthController {
       await this.prisma.authorizationCode.create({
         data: {
           code: authCode,
-          userId: result.user.id,
+          userId: user.id,
           expiresAt,
         },
       });

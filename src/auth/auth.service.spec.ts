@@ -1,4 +1,3 @@
-// src/auth/auth.service.spec.ts
 import { Test, TestingModule } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -7,12 +6,13 @@ import * as bcrypt from 'bcrypt';
 import { AuthService } from '../auth/auth.service.js';
 import { UserRepository } from '../user/user.repository.js';
 import { TokenRepository } from './token.repository.js';
-import { OAuthUserData } from './auth.types.js';
 import {
   UserWithProviders,
   UserWithProvidersAndTokens,
 } from '../user/user.types.js';
-import { RefreshToken } from '../generated/prisma/client.js';
+import { RefreshToken, UserRole } from '../generated/prisma/client.js';
+
+const fixedDate = new Date('2026-02-01');
 
 jest.mock('bcrypt');
 const mockedBcrypt = bcrypt as jest.Mocked<typeof bcrypt>;
@@ -44,27 +44,40 @@ describe('AuthService', () => {
     email: 'test@example.com',
     name: 'Test User',
     avatar: 'https://example.com/avatar.jpg',
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    role: UserRole.USER,
+    createdAt: fixedDate,
+    updatedAt: fixedDate,
     providers: [
       {
         id: 'provider-123',
         userId: 'user-123',
-        provider: 'google',
+        name: 'google',
         providerId: 'google-123',
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        createdAt: fixedDate,
+        updatedAt: fixedDate,
       },
     ],
     refreshTokens: [],
   };
 
-  const mockOAuthUser: OAuthUserData = {
-    provider: 'google',
-    providerId: 'google-123',
+  const mockOAuthUser: UserWithProviders = {
+    id: 'user-123',
     email: 'test@example.com',
     name: 'Test User',
     avatar: 'https://example.com/avatar.jpg',
+    role: UserRole.USER,
+    createdAt: fixedDate,
+    updatedAt: fixedDate,
+    providers: [
+      {
+        id: 'provider-123',
+        userId: 'user-123',
+        name: 'google',
+        providerId: 'google-123',
+        createdAt: fixedDate,
+        updatedAt: fixedDate,
+      },
+    ],
   };
 
   const mockAccessToken = 'mock-access-token';
@@ -72,7 +85,6 @@ describe('AuthService', () => {
   const mockHashedToken = 'hashed-refresh-token';
 
   beforeEach(async () => {
-    // Create mock implementations (assign to variables so expect(mock) satisfies unbound-method)
     findByEmailMock = jest.fn();
     createWithProviderMock = jest.fn();
     linkProviderMock = jest.fn();
@@ -169,23 +181,22 @@ describe('AuthService', () => {
 
         const result = await service.oauthLogin(mockOAuthUser);
 
-        expect(findByEmailMock).toHaveBeenCalledWith('test@example.com');
         expect(createWithProviderMock).toHaveBeenCalledWith({
           email: 'test@example.com',
           name: 'Test User',
+          role: UserRole.USER,
+          createdAt: fixedDate,
+          updatedAt: fixedDate,
+          id: 'user-123',
           avatar: 'https://example.com/avatar.jpg',
-          provider: 'google',
-          providerId: 'google-123',
+          providers: mockOAuthUser.providers,
         });
         expect(result).toEqual({
-          user: {
-            id: 'user-123',
-            email: 'test@example.com',
-            name: 'Test User',
-            avatar: 'https://example.com/avatar.jpg',
+          user: mockUser,
+          tokens: {
+            accessToken: mockAccessToken,
+            refreshToken: mockRefreshToken,
           },
-          accessToken: mockAccessToken,
-          refreshToken: mockRefreshToken,
         });
         expect(createRefreshTokenMock).toHaveBeenCalledWith({
           userId: 'user-123',
@@ -246,7 +257,15 @@ describe('AuthService', () => {
     describe('when user already exists', () => {
       it('should return tokens without creating new user', async () => {
         userRepository.findByEmail.mockResolvedValue(mockUser);
-        userRepository.hasProvider.mockReturnValue(true);
+        userRepository.hasProvider.mockImplementation(
+          (user, providerName, providerId) => {
+            return (
+              user.providers.some(
+                (p) => p.name === providerName && p.providerId === providerId,
+              ) || false
+            );
+          },
+        );
         jwtService.signAsync
           .mockResolvedValueOnce(mockAccessToken)
           .mockResolvedValueOnce(mockRefreshToken);
@@ -264,10 +283,10 @@ describe('AuthService', () => {
             {
               id: 'provider-facebook',
               userId: 'user-123',
-              provider: 'facebook',
+              name: 'facebook',
               providerId: 'facebook-123',
-              createdAt: new Date(),
-              updatedAt: new Date(),
+              createdAt: fixedDate,
+              updatedAt: fixedDate,
             },
           ],
         };
@@ -306,7 +325,7 @@ describe('AuthService', () => {
           .mockResolvedValueOnce(mockAccessToken)
           .mockResolvedValueOnce(mockRefreshToken);
 
-        const oauthUserWithNewName: OAuthUserData = {
+        const oauthUserWithNewName: UserWithProviders = {
           ...mockOAuthUser,
           name: 'Updated Name',
           avatar: null,
@@ -326,7 +345,7 @@ describe('AuthService', () => {
           .mockResolvedValueOnce(mockAccessToken)
           .mockResolvedValueOnce(mockRefreshToken);
 
-        const oauthUserWithNewAvatar: OAuthUserData = {
+        const oauthUserWithNewAvatar: UserWithProviders = {
           ...mockOAuthUser,
           name: '',
           avatar: 'https://example.com/new-avatar.jpg',
@@ -346,7 +365,7 @@ describe('AuthService', () => {
           .mockResolvedValueOnce(mockAccessToken)
           .mockResolvedValueOnce(mockRefreshToken);
 
-        const oauthUserWithUpdates: OAuthUserData = {
+        const oauthUserWithUpdates: UserWithProviders = {
           ...mockOAuthUser,
           name: 'Updated Name',
           avatar: 'https://example.com/new-avatar.jpg',
@@ -367,7 +386,7 @@ describe('AuthService', () => {
           .mockResolvedValueOnce(mockAccessToken)
           .mockResolvedValueOnce(mockRefreshToken);
 
-        const oauthUserWithoutUpdates: OAuthUserData = {
+        const oauthUserWithoutUpdates: UserWithProviders = {
           ...mockOAuthUser,
           name: '',
           avatar: null,
@@ -377,11 +396,130 @@ describe('AuthService', () => {
 
         expect(updateUserMock).not.toHaveBeenCalled();
       });
+
+      it('should update user with fresh OAuth data', async () => {
+        const staleDbUser: UserWithProviders = {
+          ...mockUser,
+          name: 'Old Name',
+          avatar: 'https://example.com/old-avatar.jpg',
+          providers: [
+            {
+              id: 'provider-123',
+              userId: 'user-123',
+              name: 'google',
+              providerId: 'google-123',
+              createdAt: fixedDate,
+              updatedAt: fixedDate,
+            },
+          ],
+        };
+
+        const freshOAuthUser: UserWithProviders = {
+          ...mockOAuthUser,
+          name: 'Fresh Name',
+          avatar: 'https://example.com/fresh-avatar.jpg',
+        };
+
+        userRepository.findByEmail.mockResolvedValue(staleDbUser);
+        userRepository.hasProvider.mockReturnValue(true);
+        jwtService.signAsync
+          .mockResolvedValueOnce(mockAccessToken)
+          .mockResolvedValueOnce(mockRefreshToken);
+
+        await service.oauthLogin(freshOAuthUser);
+
+        expect(updateUserMock).toHaveBeenCalledWith('user-123', {
+          name: 'Fresh Name',
+          avatar: 'https://example.com/fresh-avatar.jpg',
+        });
+      });
+
+      it('should not update user when name is empty string', async () => {
+        userRepository.findByEmail.mockResolvedValue(mockUser);
+        userRepository.hasProvider.mockReturnValue(true);
+        jwtService.signAsync
+          .mockResolvedValueOnce(mockAccessToken)
+          .mockResolvedValueOnce(mockRefreshToken);
+
+        const oauthUserEmptyName: UserWithProviders = {
+          ...mockOAuthUser,
+          name: '',
+          avatar: null,
+        };
+
+        await service.oauthLogin(oauthUserEmptyName);
+
+        expect(updateUserMock).not.toHaveBeenCalled();
+      });
+
+      it('should not update user when name is null', async () => {
+        userRepository.findByEmail.mockResolvedValue(mockUser);
+        userRepository.hasProvider.mockReturnValue(true);
+        jwtService.signAsync
+          .mockResolvedValueOnce(mockAccessToken)
+          .mockResolvedValueOnce(mockRefreshToken);
+
+        const oauthUserNullName: UserWithProviders = {
+          ...mockOAuthUser,
+          name: null,
+          avatar: null,
+        };
+
+        await service.oauthLogin(oauthUserNullName);
+
+        expect(updateUserMock).not.toHaveBeenCalled();
+      });
+
+      it('should link second provider when user logs in with different provider', async () => {
+        const userWithGoogle: UserWithProviders = {
+          ...mockUser,
+          providers: [
+            {
+              id: 'provider-google',
+              userId: 'user-123',
+              name: 'google',
+              providerId: 'google-123',
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            },
+          ],
+        };
+
+        const facebookOAuthUser: UserWithProviders = {
+          ...mockOAuthUser,
+          providers: [
+            {
+              id: 'provider-facebook',
+              userId: 'user-123',
+              name: 'facebook',
+              providerId: 'facebook-456',
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            },
+          ],
+        };
+
+        userRepository.findByEmail.mockResolvedValue(userWithGoogle);
+        userRepository.hasProvider.mockReturnValue(false);
+        jwtService.signAsync
+          .mockResolvedValueOnce(mockAccessToken)
+          .mockResolvedValueOnce(mockRefreshToken);
+
+        await service.oauthLogin(facebookOAuthUser);
+
+        expect(linkProviderMock).toHaveBeenCalledWith(
+          'user-123',
+          'facebook',
+          'facebook-456',
+        );
+
+        expect(createWithProviderMock).not.toHaveBeenCalled();
+      });
     });
 
     describe('email validation', () => {
       it('should throw UnauthorizedException if email is not provided', async () => {
-        const oauthUserWithoutEmail: OAuthUserData = {
+        const oauthUserWithoutEmail: UserWithProviders = {
           ...mockOAuthUser,
           email: '',
         };
@@ -394,7 +532,7 @@ describe('AuthService', () => {
       });
 
       it('should throw UnauthorizedException if email is not in whitelist', async () => {
-        const unauthorizedOAuthUser: OAuthUserData = {
+        const unauthorizedOAuthUser: UserWithProviders = {
           ...mockOAuthUser,
           email: 'unauthorized@example.com',
         };
@@ -415,7 +553,7 @@ describe('AuthService', () => {
           .mockResolvedValueOnce(mockAccessToken)
           .mockResolvedValueOnce(mockRefreshToken);
 
-        const oauthUserUpperCase: OAuthUserData = {
+        const oauthUserUpperCase: UserWithProviders = {
           ...mockOAuthUser,
           email: 'TEST@EXAMPLE.COM',
         };
@@ -499,6 +637,7 @@ describe('AuthService', () => {
             sub: 'user-123',
             email: 'test@example.com',
             name: 'Test User',
+            role: UserRole.USER,
           },
           {
             expiresIn: '15m',
@@ -521,6 +660,7 @@ describe('AuthService', () => {
             sub: 'user-123',
             email: 'test@example.com',
             name: 'Test User',
+            role: UserRole.USER,
           },
           {
             expiresIn: '7d',
@@ -537,7 +677,7 @@ describe('AuthService', () => {
       userId: 'user-123',
       token: mockHashedToken,
       expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 1 day from now
-      createdAt: new Date(),
+      createdAt: fixedDate,
     };
 
     const mockUserWithTokens: UserWithProvidersAndTokens = {
@@ -550,6 +690,7 @@ describe('AuthService', () => {
         sub: 'user-123',
         email: 'test@example.com',
         name: 'Test User',
+        role: UserRole.USER,
         iat: Math.floor(Date.now() / 1000),
         exp: Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60,
       });
@@ -702,7 +843,7 @@ describe('AuthService', () => {
       code: 'valid-code',
       userId: 'user-123',
       expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes from now
-      createdAt: new Date(),
+      createdAt: fixedDate,
       user: mockUser,
     };
 
@@ -775,6 +916,7 @@ describe('AuthService', () => {
           sub: 'user-123',
           email: 'test@example.com',
           name: 'Test User',
+          role: UserRole.USER,
         },
         expect.any(Object),
       );

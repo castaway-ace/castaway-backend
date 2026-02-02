@@ -3,11 +3,12 @@ import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { UserRole } from '../../generated/prisma/enums.js';
 
 export interface JwtPayload {
   sub: string;
   email: string;
-  name?: string;
+  role: UserRole;
 }
 
 @Injectable()

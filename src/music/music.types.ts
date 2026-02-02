@@ -151,3 +151,44 @@ export interface FormattedAlbum {
   trackCount: number;
   totalDuration: number;
 }
+
+export type AudioFileWithTrackVisibility = Prisma.AudioFileGetPayload<{
+  include: {
+    track: {
+      select: {
+        id: true;
+        isPublic: true;
+      };
+    };
+  };
+}>;
+
+export type ArtistWithAlbums = Prisma.ArtistGetPayload<{
+  include: {
+    albums: {
+      include: {
+        tracks: {
+          include: {
+            audioFile: true;
+          };
+        };
+      };
+    };
+  };
+}>;
+
+export type AlbumWithTracks = Prisma.AlbumGetPayload<{
+  include: {
+    artist: true;
+    tracks: {
+      include: {
+        artists: {
+          include: {
+            artist: true;
+          };
+        };
+        audioFile: true;
+      };
+    };
+  };
+}>;

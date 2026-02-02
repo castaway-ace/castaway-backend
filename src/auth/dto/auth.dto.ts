@@ -11,16 +11,3 @@ export interface AuthResponse<T = unknown> {
   message: string;
   data?: T;
 }
-
-export interface UserResponse {
-  id: string;
-  email: string;
-  name: string | null;
-  avatar: string | null;
-}
-
-export interface OAuthLoginResponse {
-  user: UserResponse;
-  accessToken: string;
-  refreshToken: string;
-}

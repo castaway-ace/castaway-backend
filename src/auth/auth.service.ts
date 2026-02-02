@@ -2,14 +2,13 @@ import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
-import { RefreshToken, User } from '../generated/prisma/client.js';
-import { OAuthLoginResponse, UserResponse } from '../auth/dto/auth.dto.js';
+import { RefreshToken } from '../generated/prisma/client.js';
 import { UserRepository } from '../user/user.repository.js';
 import { TokenRepository } from './token.repository.js';
 import {
   JwtPayload,
   JwtVerifiedPayload,
-  OAuthUserData,
+  OAuthLoginResponse,
   Tokens,
 } from './auth.types.js';
 import { UserWithProviders } from '../user/user.types.js';
@@ -35,81 +34,61 @@ export class AuthService {
     this.allowedEmails = this.config.get<string>('auth.allowedEmails', '');
   }
 
-  async oauthLogin(oauthUser: OAuthUserData): Promise<OAuthLoginResponse> {
-    const { provider, providerId, email, name, avatar } = oauthUser;
-
-    if (!email) {
+  async oauthLogin(oauthUser: UserWithProviders): Promise<OAuthLoginResponse> {
+    if (!oauthUser.email) {
       throw new UnauthorizedException('Email not provided by OAuth provider');
     }
 
-    this.validateEmailAccess(email);
+    this.validateEmailAccess(oauthUser.email);
 
-    let user = await this.userRepository.findByEmail(email);
+    let user = await this.userRepository.findByEmail(oauthUser.email);
 
     if (!user) {
-      user = await this.createUserWithProvider(
-        email,
-        name,
-        avatar,
-        provider,
-        providerId,
-      );
+      user = await this.createUserWithProvider(oauthUser);
 
-      this.logger.log(`New user created: ${email} via ${provider}`);
-    } else {
-      await this.updateUserAndProvider(
-        user,
-        provider,
-        providerId,
-        name,
-        avatar,
+      this.logger.log(
+        `New user created: ${oauthUser.email} via ${oauthUser.providers[0].name}`,
       );
+    } else {
+      await this.updateUserAndProvider(user, oauthUser);
     }
     const tokens = await this.generateTokens(user);
 
     return {
-      user: this.mapUserResponse(user),
-      ...tokens,
+      user,
+      tokens,
     };
   }
 
   private async createUserWithProvider(
-    email: string,
-    name: string,
-    avatar: string | null,
-    provider: string,
-    providerId: string,
+    user: UserWithProviders,
   ): Promise<UserWithProviders> {
-    return this.userRepository.createWithProvider({
-      email,
-      name,
-      avatar,
-      provider,
-      providerId,
-    });
+    return this.userRepository.createWithProvider(user);
   }
 
   private async updateUserAndProvider(
-    user: UserWithProviders,
-    provider: string,
-    providerId: string,
-    name: string,
-    avatar: string | null,
+    existingUser: UserWithProviders,
+    oauthUser: UserWithProviders,
   ): Promise<void> {
+    const incomingProvider = oauthUser.providers[0];
     const hasProvider = this.userRepository.hasProvider(
-      user,
-      provider,
-      providerId,
+      existingUser,
+      incomingProvider.name as string,
+      incomingProvider.providerId,
     );
 
     if (!hasProvider) {
-      await this.userRepository.linkProvider(user.id, provider, providerId);
+      await this.userRepository.linkProvider(
+        existingUser.id,
+        incomingProvider.name as string,
+        incomingProvider.providerId,
+      );
     }
 
-    if (name || avatar) {
-      await this.userRepository.updateUser(user.id, {
-        ...(name && { name }),
-        ...(avatar && { avatar }),
+    if (oauthUser.name || oauthUser.avatar) {
+      await this.userRepository.updateUser(existingUser.id, {
+        ...(oauthUser.name && { name: oauthUser.name }),
+        ...(oauthUser.avatar && { avatar: oauthUser.avatar }),
       });
     }
   }
@@ -122,6 +101,7 @@ export class AuthService {
       sub: user.id,
       email: user.email,
       name: user.name,
+      role: user.role,
     };
 
     const [accessToken, refreshToken] = await Promise.all([
@@ -201,6 +181,7 @@ export class AuthService {
       sub: user.id,
       email: user.email,
       name: user.name,
+      role: user.role,
     };
 
     const [accessToken, refreshToken] = await Promise.all([
@@ -257,15 +238,6 @@ export class AuthService {
     await this.tokenRepository.deleteAuthorizationCode(authCode.id);
 
     return this.generateTokens(authCode.user);
-  }
-
-  private mapUserResponse(user: User): UserResponse {
-    return {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      avatar: user.avatar,
-    };
   }
 
   private validateEmailAccess(email: string): void {

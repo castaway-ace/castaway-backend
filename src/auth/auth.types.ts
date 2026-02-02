@@ -1,10 +1,5 @@
-export interface OAuthUserData {
-  provider: string;
-  providerId: string;
-  email: string;
-  name: string;
-  avatar: string | null;
-}
+import { UserRole } from 'src/generated/prisma/enums.js';
+import { UserWithProviders } from '../user/user.types.js';
 
 export interface Tokens {
   accessToken: string;
@@ -15,6 +10,7 @@ export interface JwtPayload {
   sub: string;
   email: string;
   name: string | null;
+  role: UserRole;
 }
 
 export interface JwtVerifiedPayload extends JwtPayload {
@@ -23,13 +19,10 @@ export interface JwtVerifiedPayload extends JwtPayload {
 }
 
 export interface RequestWithUser extends Request {
-  user: {
-    userId: string;
-    email: string;
-    name: string | null;
-  };
+  user: UserWithProviders;
 }
 
-export interface RequestWithOAuthUser extends Request {
-  user: OAuthUserData;
+export interface OAuthLoginResponse {
+  user: UserWithProviders;
+  tokens: Tokens;
 }

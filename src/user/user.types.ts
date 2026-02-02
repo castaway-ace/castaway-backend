@@ -13,14 +13,6 @@ export type UserWithProvidersAndTokens = User & {
   refreshTokens: RefreshToken[];
 };
 
-export interface CreateUserWithProviderData {
-  email: string;
-  name: string;
-  avatar: string | null;
-  provider: string;
-  providerId: string;
-}
-
 export interface UpdateUserData {
   name?: string;
   avatar?: string;
