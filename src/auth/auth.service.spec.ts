@@ -569,7 +569,6 @@ describe('AuthService', () => {
           return 'test-secret';
         });
 
-        // Need to create a new service instance to pick up the new config
         const module: TestingModule = await Test.createTestingModule({
           providers: [
             AuthService,
@@ -668,6 +667,77 @@ describe('AuthService', () => {
           },
         );
       });
+
+      it('should include role in JWT payload', async () => {
+        userRepository.findByEmail.mockResolvedValue(null);
+        userRepository.createWithProvider.mockResolvedValue(mockUser);
+        jwtService.signAsync
+          .mockResolvedValueOnce(mockAccessToken)
+          .mockResolvedValueOnce(mockRefreshToken);
+
+        await service.oauthLogin(mockOAuthUser);
+
+        expect(signAsyncMock).toHaveBeenCalledWith(
+          {
+            sub: 'user-123',
+            email: 'test@example.com',
+            name: 'Test User',
+            role: UserRole.USER,
+          },
+          {
+            expiresIn: '15m',
+            secret: 'test-jwt-secret',
+          },
+        );
+      });
+
+      it('should include role in refresh token payload', async () => {
+        userRepository.findByEmail.mockResolvedValue(null);
+        userRepository.createWithProvider.mockResolvedValue(mockUser);
+        jwtService.signAsync
+          .mockResolvedValueOnce(mockAccessToken)
+          .mockResolvedValueOnce(mockRefreshToken);
+
+        await service.oauthLogin(mockOAuthUser);
+
+        expect(signAsyncMock).toHaveBeenCalledWith(
+          {
+            sub: 'user-123',
+            email: 'test@example.com',
+            name: 'Test User',
+            role: UserRole.USER,
+          },
+          {
+            expiresIn: '7d',
+            secret: 'test-refresh-secret',
+          },
+        );
+      });
+
+      it('should include admin role in JWT for admin users', async () => {
+        const mockAdminUser: UserWithProviders = {
+          ...mockOAuthUser,
+          role: UserRole.ADMIN,
+        };
+
+        userRepository.findByEmail.mockResolvedValue(null);
+        userRepository.createWithProvider.mockResolvedValue({
+          ...mockUser,
+          role: UserRole.ADMIN,
+        });
+        jwtService.signAsync
+          .mockResolvedValueOnce(mockAccessToken)
+          .mockResolvedValueOnce(mockRefreshToken);
+
+        await service.oauthLogin(mockAdminUser);
+
+        expect(signAsyncMock).toHaveBeenCalledWith(
+          expect.objectContaining({
+            role: UserRole.ADMIN,
+          }),
+          expect.any(Object),
+        );
+      });
     });
   });
 
@@ -676,7 +746,7 @@ describe('AuthService', () => {
       id: 'token-123',
       userId: 'user-123',
       token: mockHashedToken,
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 1 day from now
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
       createdAt: fixedDate,
     };
 
@@ -745,7 +815,7 @@ describe('AuthService', () => {
     it('should throw UnauthorizedException if stored token is expired', async () => {
       const expiredToken: RefreshToken = {
         ...mockStoredToken,
-        expiresAt: new Date(Date.now() - 1000), // 1 second ago
+        expiresAt: new Date(Date.now() - 1000),
       };
 
       const userWithExpiredToken: UserWithProvidersAndTokens = {
@@ -821,6 +891,52 @@ describe('AuthService', () => {
         expect.any(Object),
       );
     });
+
+    it('should include updated role when refreshing tokens', async () => {
+      const mockUserWithUpdatedRole: UserWithProvidersAndTokens = {
+        ...mockUser,
+        role: UserRole.ADMIN,
+        refreshTokens: [mockStoredToken],
+      };
+
+      userRepository.findById.mockResolvedValue(mockUserWithUpdatedRole);
+      mockedBcrypt.compare.mockResolvedValue(true as never);
+      jwtService.signAsync
+        .mockResolvedValueOnce('new-access-token')
+        .mockResolvedValueOnce('new-refresh-token');
+
+      await service.refreshTokens(mockRefreshToken);
+
+      expect(signAsyncMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          role: UserRole.ADMIN,
+        }),
+        expect.any(Object),
+      );
+    });
+
+    it('should reflect role downgrade in refreshed tokens', async () => {
+      const mockUserDowngraded: UserWithProvidersAndTokens = {
+        ...mockUser,
+        role: UserRole.USER,
+        refreshTokens: [mockStoredToken],
+      };
+
+      userRepository.findById.mockResolvedValue(mockUserDowngraded);
+      mockedBcrypt.compare.mockResolvedValue(true as never);
+      jwtService.signAsync
+        .mockResolvedValueOnce('new-access-token')
+        .mockResolvedValueOnce('new-refresh-token');
+
+      await service.refreshTokens(mockRefreshToken);
+
+      expect(signAsyncMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          role: UserRole.USER,
+        }),
+        expect.any(Object),
+      );
+    });
   });
 
   describe('logout', () => {
@@ -842,7 +958,7 @@ describe('AuthService', () => {
       id: 'auth-code-123',
       code: 'valid-code',
       userId: 'user-123',
-      expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes from now
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
       createdAt: fixedDate,
       user: mockUser,
     };
@@ -878,7 +994,7 @@ describe('AuthService', () => {
     it('should throw UnauthorizedException if code is expired', async () => {
       const expiredAuthCode = {
         ...mockAuthCode,
-        expiresAt: new Date(Date.now() - 1000), // 1 second ago
+        expiresAt: new Date(Date.now() - 1000),
       };
 
       tokenRepository.findAuthorizationCode.mockResolvedValue(expiredAuthCode);

@@ -11,6 +11,10 @@ import { UserWithProviders } from '../../user/user.types.js';
 export const ROLES_KEY = 'roles';
 export const Roles = (...roles: UserRole[]) => SetMetadata(ROLES_KEY, roles);
 
+interface RequestWithUser {
+  user?: UserWithProviders;
+}
+
 @Injectable()
 export class RolesGuard implements CanActivate {
   constructor(private reflector: Reflector) {}
@@ -25,12 +29,12 @@ export class RolesGuard implements CanActivate {
       return true;
     }
 
-    const request = context.switchToHttp().getRequest<UserWithProviders>();
+    const request = context.switchToHttp().getRequest<RequestWithUser>();
 
-    if (!request) {
-      return false; // No user means not authenticated
+    if (!request?.user) {
+      return false;
     }
 
-    return requiredRoles.some((role) => request.role === role);
+    return requiredRoles.some((role) => request.user?.role === role);
   }
 }

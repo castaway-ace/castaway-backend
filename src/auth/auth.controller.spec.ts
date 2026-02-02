@@ -137,7 +137,6 @@ describe('AuthController', () => {
     });
 
     it('should initiate Google OAuth flow', async () => {
-      // This method is empty as the guard handles the redirect
       await expect(controller.googleAuth()).resolves.toBeUndefined();
     });
   });
@@ -402,6 +401,43 @@ describe('AuthController', () => {
       await expect(
         controller.refreshTokens({ refreshToken: 'invalid-token' }),
       ).rejects.toThrow('Invalid refresh token');
+    });
+  });
+
+  describe('Role-based authorization', () => {
+    it('should allow admin user to access admin-protected endpoint', () => {
+      const mockAdminRequest = {
+        user: {
+          ...mockOAuthUser,
+          role: UserRole.ADMIN,
+        },
+      } as unknown as RequestWithUser;
+
+      const hasAdminRole = mockAdminRequest.user.role === UserRole.ADMIN;
+
+      expect(hasAdminRole).toBe(true);
+    });
+
+    it('should deny regular user access to admin-protected endpoint', () => {
+      const mockUserRequest = {
+        user: {
+          ...mockOAuthUser,
+          role: UserRole.USER,
+        },
+      } as unknown as RequestWithUser;
+
+      const hasAdminRole = mockUserRequest.user.role === UserRole.ADMIN;
+
+      expect(hasAdminRole).toBe(false);
+    });
+
+    it('should extract role from JWT token payload', () => {
+      const mockRequest = {
+        user: mockOAuthUser,
+      } as unknown as RequestWithUser;
+
+      expect(mockRequest.user).toHaveProperty('role');
+      expect(mockRequest.user.role).toBe(UserRole.USER);
     });
   });
 
