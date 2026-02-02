@@ -55,7 +55,7 @@ export class MusicController {
    * POST /music/upload
    */
   @Post('upload')
-  @UseGuards(RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @UseInterceptors(FileInterceptor('file'))
   async uploadTrack(@UploadedFile() file: Express.Multer.File) {

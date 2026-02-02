@@ -4,6 +4,11 @@ import {
   User,
 } from '../generated/prisma/client.js';
 
+export type UserWithProvider = User & {
+  provider: string;
+  providerId: string;
+};
+
 export type UserWithProviders = User & {
   providers: OAuthProvider[];
 };

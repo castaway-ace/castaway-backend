@@ -9,6 +9,7 @@ import {
   JwtPayload,
   JwtVerifiedPayload,
   OAuthLoginResponse,
+  OAuthProfile,
   Tokens,
 } from './auth.types.js';
 import { UserWithProviders } from '../user/user.types.js';
@@ -34,7 +35,7 @@ export class AuthService {
     this.allowedEmails = this.config.get<string>('auth.allowedEmails', '');
   }
 
-  async oauthLogin(oauthUser: UserWithProviders): Promise<OAuthLoginResponse> {
+  async oauthLogin(oauthUser: OAuthProfile): Promise<OAuthLoginResponse> {
     if (!oauthUser.email) {
       throw new UnauthorizedException('Email not provided by OAuth provider');
     }
@@ -45,9 +46,8 @@ export class AuthService {
 
     if (!user) {
       user = await this.createUserWithProvider(oauthUser);
-
       this.logger.log(
-        `New user created: ${oauthUser.email} via ${oauthUser.providers[0].name}`,
+        `New user created: ${oauthUser.email} via ${oauthUser.provider}`,
       );
     } else {
       await this.updateUserAndProvider(user, oauthUser);
@@ -61,27 +61,26 @@ export class AuthService {
   }
 
   private async createUserWithProvider(
-    user: UserWithProviders,
+    user: OAuthProfile,
   ): Promise<UserWithProviders> {
     return this.userRepository.createWithProvider(user);
   }
 
   private async updateUserAndProvider(
     existingUser: UserWithProviders,
-    oauthUser: UserWithProviders,
+    oauthUser: OAuthProfile,
   ): Promise<void> {
-    const incomingProvider = oauthUser.providers[0];
     const hasProvider = this.userRepository.hasProvider(
       existingUser,
-      incomingProvider.name as string,
-      incomingProvider.providerId,
+      oauthUser.provider,
+      oauthUser.providerId,
     );
 
     if (!hasProvider) {
       await this.userRepository.linkProvider(
         existingUser.id,
-        incomingProvider.name as string,
-        incomingProvider.providerId,
+        oauthUser.provider,
+        oauthUser.providerId,
       );
     }
 

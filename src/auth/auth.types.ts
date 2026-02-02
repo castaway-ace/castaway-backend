@@ -1,4 +1,4 @@
-import { UserRole } from '../generated/prisma/client.js';
+import { User, UserRole } from '../generated/prisma/client.js';
 import { UserWithProviders } from '../user/user.types.js';
 
 export interface Tokens {
@@ -18,8 +18,20 @@ export interface JwtVerifiedPayload extends JwtPayload {
   exp: number;
 }
 
+export interface OAuthProfile {
+  provider: string;
+  providerId: string;
+  email: string;
+  name: string;
+  avatar: string | null;
+}
+
+export interface RequestWithOAuthProfile extends Request {
+  user: OAuthProfile;
+}
+
 export interface RequestWithUser extends Request {
-  user: UserWithProviders;
+  user: User;
 }
 
 export interface OAuthLoginResponse {

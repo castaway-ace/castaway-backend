@@ -17,8 +17,12 @@ import { RefreshTokenDto, type AuthResponse } from './dto/auth.dto.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { randomBytes } from 'crypto';
 import { AuthService } from './auth.service.js';
-import type { RequestWithUser, Tokens } from './auth.types.js';
-import type { UserWithProviders } from '../user/user.types.js';
+import type {
+  OAuthProfile,
+  RequestWithOAuthProfile,
+  RequestWithUser,
+  Tokens,
+} from './auth.types.js';
 
 @Controller('auth')
 export class AuthController {
@@ -45,7 +49,10 @@ export class AuthController {
    */
   @Get('google/callback')
   @UseGuards(GoogleOAuthGuard)
-  async googleAuthCallback(@Req() req: RequestWithUser, @Res() res: Response) {
+  async googleAuthCallback(
+    @Req() req: RequestWithOAuthProfile,
+    @Res() res: Response,
+  ) {
     await this.handleOAuthCallback(req.user, res, 'Google');
   }
 
@@ -66,7 +73,7 @@ export class AuthController {
   @Get('facebook/callback')
   @UseGuards(FacebookOAuthGuard)
   async facebookAuthCallback(
-    @Req() req: RequestWithUser,
+    @Req() req: RequestWithOAuthProfile,
     @Res() res: Response,
   ) {
     await this.handleOAuthCallback(req.user, res, 'Facebook');
@@ -107,7 +114,7 @@ export class AuthController {
    */
   @Get('me')
   @UseGuards(JwtAuthGuard)
-  getCurrentUser(@Req() req: RequestWithUser) {
+  getCurrentUser(@Req() req: RequestWithOAuthProfile) {
     return {
       statusCode: HttpStatus.OK,
       user: req.user,
@@ -115,12 +122,12 @@ export class AuthController {
   }
 
   private async handleOAuthCallback(
-    user: UserWithProviders,
+    user: OAuthProfile,
     res: Response,
     provider: string,
   ): Promise<void> {
     try {
-      await this.auth.oauthLogin(user);
+      const data = await this.auth.oauthLogin(user);
 
       const authCode = randomBytes(32).toString('hex');
       const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
@@ -128,7 +135,7 @@ export class AuthController {
       await this.prisma.authorizationCode.create({
         data: {
           code: authCode,
-          userId: user.id,
+          userId: data.user.id,
           expiresAt,
         },
       });

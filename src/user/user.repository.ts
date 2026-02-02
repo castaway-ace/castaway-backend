@@ -5,6 +5,7 @@ import {
   UserWithProviders,
   UserWithProvidersAndTokens,
 } from './user.types.js';
+import { OAuthProfile } from 'src/auth/auth.types.js';
 
 @Injectable()
 export class UserRepository {
@@ -48,10 +49,8 @@ export class UserRepository {
   /**
    * Create a new user with an initial OAuth provider
    */
-  async createWithProvider(
-    user: UserWithProviders,
-  ): Promise<UserWithProviders> {
-    const { email, name, avatar, providers } = user;
+  async createWithProvider(user: OAuthProfile): Promise<UserWithProviders> {
+    const { email, name, avatar, provider, providerId } = user;
 
     const createdUser = await this.prisma.user.create({
       data: {
@@ -60,19 +59,18 @@ export class UserRepository {
         avatar,
         providers: {
           create: {
-            name: providers[0].name as string,
-            providerId: providers[0].providerId,
+            name: provider,
+            providerId,
           },
         },
       },
       include: { providers: true },
     });
 
-    this.logger.log(`Created new user: ${email} via ${providers[0].name}`);
+    this.logger.log(`Created new user: ${email} via ${provider}`);
 
     return {
       ...createdUser,
-      providers,
     };
   }
 

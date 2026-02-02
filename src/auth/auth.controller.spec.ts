@@ -6,7 +6,11 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { GoogleOAuthGuard } from './guards/google-oauth.guard.js';
 import { FacebookOAuthGuard } from './guards/facebook-oauth.guard.js';
 import { JwtAuthGuard } from './guards/jwt-oauth.guard.js';
-import type { RequestWithUser, Tokens } from './auth.types.js';
+import type {
+  RequestWithOAuthProfile,
+  RequestWithUser,
+  Tokens,
+} from './auth.types.js';
 import { Response } from 'express';
 import { AuthorizationCode, UserRole } from '../generated/prisma/client.js';
 import { UserWithProviders } from '../user/user.types.js';
@@ -153,13 +157,13 @@ describe('AuthController', () => {
   });
 
   describe('googleAuthCallback', () => {
-    let mockRequest: RequestWithUser;
+    let mockRequest: RequestWithOAuthProfile;
     let mockResponse: Partial<Response>;
 
     beforeEach(() => {
       mockRequest = {
         user: mockOAuthUser,
-      } as unknown as RequestWithUser;
+      } as unknown as RequestWithOAuthProfile;
 
       mockResponse = {
         redirect: jest.fn(),
@@ -322,13 +326,13 @@ describe('AuthController', () => {
   });
 
   describe('facebookAuthCallback', () => {
-    let mockRequest: RequestWithUser;
+    let mockRequest: RequestWithOAuthProfile;
     let mockResponse: Partial<Response>;
 
     beforeEach(() => {
       mockRequest = {
         user: mockFacebookOAuthUser,
-      } as unknown as RequestWithUser;
+      } as unknown as RequestWithOAuthProfile;
 
       mockResponse = {
         redirect: jest.fn(),
@@ -475,7 +479,7 @@ describe('AuthController', () => {
     it('should return current user information', () => {
       const mockRequest = {
         user: mockOAuthUser,
-      } as unknown as RequestWithUser;
+      } as unknown as RequestWithOAuthProfile;
 
       const result = controller.getCurrentUser(mockRequest);
 

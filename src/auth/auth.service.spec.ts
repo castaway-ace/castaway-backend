@@ -7,6 +7,7 @@ import { AuthService } from '../auth/auth.service.js';
 import { UserRepository } from '../user/user.repository.js';
 import { TokenRepository } from './token.repository.js';
 import {
+  UserWithProvider,
   UserWithProviders,
   UserWithProvidersAndTokens,
 } from '../user/user.types.js';
@@ -60,24 +61,16 @@ describe('AuthService', () => {
     refreshTokens: [],
   };
 
-  const mockOAuthUser: UserWithProviders = {
+  const mockOAuthUser: UserWithProvider = {
     id: 'user-123',
     email: 'test@example.com',
     name: 'Test User',
     avatar: 'https://example.com/avatar.jpg',
-    role: UserRole.USER,
+    provider: 'google',
+    providerId: 'google-123',
+    role: 'USER',
     createdAt: fixedDate,
     updatedAt: fixedDate,
-    providers: [
-      {
-        id: 'provider-123',
-        userId: 'user-123',
-        name: 'google',
-        providerId: 'google-123',
-        createdAt: fixedDate,
-        updatedAt: fixedDate,
-      },
-    ],
   };
 
   const mockAccessToken = 'mock-access-token';
@@ -189,7 +182,8 @@ describe('AuthService', () => {
           updatedAt: fixedDate,
           id: 'user-123',
           avatar: 'https://example.com/avatar.jpg',
-          providers: mockOAuthUser.providers,
+          provider: 'google',
+          providerId: 'google-123',
         });
         expect(result).toEqual({
           user: mockUser,
@@ -325,7 +319,7 @@ describe('AuthService', () => {
           .mockResolvedValueOnce(mockAccessToken)
           .mockResolvedValueOnce(mockRefreshToken);
 
-        const oauthUserWithNewName: UserWithProviders = {
+        const oauthUserWithNewName: UserWithProvider = {
           ...mockOAuthUser,
           name: 'Updated Name',
           avatar: null,
@@ -345,7 +339,7 @@ describe('AuthService', () => {
           .mockResolvedValueOnce(mockAccessToken)
           .mockResolvedValueOnce(mockRefreshToken);
 
-        const oauthUserWithNewAvatar: UserWithProviders = {
+        const oauthUserWithNewAvatar: UserWithProvider = {
           ...mockOAuthUser,
           name: '',
           avatar: 'https://example.com/new-avatar.jpg',
@@ -365,7 +359,7 @@ describe('AuthService', () => {
           .mockResolvedValueOnce(mockAccessToken)
           .mockResolvedValueOnce(mockRefreshToken);
 
-        const oauthUserWithUpdates: UserWithProviders = {
+        const oauthUserWithUpdates: UserWithProvider = {
           ...mockOAuthUser,
           name: 'Updated Name',
           avatar: 'https://example.com/new-avatar.jpg',
@@ -386,7 +380,7 @@ describe('AuthService', () => {
           .mockResolvedValueOnce(mockAccessToken)
           .mockResolvedValueOnce(mockRefreshToken);
 
-        const oauthUserWithoutUpdates: UserWithProviders = {
+        const oauthUserWithoutUpdates: UserWithProvider = {
           ...mockOAuthUser,
           name: '',
           avatar: null,
@@ -414,7 +408,7 @@ describe('AuthService', () => {
           ],
         };
 
-        const freshOAuthUser: UserWithProviders = {
+        const freshOAuthUser: UserWithProvider = {
           ...mockOAuthUser,
           name: 'Fresh Name',
           avatar: 'https://example.com/fresh-avatar.jpg',
@@ -441,7 +435,7 @@ describe('AuthService', () => {
           .mockResolvedValueOnce(mockAccessToken)
           .mockResolvedValueOnce(mockRefreshToken);
 
-        const oauthUserEmptyName: UserWithProviders = {
+        const oauthUserEmptyName: UserWithProvider = {
           ...mockOAuthUser,
           name: '',
           avatar: null,
@@ -459,7 +453,7 @@ describe('AuthService', () => {
           .mockResolvedValueOnce(mockAccessToken)
           .mockResolvedValueOnce(mockRefreshToken);
 
-        const oauthUserNullName: UserWithProviders = {
+        const oauthUserNullName: UserWithProvider = {
           ...mockOAuthUser,
           name: null,
           avatar: null,
@@ -485,18 +479,10 @@ describe('AuthService', () => {
           ],
         };
 
-        const facebookOAuthUser: UserWithProviders = {
+        const facebookOAuthUser: UserWithProvider = {
           ...mockOAuthUser,
-          providers: [
-            {
-              id: 'provider-facebook',
-              userId: 'user-123',
-              name: 'facebook',
-              providerId: 'facebook-456',
-              createdAt: new Date(),
-              updatedAt: new Date(),
-            },
-          ],
+          provider: 'facebook',
+          providerId: 'facebook-456',
         };
 
         userRepository.findByEmail.mockResolvedValue(userWithGoogle);
@@ -519,7 +505,7 @@ describe('AuthService', () => {
 
     describe('email validation', () => {
       it('should throw UnauthorizedException if email is not provided', async () => {
-        const oauthUserWithoutEmail: UserWithProviders = {
+        const oauthUserWithoutEmail: UserWithProvider = {
           ...mockOAuthUser,
           email: '',
         };
@@ -532,7 +518,7 @@ describe('AuthService', () => {
       });
 
       it('should throw UnauthorizedException if email is not in whitelist', async () => {
-        const unauthorizedOAuthUser: UserWithProviders = {
+        const unauthorizedOAuthUser: UserWithProvider = {
           ...mockOAuthUser,
           email: 'unauthorized@example.com',
         };
@@ -553,7 +539,7 @@ describe('AuthService', () => {
           .mockResolvedValueOnce(mockAccessToken)
           .mockResolvedValueOnce(mockRefreshToken);
 
-        const oauthUserUpperCase: UserWithProviders = {
+        const oauthUserUpperCase: UserWithProvider = {
           ...mockOAuthUser,
           email: 'TEST@EXAMPLE.COM',
         };
@@ -715,7 +701,7 @@ describe('AuthService', () => {
       });
 
       it('should include admin role in JWT for admin users', async () => {
-        const mockAdminUser: UserWithProviders = {
+        const mockAdminUser: UserWithProvider = {
           ...mockOAuthUser,
           role: UserRole.ADMIN,
         };
