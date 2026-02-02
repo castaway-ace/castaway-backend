@@ -1,4 +1,4 @@
-import { UserRole } from 'src/generated/prisma/enums.js';
+import { UserRole } from '../generated/prisma/client.js';
 import { UserWithProviders } from '../user/user.types.js';
 
 export interface Tokens {

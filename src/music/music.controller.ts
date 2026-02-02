@@ -21,11 +21,11 @@ import {
 import { type Response } from 'express';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { MusicService } from './music.service.js';
-import { Roles, RolesGuard } from 'src/auth/guards/roles.guard.js';
+import { Roles, RolesGuard } from '../auth/guards/roles.guard.js';
 import { UserRole } from '../generated/prisma/enums.js';
-import { OptionalAuthGuard } from 'src/auth/guards/optional-oauth.guard.js';
-import { JwtAuthGuard } from 'src/auth/guards/jwt-oauth.guard.js';
-import { type RequestWithUser } from 'src/auth/auth.types.js';
+import { OptionalAuthGuard } from '../auth/guards/optional-oauth.guard.js';
+import { JwtAuthGuard } from '../auth/guards/jwt-oauth.guard.js';
+import { type RequestWithUser } from '../auth/auth.types.js';
 
 @Controller('music')
 export class MusicController {
@@ -252,7 +252,7 @@ export class MusicController {
       message: `Track visibility updated to ${isPublic ? 'public' : 'private'}`,
       data: {
         trackId: track.id,
-        isPublic: track.isPublic as boolean,
+        isPublic: track.isPublic,
       },
     };
   }

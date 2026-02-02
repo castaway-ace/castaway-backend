@@ -9,7 +9,7 @@ import { JwtAuthGuard } from './guards/jwt-oauth.guard.js';
 import type { RequestWithUser, Tokens } from './auth.types.js';
 import { Response } from 'express';
 import { AuthorizationCode, UserRole } from '../generated/prisma/client.js';
-import { UserWithProviders } from 'src/user/user.types.js';
+import { UserWithProviders } from '../user/user.types.js';
 
 const fixedDate = new Date('2026-02-01');
 
