@@ -158,7 +158,7 @@ export class MusicController {
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
     @Req() req?: RequestWithUser,
-  ) {
+  ): Promise<{ statusCode: HttpStatus; data: any[] }> {
     const userId = req?.user?.id;
     const tracks = await this.musicService.getTracks(
       {
