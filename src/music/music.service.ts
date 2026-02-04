@@ -240,10 +240,6 @@ export class MusicService {
         releaseYear: track.album.releaseYear,
         genre: track.album.genre,
         albumArtKey: track.album.albumArtKey,
-        artist: {
-          id: track.album.artist.id,
-          name: track.album.artist.name,
-        },
       },
       audioFile: track.audioFile
         ? {
