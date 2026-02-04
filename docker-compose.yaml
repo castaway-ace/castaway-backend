@@ -51,7 +51,7 @@ services:
       ALLOWED_EMAILS: ${ALLOWED_EMAILS}
     ports:
       - "${BACKEND_PORT}:3000"
-      - "${PRISMA_PORT}:5555"
+      - "${PRISMA_PORT}:5556"
     volumes:
       - ./src:/app/src
       - ./prisma:/app/prisma
