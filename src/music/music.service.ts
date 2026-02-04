@@ -196,40 +196,13 @@ export class MusicService {
 
     // Transform to clean response format
     return tracks.map((track) => {
-      // Sort artists by order in application code
-      const sortedArtists = [...track.artists].sort(
-        (a, b) => a.order - b.order,
-      );
       return {
         id: track.id,
         title: track.title,
-        trackNumber: track.trackNumber,
-        discNumber: track.discNumber,
         duration: track.duration,
-        artists: sortedArtists.map((ta) => ({
-          id: ta.artist.id,
-          name: ta.artist.name,
-        })),
-        album: {
-          id: track.album.id,
-          title: track.album.title,
-          releaseYear: track.album.releaseYear,
-          genre: track.album.genre,
-          albumArtKey: track.album.albumArtKey,
-          artist: {
-            id: track.album.artist.id,
-            name: track.album.artist.name,
-          },
-        },
-        audioFile: track.audioFile
-          ? {
-              storageKey: track.audioFile.storageKey,
-              format: track.audioFile.format,
-              bitrate: track.audioFile.bitrate,
-              sampleRate: track.audioFile.sampleRate,
-              fileSize: track.audioFile.fileSize.toString(),
-            }
-          : null,
+        artistName: track.artists.map((ta) => ta.artist.name).join(', '),
+        albumId: track.album.id,
+        albumTitle: track.album.title,
       };
     });
   }

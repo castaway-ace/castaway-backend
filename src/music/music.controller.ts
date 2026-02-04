@@ -26,6 +26,9 @@ import { UserRole } from '../generated/prisma/enums.js';
 import { OptionalAuthGuard } from '../auth/guards/optional-oauth.guard.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-oauth.guard.js';
 import { type RequestWithUser } from '../auth/auth.types.js';
+import { type User } from '../generated/prisma/client.js';
+import { CurrentUser } from '../user/user.decorator.js';
+import { TrackFilter } from './music.types.js';
 
 @Controller('music')
 export class MusicController {
@@ -153,22 +156,20 @@ export class MusicController {
   @Get('tracks')
   @UseGuards(OptionalAuthGuard)
   async getTracks(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 20,
     @Query('artist') artist?: string,
     @Query('album') album?: string,
-    @Query('limit') limit?: string,
-    @Query('offset') offset?: string,
-    @Req() req?: RequestWithUser,
+    @CurrentUser() user?: User,
   ): Promise<{ statusCode: HttpStatus; data: any[] }> {
-    const userId = req?.user?.id;
-    const tracks = await this.musicService.getTracks(
-      {
-        artist,
-        album,
-        limit: limit ? parseInt(limit, 10) : 50,
-        offset: offset ? parseInt(offset, 10) : 0,
-      },
-      userId,
-    );
+    const filter: TrackFilter = {
+      limit,
+      offset: (page - 1) * limit,
+      artist,
+      album,
+    };
+
+    const tracks = await this.musicService.getTracks(filter, user?.id);
 
     return {
       statusCode: HttpStatus.OK,

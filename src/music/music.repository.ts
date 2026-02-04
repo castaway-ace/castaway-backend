@@ -79,18 +79,30 @@ export class MusicRepository {
   ) {
     return this.prisma.track.findMany({
       where,
-      include: {
-        album: {
-          include: {
-            artist: true,
-          },
-        },
+      select: {
+        id: true,
+        title: true,
+        duration: true,
         artists: {
-          include: {
-            artist: true,
+          select: {
+            order: true,
+            artist: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+          orderBy: {
+            order: 'asc',
           },
         },
-        audioFile: true,
+        album: {
+          select: {
+            id: true,
+            title: true,
+          },
+        },
       },
       orderBy: [
         { album: { title: 'asc' } },
