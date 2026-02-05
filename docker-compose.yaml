@@ -36,6 +36,9 @@ services:
       MINIO_USE_SSL: ${MINIO_USE_SSL}
       MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME}
       MINIO_REGION: ${MINIO_REGION}
+      MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT}
+      MINIO_PUBLIC_PORT: ${MINIO_PUBLIC_PORT}
+      MINIO_PUBLIC_USE_SSL: ${MINIO_PUBLIC_USE_SSL}
 
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
@@ -96,8 +99,7 @@ services:
       - castaway-network
     depends_on:
       - backend
-    profiles:
-      - production
+      - minio
 
 networks:
   castaway-network:

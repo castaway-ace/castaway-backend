@@ -25,6 +25,31 @@ import { StorageConfig } from '../config/config.types.js';
       },
       inject: [ConfigService],
     },
+    {
+      provide: 'MINIO_PUBLIC_CLIENT',
+      useFactory: (config: ConfigService) => {
+        const storageConfig = config.get<StorageConfig>('storage');
+
+        if (!storageConfig) {
+          throw new Error('Storage configuration not found');
+        }
+
+        if (!storageConfig.publicEndPoint) {
+          throw new Error(
+            'MINIO_PUBLIC_ENDPOINT is required. Please set it in your .env file.',
+          );
+        }
+
+        return new Client({
+          endPoint: storageConfig.publicEndPoint,
+          port: storageConfig.publicPort,
+          useSSL: storageConfig.publicUseSSL,
+          accessKey: storageConfig.accessKey,
+          secretKey: storageConfig.secretKey,
+        });
+      },
+      inject: [ConfigService],
+    },
     StorageService,
   ],
   exports: [StorageService],

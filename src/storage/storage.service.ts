@@ -12,6 +12,8 @@ export class StorageService {
 
   constructor(
     @Inject('MINIO_CLIENT') private readonly minioClient: Minio.Client,
+    @Inject('MINIO_PUBLIC_CLIENT')
+    private readonly minioPublicClient: Minio.Client,
     private readonly configService: ConfigService,
   ) {
     this.bucketName = this.configService.get<string>(
@@ -225,11 +227,12 @@ export class StorageService {
     expirySeconds: number = 86400,
   ): Promise<string> {
     try {
-      const url = await this.minioClient.presignedGetObject(
+      const url = await this.minioPublicClient.presignedGetObject(
         this.bucketName,
         storageKey,
         expirySeconds,
       );
+
       return url;
     } catch (error) {
       const errorMessage =

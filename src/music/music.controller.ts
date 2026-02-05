@@ -29,6 +29,7 @@ import { type RequestWithUser } from '../auth/auth.types.js';
 import { type User } from '../generated/prisma/client.js';
 import { CurrentUser } from '../user/user.decorator.js';
 import { TrackFilter } from './music.types.js';
+import { StorageService } from '../storage/storage.service.js';
 
 @Controller('music')
 export class MusicController {
@@ -49,7 +50,10 @@ export class MusicController {
 
   private readonly MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
 
-  constructor(private readonly musicService: MusicService) {}
+  constructor(
+    private readonly musicService: MusicService,
+    private readonly storageService: StorageService,
+  ) {}
 
   // ==================== UPLOAD ====================
 
@@ -201,10 +205,8 @@ export class MusicController {
   @UseGuards(OptionalAuthGuard)
   async streamTrack(
     @Param('id') id: string,
-    @Headers('range') range: string,
-    @Res() res: Response,
     @Req() req?: RequestWithUser,
-  ) {
+  ): Promise<{ url: string; expiresIn: number }> {
     const userId = req?.user?.id;
     const track = await this.musicService.getTrack(id, userId);
 
@@ -217,7 +219,19 @@ export class MusicController {
       userId,
     );
 
-    await this.musicService.streamTrack(track.audioFile.storageKey, range, res);
+    const url = await this.storageService.getPresignedUrl(
+      track.audioFile.storageKey,
+      86400, // 24 hours
+    );
+
+    this.logger.log(
+      `User ${userId || 'guest'} initiated stream for track ${id}`,
+    );
+
+    return {
+      url,
+      expiresIn: 86400,
+    };
   }
 
   /**

@@ -5,7 +5,7 @@ import {
   UserWithProviders,
   UserWithProvidersAndTokens,
 } from './user.types.js';
-import { OAuthProfile } from 'src/auth/auth.types.js';
+import { OAuthProfile } from '../auth/auth.types.js';
 
 @Injectable()
 export class UserRepository {

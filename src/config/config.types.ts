@@ -6,4 +6,7 @@ export interface StorageConfig {
   useSSL: boolean;
   bucketName: string;
   region: string;
+  publicEndPoint: string;
+  publicPort: number;
+  publicUseSSL: boolean;
 }
