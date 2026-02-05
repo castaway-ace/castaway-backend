@@ -462,74 +462,58 @@ export class MusicService {
   ): Promise<void> {
     try {
       const stats = await this.storage.getFileStats(storageKey);
-
       const contentType = this.getContentType(stats.metaData, 'audio/mpeg');
 
       res.setHeader('Content-Type', contentType);
       res.setHeader('Cache-Control', 'public, max-age=31536000');
       res.setHeader('Accept-Ranges', 'bytes');
 
+      let start = 0;
+      let end = stats.size - 1;
+
       if (range) {
         const parts = range.replace(/bytes=/, '').split('-');
-        const start = parseInt(parts[0], 10);
-        const end = parts[1] ? parseInt(parts[1], 10) : stats.size - 1;
-        const chunkSize = end - start + 1;
-
-        if (start >= stats.size || end >= stats.size) {
-          res.status(HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE);
-          res.setHeader('Content-Range', `bytes */${stats.size}`);
-          res.end();
-          return;
-        }
-
-        res.status(HttpStatus.PARTIAL_CONTENT);
-        res.setHeader('Content-Range', `bytes ${start}-${end}/${stats.size}`);
-        res.setHeader('Content-Length', chunkSize);
-
-        this.logger.log(
-          `Streaming ${storageKey} [${start}-${end}/${stats.size}]`,
-        );
-
-        const fileStream = await this.storage.getFileRange(
-          storageKey,
-          start,
-          chunkSize,
-        );
-
-        fileStream.pipe(res);
-
-        fileStream.on('error', (error) => {
-          this.logger.error(`Stream error for ${storageKey}: ${error.message}`);
-          if (!res.headersSent) {
-            res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
-              message: 'Stream error',
-            });
-          }
-        });
+        start = parseInt(parts[0], 10);
+        end = parts[1] ? parseInt(parts[1], 10) : stats.size - 1;
       } else {
-        res.setHeader('Content-Length', stats.size);
-        res.setHeader(
-          'Content-Disposition',
-          `inline; filename="${storageKey}"`,
-        );
-
-        this.logger.log(
-          `Streaming ${storageKey} [full file: ${stats.size} bytes]`,
-        );
-
-        const fileStream = await this.storage.getFile(storageKey);
-
-        fileStream.pipe(res);
-
-        fileStream.on('error', (error) => {
-          this.logger.error(`Stream error for ${storageKey}: ${error.message}`);
-          if (!res.headersSent) {
-            res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
-              message: 'Stream error',
-            });
-          }
-        });
+        // If no range header, default to first 1MB chunk for initial buffer
+        // This helps with streaming performance
+        end = Math.min(1024 * 1024, stats.size - 1);
       }
+
+      const chunkSize = end - start + 1;
+
+      if (start >= stats.size || end >= stats.size) {
+        res.status(HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE);
+        res.setHeader('Content-Range', `bytes */${stats.size}`);
+        res.end();
+        return;
+      }
+
+      res.status(range ? HttpStatus.PARTIAL_CONTENT : HttpStatus.OK);
+      res.setHeader('Content-Range', `bytes ${start}-${end}/${stats.size}`);
+      res.setHeader('Content-Length', chunkSize);
+
+      this.logger.log(
+        `Streaming ${storageKey} [${start}-${end}/${stats.size}]`,
+      );
+
+      const fileStream = await this.storage.getFileRange(
+        storageKey,
+        start,
+        chunkSize,
+      );
+
+      fileStream.pipe(res);
+
+      fileStream.on('error', (error) => {
+        this.logger.error(`Stream error for ${storageKey}: ${error.message}`);
+        if (!res.headersSent) {
+          res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+            message: 'Stream error',
+          });
+        }
+      });
     } catch (error) {
       this.handleStreamError(error, res);
     }
