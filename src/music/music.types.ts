@@ -122,7 +122,7 @@ export interface FormattedTrackItem {
 
 export interface StreamItemResponse {
   url: string;
-  expiresIn: string;
+  expiresIn: number;
 }
 
 /**
