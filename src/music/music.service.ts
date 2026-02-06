@@ -15,6 +15,8 @@ import { MusicRepository } from './music.repository.js';
 import {
   AlbumUploadResult,
   ExtractedMetadata,
+  FormattedTrack,
+  FormattedTrackItem,
   TrackFilter,
   UploadResult,
 } from './music.types.js';
@@ -158,7 +160,10 @@ export class MusicService {
   /**
    * Get tracks with optional filtering
    */
-  async getTracks(filter: TrackFilter, userId?: string) {
+  async getTracks(
+    filter: TrackFilter,
+    userId?: string,
+  ): Promise<FormattedTrackItem[]> {
     const where: Prisma.TrackWhereInput = {};
 
     if (!userId) {
@@ -210,7 +215,7 @@ export class MusicService {
   /**
    * Get a single track by ID
    */
-  async getTrack(id: string, userId?: string) {
+  async getTrack(id: string, userId?: string): Promise<FormattedTrack> {
     const track = await this.musicRepository.findTrackById(id);
 
     if (!track) {
@@ -448,41 +453,6 @@ export class MusicService {
     }
 
     return response;
-  }
-
-  // ==================== STREAMING ====================
-
-  /**
-   * Stream an image (album art)
-   */
-  async streamImage(storageKey: string, res: Response): Promise<void> {
-    try {
-      const stats = await this.storage.getFileStats(storageKey);
-
-      const contentType = this.getContentType(stats.metaData, 'image/jpeg');
-
-      res.setHeader('Content-Type', contentType);
-      res.setHeader('Content-Length', stats.size);
-      res.setHeader('Cache-Control', 'public, max-age=31536000');
-
-      this.logger.log(`Streaming image: ${storageKey}`);
-
-      const fileStream = await this.storage.getFile(storageKey);
-      fileStream.pipe(res);
-
-      fileStream.on('error', (error) => {
-        this.logger.error(
-          `Stream error for image ${storageKey}: ${error.message}`,
-        );
-        if (!res.headersSent) {
-          res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
-            message: 'Stream error',
-          });
-        }
-      });
-    } catch (error) {
-      this.handleStreamError(error, res);
-    }
   }
 
   // ==================== PRIVATE HELPERS ====================

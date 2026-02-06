@@ -16,7 +16,6 @@ import {
   Patch,
   Body,
 } from '@nestjs/common';
-import { type Response } from 'express';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { MusicService } from './music.service.js';
 import { Roles, RolesGuard } from '../auth/guards/roles.guard.js';
@@ -26,7 +25,12 @@ import { JwtAuthGuard } from '../auth/guards/jwt-oauth.guard.js';
 import { type RequestWithUser } from '../auth/auth.types.js';
 import { type User } from '../generated/prisma/client.js';
 import { CurrentUser } from '../user/user.decorator.js';
-import { TrackFilter } from './music.types.js';
+import {
+  StreamItemResponse,
+  FormattedTrack,
+  FormattedTrackItem,
+  TrackFilter,
+} from './music.types.js';
 import { StorageService } from '../storage/storage.service.js';
 
 @Controller('music')
@@ -163,7 +167,7 @@ export class MusicController {
     @Query('artist') artist?: string,
     @Query('album') album?: string,
     @CurrentUser() user?: User,
-  ): Promise<{ statusCode: HttpStatus; data: any[] }> {
+  ): Promise<{ statusCode: HttpStatus; data: FormattedTrackItem[] }> {
     const filter: TrackFilter = {
       limit,
       offset: (page - 1) * limit,
@@ -185,7 +189,10 @@ export class MusicController {
    */
   @Get('tracks/:id')
   @UseGuards(OptionalAuthGuard)
-  async getTrack(@Param('id') id: string, @Req() req?: RequestWithUser) {
+  async getTrack(
+    @Param('id') id: string,
+    @Req() req?: RequestWithUser,
+  ): Promise<{ statusCode: HttpStatus; data: FormattedTrack }> {
     const userId = req?.user?.id;
     const track = await this.musicService.getTrack(id, userId);
 
@@ -204,7 +211,7 @@ export class MusicController {
   async streamTrack(
     @Param('id') id: string,
     @Req() req?: RequestWithUser,
-  ): Promise<{ url: string; expiresIn: number }> {
+  ): Promise<StreamItemResponse> {
     const userId = req?.user?.id;
     const track = await this.musicService.getTrack(id, userId);
 
@@ -324,9 +331,7 @@ export class MusicController {
 
   @Get('albums/:id/art')
   @UseGuards(OptionalAuthGuard)
-  async getAlbumArt(
-    @Param('id') id: string,
-  ): Promise<{ url: string; expiresIn: number }> {
+  async getAlbumArt(@Param('id') id: string): Promise<StreamItemResponse> {
     const albumArtKey = await this.musicService.getAlbumArtKey(id);
 
     if (!albumArtKey) {

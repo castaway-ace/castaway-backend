@@ -101,10 +101,6 @@ export interface FormattedTrack {
     releaseYear: number | null;
     genre: string | null;
     albumArtKey: string | null;
-    artist: {
-      id: string;
-      name: string;
-    };
   };
   audioFile: {
     storageKey: string;
@@ -113,6 +109,20 @@ export interface FormattedTrack {
     sampleRate: number | null;
     fileSize: string;
   } | null;
+}
+
+export interface FormattedTrackItem {
+  id: string;
+  title: string;
+  duration: number | null;
+  artistName: string;
+  albumId: string;
+  albumTitle: string;
+}
+
+export interface StreamItemResponse {
+  url: string;
+  expiresIn: string;
 }
 
 /**
