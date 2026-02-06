@@ -9,8 +9,6 @@ import {
   UploadedFiles,
   UseInterceptors,
   UseGuards,
-  Headers,
-  Res,
   BadRequestException,
   HttpStatus,
   Logger,
@@ -326,14 +324,24 @@ export class MusicController {
 
   @Get('albums/:id/art')
   @UseGuards(OptionalAuthGuard)
-  async getAlbumArt(@Param('id') id: string, @Res() res: Response) {
+  async getAlbumArt(
+    @Param('id') id: string,
+  ): Promise<{ url: string; expiresIn: number }> {
     const albumArtKey = await this.musicService.getAlbumArtKey(id);
 
     if (!albumArtKey) {
       throw new NotFoundException('Album art not found');
     }
 
-    await this.musicService.streamImage(albumArtKey, res);
+    const url = await this.storageService.getPresignedUrl(
+      albumArtKey,
+      86400, // 24 hours
+    );
+
+    return {
+      url,
+      expiresIn: 86400,
+    };
   }
 
   // ==================== SEARCH ====================
