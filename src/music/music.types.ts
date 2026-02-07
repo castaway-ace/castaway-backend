@@ -1,36 +1,45 @@
 import { Prisma } from '../generated/prisma/client.js';
 import * as mm from 'music-metadata';
 
-// ==================== PRISMA-GENERATED TYPES ====================
-
-/**
- * Playlist with tracks and user
- * Generated from Prisma schema
- */
-export type PlaylistWithTracks = Prisma.PlaylistGetPayload<{
-  include: {
-    user: {
+export type TrackItemWithRelations = Prisma.TrackGetPayload<{
+  select: {
+    id: true;
+    title: true;
+    duration: true;
+    artists: {
       select: {
-        id: true;
-        name: true;
-        email: true;
-      };
-    };
-    tracks: {
-      include: {
-        track: {
-          include: {
-            artists: { include: { artist: true } };
-            album: { include: { artist: true } };
-            audioFile: true;
+        artist: {
+          select: {
+            id: true;
+            name: true;
           };
         };
+      };
+    };
+    album: {
+      select: {
+        id: true;
+        title: true;
+        albumArtKey: true;
       };
     };
   };
 }>;
 
-// ==================== SERVICE LAYER TYPES ====================
+export type TrackWithRelations = Prisma.TrackGetPayload<{
+  include: {
+    artists: { include: { artist: true } };
+    album: { include: { artist: true } };
+    audioFile: true;
+  };
+}>;
+
+export type AlbumWithRelations = Prisma.AlbumGetPayload<{
+  select: {
+    id: true;
+    albumArtKey: true;
+  };
+}>;
 
 /**
  * Result of uploading a single track
@@ -55,10 +64,10 @@ export interface AlbumUploadResult {
  * Query parameters for filtering tracks
  */
 export interface TrackFilter {
-  artist?: string;
-  album?: string;
   limit?: number;
   offset?: number;
+  artist?: string;
+  album?: string;
 }
 
 /**
@@ -80,86 +89,9 @@ export interface ExtractedMetadata {
   picture?: mm.IPicture;
 }
 
-// ==================== API RESPONSE TYPES ====================
-
-/**
- * Formatted track for API responses
- */
-export interface FormattedTrack {
-  id: string;
-  title: string;
-  trackNumber: number | null;
-  discNumber: number | null;
-  duration: number | null;
-  artists: Array<{
-    id: string;
-    name: string;
-  }>;
-  album: {
-    id: string;
-    title: string;
-    releaseYear: number | null;
-    genre: string | null;
-    albumArtKey: string | null;
-  };
-  audioFile: {
-    storageKey: string;
-    format: string;
-    bitrate: number | null;
-    sampleRate: number | null;
-    fileSize: string;
-  } | null;
-}
-
-export interface FormattedTrackItem {
-  id: string;
-  title: string;
-  duration: number | null;
-  artistName: string;
-  albumId: string;
-  albumTitle: string;
-}
-
 export interface StreamItemResponse {
   url: string;
   expiresIn: number;
-}
-
-/**
- * Formatted playlist for API responses
- */
-export interface FormattedPlaylist {
-  id: string;
-  name: string;
-  description: string | null;
-  isPublic: boolean;
-  coverImage: string | null;
-  trackCount: number;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-/**
- * Formatted artist for API responses
- */
-export interface FormattedArtist {
-  id: string;
-  name: string;
-  albumCount: number;
-  trackCount: number;
-}
-
-/**
- * Formatted album for API responses
- */
-export interface FormattedAlbum {
-  id: string;
-  title: string;
-  releaseYear: number | null;
-  genre: string | null;
-  albumArtKey: string | null;
-  trackCount: number;
-  totalDuration: number;
 }
 
 export type AudioFileWithTrackVisibility = Prisma.AudioFileGetPayload<{

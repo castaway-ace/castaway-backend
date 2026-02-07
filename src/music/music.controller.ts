@@ -27,9 +27,9 @@ import { type User } from '../generated/prisma/client.js';
 import { CurrentUser } from '../user/user.decorator.js';
 import {
   StreamItemResponse,
-  FormattedTrack,
-  FormattedTrackItem,
   TrackFilter,
+  TrackItemWithRelations,
+  TrackWithRelations,
 } from './music.types.js';
 import { StorageService } from '../storage/storage.service.js';
 
@@ -167,7 +167,10 @@ export class MusicController {
     @Query('artist') artist?: string,
     @Query('album') album?: string,
     @CurrentUser() user?: User,
-  ): Promise<{ statusCode: HttpStatus; data: FormattedTrackItem[] }> {
+  ): Promise<{
+    statusCode: HttpStatus;
+    data: (TrackItemWithRelations & { albumUrl: string | null })[];
+  }> {
     const filter: TrackFilter = {
       limit,
       offset: (page - 1) * limit,
@@ -177,9 +180,22 @@ export class MusicController {
 
     const tracks = await this.musicService.getTracks(filter, user?.id);
 
+    const tracksWithAlbumArt = await Promise.all(
+      tracks.map(async (track) => {
+        if (!track.album.albumArtKey) {
+          return { ...track, albumUrl: null };
+        }
+        const url = await this.storageService.getPresignedUrl(
+          track.album.albumArtKey,
+          86400,
+        );
+        return { ...track, albumUrl: url };
+      }),
+    );
+
     return {
       statusCode: HttpStatus.OK,
-      data: tracks,
+      data: tracksWithAlbumArt,
     };
   }
 
@@ -192,13 +208,39 @@ export class MusicController {
   async getTrack(
     @Param('id') id: string,
     @Req() req?: RequestWithUser,
-  ): Promise<{ statusCode: HttpStatus; data: FormattedTrack }> {
+  ): Promise<{
+    statusCode: HttpStatus;
+    data: TrackWithRelations & { trackUrl: string; albumUrl: string };
+  }> {
     const userId = req?.user?.id;
     const track = await this.musicService.getTrack(id, userId);
 
+    if (!track.audioFile) {
+      throw new NotFoundException('Audio file not found for this track');
+    }
+
+    await this.musicService.verifyTrackAccess(
+      track.audioFile.storageKey,
+      userId,
+    );
+
+    if (!track.album.albumArtKey) {
+      throw new NotFoundException('Album art not found for this track');
+    }
+
+    const albumUrl = await this.storageService.getPresignedUrl(
+      track.album.albumArtKey,
+      86400,
+    );
+
+    const trackUrl = await this.storageService.getPresignedUrl(
+      track.audioFile.storageKey,
+      86400,
+    );
+
     return {
       statusCode: HttpStatus.OK,
-      data: track,
+      data: { ...track, trackUrl: trackUrl, albumUrl: albumUrl },
     };
   }
 
@@ -226,7 +268,7 @@ export class MusicController {
 
     const url = await this.storageService.getPresignedUrl(
       track.audioFile.storageKey,
-      86400, // 24 hours
+      86400,
     );
 
     this.logger.log(

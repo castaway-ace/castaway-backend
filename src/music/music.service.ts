@@ -15,9 +15,9 @@ import { MusicRepository } from './music.repository.js';
 import {
   AlbumUploadResult,
   ExtractedMetadata,
-  FormattedTrack,
-  FormattedTrackItem,
   TrackFilter,
+  TrackItemWithRelations,
+  TrackWithRelations,
   UploadResult,
 } from './music.types.js';
 import { StorageUploadResult } from '../storage/storage.types.js';
@@ -163,7 +163,7 @@ export class MusicService {
   async getTracks(
     filter: TrackFilter,
     userId?: string,
-  ): Promise<FormattedTrackItem[]> {
+  ): Promise<TrackItemWithRelations[]> {
     const where: Prisma.TrackWhereInput = {};
 
     if (!userId) {
@@ -199,23 +199,13 @@ export class MusicService {
       skip: filter.offset,
     });
 
-    // Transform to clean response format
-    return tracks.map((track) => {
-      return {
-        id: track.id,
-        title: track.title,
-        duration: track.duration,
-        artistName: track.artists.map((ta) => ta.artist.name).join(', '),
-        albumId: track.album.id,
-        albumTitle: track.album.title,
-      };
-    });
+    return tracks;
   }
 
   /**
    * Get a single track by ID
    */
-  async getTrack(id: string, userId?: string): Promise<FormattedTrack> {
+  async getTrack(id: string, userId?: string): Promise<TrackWithRelations> {
     const track = await this.musicRepository.findTrackById(id);
 
     if (!track) {
@@ -226,36 +216,7 @@ export class MusicService {
       throw new NotFoundException(`Track with ID ${id} not found`);
     }
 
-    // Sort artists by order in application code
-    const sortedArtists = [...track.artists].sort((a, b) => a.order - b.order);
-
-    return {
-      id: track.id,
-      title: track.title,
-      trackNumber: track.trackNumber,
-      discNumber: track.discNumber,
-      duration: track.duration,
-      artists: sortedArtists.map((ta) => ({
-        id: ta.artist.id,
-        name: ta.artist.name,
-      })),
-      album: {
-        id: track.album.id,
-        title: track.album.title,
-        releaseYear: track.album.releaseYear,
-        genre: track.album.genre,
-        albumArtKey: track.album.albumArtKey,
-      },
-      audioFile: track.audioFile
-        ? {
-            storageKey: track.audioFile.storageKey,
-            format: track.audioFile.format,
-            bitrate: track.audioFile.bitrate,
-            sampleRate: track.audioFile.sampleRate,
-            fileSize: track.audioFile.fileSize.toString(),
-          }
-        : null,
-    };
+    return track;
   }
 
   /**
@@ -388,16 +349,14 @@ export class MusicService {
   /**
    * Get album art key
    */
-  async getAlbumArtKey(albumId: string): Promise<string | null> {
-    const album = await this.musicRepository.findAlbumById(albumId, {
-      select: { id: true, albumArtKey: true },
-    });
+  async getAlbumArtKey(albumId: string): Promise<string | undefined> {
+    const album = await this.musicRepository.findAlbumById(albumId);
 
     if (!album) {
       throw new NotFoundException('Album not found');
     }
 
-    return album.albumArtKey;
+    return album.albumArtKey ?? undefined;
   }
 
   // ==================== SEARCH ====================

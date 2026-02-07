@@ -2,9 +2,12 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { Prisma } from '../generated/prisma/client.js';
 import {
+  AlbumWithRelations,
   AlbumWithTracks,
   ArtistWithAlbums,
   AudioFileWithTrackVisibility,
+  TrackItemWithRelations,
+  TrackWithRelations,
 } from './music.types.js';
 
 @Injectable()
@@ -76,7 +79,7 @@ export class MusicRepository {
       take?: number;
       skip?: number;
     },
-  ) {
+  ): Promise<TrackItemWithRelations[]> {
     return this.prisma.track.findMany({
       where,
       select: {
@@ -85,7 +88,6 @@ export class MusicRepository {
         duration: true,
         artists: {
           select: {
-            order: true,
             artist: {
               select: {
                 id: true,
@@ -93,22 +95,16 @@ export class MusicRepository {
               },
             },
           },
-          orderBy: {
-            order: 'asc',
-          },
         },
         album: {
           select: {
             id: true,
             title: true,
+            albumArtKey: true,
           },
         },
       },
-      orderBy: [
-        { album: { title: 'asc' } },
-        { discNumber: 'asc' },
-        { trackNumber: 'asc' },
-      ],
+      orderBy: [{ album: { title: 'asc' } }],
       take: options?.take || 50,
       skip: options?.skip || 0,
     });
@@ -117,7 +113,7 @@ export class MusicRepository {
   /**
    * Find a single track by ID with all relations
    */
-  async findTrackById(id: string) {
+  async findTrackById(id: string): Promise<TrackWithRelations | null> {
     return this.prisma.track.findUnique({
       where: { id },
       include: {
@@ -263,18 +259,15 @@ export class MusicRepository {
   // ==================== ALBUMS ====================
 
   /**
-   * Find an album by ID with optional select/include
+   * Find an album by ID
    */
-  async findAlbumById(
-    albumId: string,
-    options?: {
-      include?: Prisma.AlbumInclude;
-      select?: Prisma.AlbumSelect;
-    },
-  ) {
+  async findAlbumById(albumId: string): Promise<AlbumWithRelations | null> {
     return this.prisma.album.findUnique({
       where: { id: albumId },
-      ...options,
+      select: {
+        id: true,
+        albumArtKey: true,
+      },
     });
   }
 
