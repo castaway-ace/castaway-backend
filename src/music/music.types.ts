@@ -30,7 +30,7 @@ export type TrackWithRelations = Prisma.TrackGetPayload<{
   include: {
     artists: { include: { artist: true } };
     album: { include: { artist: true } };
-    audioFile: true;
+    audioFile: { select: { storageKey: true } };
   };
 }>;
 

@@ -127,7 +127,7 @@ export class MusicRepository {
             artist: true,
           },
         },
-        audioFile: true,
+        audioFile: { select: { storageKey: true } },
       },
     });
   }
