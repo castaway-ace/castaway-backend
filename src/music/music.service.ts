@@ -160,7 +160,9 @@ export class MusicService {
   /**
    * Get tracks with optional filtering
    */
-  async getTracks(filter: TrackFilter): Promise<TrackItemWithRelations[]> {
+  async getTracks(
+    filter: TrackFilter,
+  ): Promise<{ tracks: TrackItemWithRelations[]; total: number }> {
     const where: Prisma.TrackWhereInput = {};
 
     // Filter by artist name
@@ -187,12 +189,15 @@ export class MusicService {
       };
     }
 
-    const tracks = await this.musicRepository.findTracks(where, {
-      take: filter.limit,
-      skip: filter.offset,
-    });
+    const [tracks, total] = await Promise.all([
+      this.musicRepository.findTracks(where, {
+        take: filter.limit,
+        skip: filter.offset,
+      }),
+      this.musicRepository.countTracks(where),
+    ]);
 
-    return tracks;
+    return { tracks, total };
   }
 
   /**

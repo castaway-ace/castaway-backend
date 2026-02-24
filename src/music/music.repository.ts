@@ -165,6 +165,13 @@ export class MusicRepository {
     };
   }
 
+  /**
+   * Count tracks by where clause
+   */
+  async countTracks(where: Prisma.TrackWhereInput): Promise<number> {
+    return this.prisma.track.count({ where });
+  }
+
   // ==================== ARTISTS ====================
 
   /**

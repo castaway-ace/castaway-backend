@@ -12,6 +12,7 @@ import {
   HttpStatus,
   Logger,
   NotFoundException,
+  Res,
 } from '@nestjs/common';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { MusicService } from './music.service.js';
@@ -22,10 +23,12 @@ import { JwtAuthGuard } from '../auth/guards/jwt-oauth.guard.js';
 import {
   StreamItemResponse,
   TrackFilter,
-  TrackItemWithRelations,
   TrackWithRelations,
 } from './music.types.js';
 import { StorageService } from '../storage/storage.service.js';
+import { TrackListResponseDto } from './dto/track-list-response.dto.js';
+import { toTrackItemDto } from './dto/track-item.mapper.js';
+import { type Response } from 'express';
 
 @Controller('music')
 export class MusicController {
@@ -160,10 +163,7 @@ export class MusicController {
     @Query('limit') limit: number = 20,
     @Query('artist') artist?: string,
     @Query('album') album?: string,
-  ): Promise<{
-    statusCode: HttpStatus;
-    data: (TrackItemWithRelations & { albumUrl: string | null })[];
-  }> {
+  ): Promise<TrackListResponseDto> {
     const filter: TrackFilter = {
       limit,
       offset: (page - 1) * limit,
@@ -171,24 +171,16 @@ export class MusicController {
       album,
     };
 
-    const tracks = await this.musicService.getTracks(filter);
-
-    const tracksWithAlbumArt = await Promise.all(
-      tracks.map(async (track) => {
-        if (!track.album.albumArtKey) {
-          return { ...track, albumUrl: null };
-        }
-        const url = await this.storageService.getPresignedUrl(
-          track.album.albumArtKey,
-          86400,
-        );
-        return { ...track, albumUrl: url };
-      }),
-    );
+    const { tracks, total } = await this.musicService.getTracks(filter);
 
     return {
-      statusCode: HttpStatus.OK,
-      data: tracksWithAlbumArt,
+      data: tracks.map(toTrackItemDto),
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
     };
   }
 
@@ -335,9 +327,12 @@ export class MusicController {
     };
   }
 
-  @Get('albums/:id/art')
+  @Get('albums/:id/cover')
   @UseGuards(OptionalAuthGuard)
-  async getAlbumArt(@Param('id') id: string): Promise<StreamItemResponse> {
+  async getAlbumCover(
+    @Param('id') id: string,
+    @Res() res: Response,
+  ): Promise<void> {
     const albumArtKey = await this.musicService.getAlbumArtKey(id);
 
     if (!albumArtKey) {
@@ -349,10 +344,8 @@ export class MusicController {
       86400, // 24 hours
     );
 
-    return {
-      url,
-      expiresIn: 86400,
-    };
+    res.setHeader('Cache-Control', 'private, max-age=86400');
+    res.redirect(url);
   }
 
   // ==================== SEARCH ====================
