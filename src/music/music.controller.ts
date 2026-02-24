@@ -27,6 +27,9 @@ import { toTrackItemDto } from './dto/track-item.mapper.js';
 import { type Response } from 'express';
 import { TrackDetailDto } from './dto/track-detail.dto.js';
 import { toTrackDetailDto } from './dto/track-detail.mapper.js';
+import { ArtistListResponseDto } from './dto/artist-list-response.dto.js';
+import { PaginationFilter } from 'src/types/pagination.types.js';
+import { toArtistItemDto } from './dto/artist-item.mapper.js';
 
 @Controller('music')
 export class MusicController {
@@ -243,12 +246,25 @@ export class MusicController {
    */
   @Get('artists')
   @UseGuards(OptionalAuthGuard)
-  async getArtists() {
-    const artists = await this.musicService.getArtists();
+  async getArtists(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 20,
+  ): Promise<ArtistListResponseDto> {
+    const filter: PaginationFilter = {
+      limit,
+      offset: (page - 1) * limit,
+    };
+
+    const { artists, total } = await this.musicService.getArtists(filter);
 
     return {
-      statusCode: HttpStatus.OK,
-      data: artists,
+      data: artists.map(toArtistItemDto),
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
     };
   }
 

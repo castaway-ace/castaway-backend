@@ -5,6 +5,7 @@ import {
   AlbumWithRelations,
   AlbumWithTracks,
   ArtistWithAlbums,
+  ArtistWithCounts,
   AudioFileWithTrackVisibility,
   TrackItemWithRelations,
   TrackWithRelations,
@@ -177,22 +178,25 @@ export class MusicRepository {
   /**
    * Find all artists with album and track counts
    */
-  async findAllArtists() {
-    const where: Prisma.ArtistWhereInput = {};
-
+  async findArtists(
+    where: Prisma.ArtistWhereInput,
+    options?: { take?: number; skip?: number },
+  ): Promise<ArtistWithCounts[]> {
     return this.prisma.artist.findMany({
       where,
-      include: {
-        albums: {
-          include: {
+      select: {
+        id: true,
+        name: true,
+        _count: {
+          select: {
+            albums: true,
             tracks: true,
           },
         },
-        tracks: true,
       },
-      orderBy: {
-        name: 'asc',
-      },
+      orderBy: { name: 'asc' },
+      take: options?.take || 50,
+      skip: options?.skip || 0,
     });
   }
 
@@ -214,6 +218,13 @@ export class MusicRepository {
         },
       },
     });
+  }
+
+  /**
+   * Count artists by where clause
+   */
+  async countArtists(where: Prisma.ArtistWhereInput): Promise<number> {
+    return this.prisma.artist.count({ where });
   }
 
   // ==================== ALBUMS ====================

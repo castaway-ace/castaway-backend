@@ -114,6 +114,19 @@ export type ArtistWithAlbums = Prisma.ArtistGetPayload<{
   };
 }>;
 
+export type ArtistWithCounts = Prisma.ArtistGetPayload<{
+  select: {
+    id: true;
+    name: true;
+    _count: {
+      select: {
+        albums: true;
+        tracks: true;
+      };
+    };
+  };
+}>;
+
 export type AlbumWithTracks = Prisma.AlbumGetPayload<{
   include: {
     artist: true;

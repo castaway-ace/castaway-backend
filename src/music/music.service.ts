@@ -14,6 +14,7 @@ import { Prisma } from '../generated/prisma/client.js';
 import { MusicRepository } from './music.repository.js';
 import {
   AlbumUploadResult,
+  ArtistWithCounts,
   ExtractedMetadata,
   TrackFilter,
   TrackItemWithRelations,
@@ -21,6 +22,7 @@ import {
   UploadResult,
 } from './music.types.js';
 import { StorageUploadResult } from '../storage/storage.types.js';
+import { PaginationFilter } from 'src/types/pagination.types.js';
 
 @Injectable()
 export class MusicService {
@@ -244,15 +246,20 @@ export class MusicService {
 
   // ==================== ARTISTS ====================
 
-  async getArtists() {
-    const artists = await this.musicRepository.findAllArtists();
+  async getArtists(
+    filter: PaginationFilter,
+  ): Promise<{ artists: ArtistWithCounts[]; total: number }> {
+    const where: Prisma.ArtistWhereInput = {};
 
-    return artists.map((artist) => ({
-      id: artist.id,
-      name: artist.name,
-      albumCount: artist.albums.length,
-      trackCount: artist.tracks.length,
-    }));
+    const [artists, total] = await Promise.all([
+      this.musicRepository.findArtists(where, {
+        take: filter.limit,
+        skip: filter.offset,
+      }),
+      this.musicRepository.countArtists(where),
+    ]);
+
+    return { artists, total };
   }
 
   async getAlbums() {
