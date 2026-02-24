@@ -4,7 +4,6 @@ import {
   Get,
   Param,
   Query,
-  Req,
   UploadedFile,
   UploadedFiles,
   UseInterceptors,
@@ -13,8 +12,6 @@ import {
   HttpStatus,
   Logger,
   NotFoundException,
-  Patch,
-  Body,
 } from '@nestjs/common';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { MusicService } from './music.service.js';
@@ -22,9 +19,6 @@ import { Roles, RolesGuard } from '../auth/guards/roles.guard.js';
 import { UserRole } from '../generated/prisma/enums.js';
 import { OptionalAuthGuard } from '../auth/guards/optional-oauth.guard.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-oauth.guard.js';
-import { type RequestWithUser } from '../auth/auth.types.js';
-import { type User } from '../generated/prisma/client.js';
-import { CurrentUser } from '../user/user.decorator.js';
 import {
   StreamItemResponse,
   TrackFilter,
@@ -166,7 +160,6 @@ export class MusicController {
     @Query('limit') limit: number = 20,
     @Query('artist') artist?: string,
     @Query('album') album?: string,
-    @CurrentUser() user?: User,
   ): Promise<{
     statusCode: HttpStatus;
     data: (TrackItemWithRelations & { albumUrl: string | null })[];
@@ -178,7 +171,7 @@ export class MusicController {
       album,
     };
 
-    const tracks = await this.musicService.getTracks(filter, user?.id);
+    const tracks = await this.musicService.getTracks(filter);
 
     const tracksWithAlbumArt = await Promise.all(
       tracks.map(async (track) => {
@@ -205,24 +198,17 @@ export class MusicController {
    */
   @Get('tracks/:id')
   @UseGuards(OptionalAuthGuard)
-  async getTrack(
-    @Param('id') id: string,
-    @Req() req?: RequestWithUser,
-  ): Promise<{
+  async getTrack(@Param('id') id: string): Promise<{
     statusCode: HttpStatus;
     data: TrackWithRelations & { trackUrl: string; albumUrl: string };
   }> {
-    const userId = req?.user?.id;
-    const track = await this.musicService.getTrack(id, userId);
+    const track = await this.musicService.getTrack(id);
 
     if (!track.audioFile) {
       throw new NotFoundException('Audio file not found for this track');
     }
 
-    await this.musicService.verifyTrackAccess(
-      track.audioFile.storageKey,
-      userId,
-    );
+    await this.musicService.verifyTrackAccess(track.audioFile.storageKey);
 
     if (!track.album.albumArtKey) {
       throw new NotFoundException('Album art not found for this track');
@@ -250,29 +236,18 @@ export class MusicController {
    */
   @Get('tracks/:id/stream')
   @UseGuards(OptionalAuthGuard)
-  async streamTrack(
-    @Param('id') id: string,
-    @Req() req?: RequestWithUser,
-  ): Promise<StreamItemResponse> {
-    const userId = req?.user?.id;
-    const track = await this.musicService.getTrack(id, userId);
+  async streamTrack(@Param('id') id: string): Promise<StreamItemResponse> {
+    const track = await this.musicService.getTrack(id);
 
     if (!track.audioFile) {
       throw new NotFoundException('Audio file not found for this track');
     }
 
-    await this.musicService.verifyTrackAccess(
-      track.audioFile.storageKey,
-      userId,
-    );
+    await this.musicService.verifyTrackAccess(track.audioFile.storageKey);
 
     const url = await this.storageService.getPresignedUrl(
       track.audioFile.storageKey,
       86400,
-    );
-
-    this.logger.log(
-      `User ${userId || 'guest'} initiated stream for track ${id}`,
     );
 
     return {
@@ -296,29 +271,6 @@ export class MusicController {
     };
   }
 
-  /**
-   * Toggle track public visibility (admin only)
-   * PATCH /music/tracks/:id/visibility
-   */
-  @Patch('tracks/:id/visibility')
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN)
-  async toggleTrackVisibility(
-    @Param('id') id: string,
-    @Body('isPublic') isPublic: boolean,
-  ) {
-    const track = await this.musicService.updateTrackVisibility(id, isPublic);
-
-    return {
-      statusCode: HttpStatus.OK,
-      message: `Track visibility updated to ${isPublic ? 'public' : 'private'}`,
-      data: {
-        trackId: track.id,
-        isPublic: track.isPublic,
-      },
-    };
-  }
-
   // ==================== ARTISTS ====================
 
   /**
@@ -327,9 +279,8 @@ export class MusicController {
    */
   @Get('artists')
   @UseGuards(OptionalAuthGuard)
-  async getArtists(@Req() req?: RequestWithUser) {
-    const userId = req?.user?.id;
-    const artists = await this.musicService.getArtists(userId);
+  async getArtists() {
+    const artists = await this.musicService.getArtists();
 
     return {
       statusCode: HttpStatus.OK,
@@ -338,14 +289,28 @@ export class MusicController {
   }
 
   /**
-   * Get all albums by an artist
+   * Get all albums
    * GET /music/albums
+   */
+  @Get('albums')
+  @UseGuards(OptionalAuthGuard)
+  async getAlbums() {
+    const albums = await this.musicService.getAlbums();
+
+    return {
+      statusCode: HttpStatus.OK,
+      data: albums,
+    };
+  }
+
+  /**
+   * Get all albums by an artist
+   * GET /music/albums/:id
    */
   @Get('albums/:id')
   @UseGuards(OptionalAuthGuard)
-  async getArtistAlbums(@Param('id') id: string, @Req() req?: RequestWithUser) {
-    const userId = req?.user?.id;
-    const albums = await this.musicService.getArtistAlbums(id, userId);
+  async getArtistAlbums(@Param('id') id: string) {
+    const albums = await this.musicService.getArtistAlbums(id);
 
     return {
       statusCode: HttpStatus.OK,
@@ -361,9 +326,8 @@ export class MusicController {
    */
   @Get('albums/:id/tracks')
   @UseGuards(OptionalAuthGuard)
-  async getAlbumTracks(@Param('id') id: string, @Req() req?: RequestWithUser) {
-    const userId = req?.user?.id;
-    const tracks = await this.musicService.getAlbumTracks(id, userId);
+  async getAlbumTracks(@Param('id') id: string) {
+    const tracks = await this.musicService.getAlbumTracks(id);
 
     return {
       statusCode: HttpStatus.OK,
@@ -402,19 +366,12 @@ export class MusicController {
   async search(
     @Query('q') query: string,
     @Query('type') type?: 'all' | 'track' | 'artist' | 'album',
-    @Req() req?: RequestWithUser,
   ) {
-    const userId = req?.user?.id;
-
     if (!query || query.trim().length === 0) {
       throw new BadRequestException('Search query is required');
     }
 
-    const results = await this.musicService.search(
-      query,
-      type || 'all',
-      userId,
-    );
+    const results = await this.musicService.search(query, type || 'all');
 
     return {
       statusCode: HttpStatus.OK,

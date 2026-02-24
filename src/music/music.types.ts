@@ -96,12 +96,7 @@ export interface StreamItemResponse {
 
 export type AudioFileWithTrackVisibility = Prisma.AudioFileGetPayload<{
   include: {
-    track: {
-      select: {
-        id: true;
-        isPublic: true;
-      };
-    };
+    track: true;
   };
 }>;
 

@@ -60,12 +60,7 @@ export class MusicRepository {
     return this.prisma.audioFile.findUnique({
       where: { storageKey },
       include: {
-        track: {
-          select: {
-            id: true,
-            isPublic: true,
-          },
-        },
+        track: true,
       },
     });
   }
@@ -170,39 +165,13 @@ export class MusicRepository {
     };
   }
 
-  /**
-   * Update track visibility
-   */
-  async updateTrackVisibility(trackId: string, isPublic: boolean) {
-    return this.prisma.track.update({
-      where: { id: trackId },
-      data: { isPublic },
-      select: {
-        id: true,
-        title: true,
-        isPublic: true,
-      },
-    });
-  }
-
   // ==================== ARTISTS ====================
 
   /**
    * Find all artists with album and track counts
    */
-  async findAllArtists(userId?: string) {
+  async findAllArtists() {
     const where: Prisma.ArtistWhereInput = {};
-
-    // If not authenticated, only show artists with public tracks
-    if (!userId) {
-      where.tracks = {
-        some: {
-          track: {
-            isPublic: true,
-          },
-        },
-      };
-    }
 
     return this.prisma.artist.findMany({
       where,
@@ -220,29 +189,13 @@ export class MusicRepository {
     });
   }
 
-  async findArtistById(
-    artistId: string,
-    userId?: string,
-  ): Promise<ArtistWithAlbums | null> {
-    const where: Prisma.AlbumWhereInput = {};
-
-    // If not authenticated, only show albums with public tracks
-    if (!userId) {
-      where.tracks = {
-        some: {
-          isPublic: true,
-        },
-      };
-    }
-
+  async findArtistById(artistId: string): Promise<ArtistWithAlbums | null> {
     return this.prisma.artist.findUnique({
       where: { id: artistId },
       include: {
         albums: {
-          where,
           include: {
             tracks: {
-              where: userId ? {} : { isPublic: true },
               include: {
                 audioFile: true,
               },
@@ -257,6 +210,22 @@ export class MusicRepository {
   }
 
   // ==================== ALBUMS ====================
+
+  /**
+   * Find all albums with tracks and artists
+   */
+  async findAllAlbums() {
+    return this.prisma.album.findMany({
+      include: {
+        tracks: {
+          include: {
+            artists: { include: { artist: true } },
+          },
+        },
+        artist: true,
+      },
+    });
+  }
 
   /**
    * Find an album by ID
@@ -274,23 +243,12 @@ export class MusicRepository {
   /**
    * Find an album by ID with full relations (tracks, artists, etc.)
    */
-  async findAlbumWithTracks(
-    albumId: string,
-    userId?: string,
-  ): Promise<AlbumWithTracks | null> {
-    const trackWhere: Prisma.TrackWhereInput = {};
-
-    // If not authenticated, only show public tracks
-    if (!userId) {
-      trackWhere.isPublic = true;
-    }
-
+  async findAlbumWithTracks(albumId: string): Promise<AlbumWithTracks | null> {
     return this.prisma.album.findUnique({
       where: { id: albumId },
       include: {
         artist: true,
         tracks: {
-          where: trackWhere,
           include: {
             artists: {
               include: {
@@ -313,31 +271,12 @@ export class MusicRepository {
   async search(
     query: string,
     type: 'all' | 'track' | 'artist' | 'album' = 'all',
-    userId?: string,
   ) {
     const searchTerm = query.trim();
 
-    const trackWhere: Prisma.TrackWhereInput = userId ? {} : { isPublic: true };
-    const artistWhere: Prisma.ArtistWhereInput = userId
-      ? {}
-      : {
-          tracks: {
-            some: {
-              track: {
-                isPublic: true,
-              },
-            },
-          },
-        };
-    const albumWhere: Prisma.AlbumWhereInput = userId
-      ? {}
-      : {
-          tracks: {
-            some: {
-              isPublic: true,
-            },
-          },
-        };
+    const trackWhere: Prisma.TrackWhereInput = {};
+    const artistWhere: Prisma.ArtistWhereInput = {};
+    const albumWhere: Prisma.AlbumWhereInput = {};
 
     if (type === 'track' || type === 'all') {
       const tracks = await this.prisma.track.findMany({

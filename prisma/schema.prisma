@@ -105,7 +105,6 @@ model Album {
 model Track {
   id               String             @id @default(uuid())
   title            String
-  isPublic         Boolean  @default(false)
   album            Album              @relation(fields: [albumId], references: [id])
   albumId          String
   artists          TrackArtist[]
