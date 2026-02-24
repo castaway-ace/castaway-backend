@@ -203,12 +203,18 @@ export class MusicService {
   /**
    * Get a single track by ID
    */
-  async getTrack(id: string): Promise<TrackWithRelations> {
+  async getTrackWithAccessCheck(id: string): Promise<TrackWithRelations> {
     const track = await this.musicRepository.findTrackById(id);
 
     if (!track) {
       throw new NotFoundException(`Track with ID ${id} not found`);
     }
+
+    if (!track.audioFile) {
+      throw new NotFoundException('Audio file not found for this track');
+    }
+
+    await this.verifyTrackAccess(track.audioFile.storageKey);
 
     return track;
   }

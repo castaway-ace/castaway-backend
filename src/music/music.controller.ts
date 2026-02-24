@@ -20,15 +20,13 @@ import { Roles, RolesGuard } from '../auth/guards/roles.guard.js';
 import { UserRole } from '../generated/prisma/enums.js';
 import { OptionalAuthGuard } from '../auth/guards/optional-oauth.guard.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-oauth.guard.js';
-import {
-  StreamItemResponse,
-  TrackFilter,
-  TrackWithRelations,
-} from './music.types.js';
+import { TrackFilter } from './music.types.js';
 import { StorageService } from '../storage/storage.service.js';
 import { TrackListResponseDto } from './dto/track-list-response.dto.js';
 import { toTrackItemDto } from './dto/track-item.mapper.js';
 import { type Response } from 'express';
+import { TrackDetailDto } from './dto/track-detail.dto.js';
+import { toTrackDetailDto } from './dto/track-detail.mapper.js';
 
 @Controller('music')
 export class MusicController {
@@ -190,36 +188,10 @@ export class MusicController {
    */
   @Get('tracks/:id')
   @UseGuards(OptionalAuthGuard)
-  async getTrack(@Param('id') id: string): Promise<{
-    statusCode: HttpStatus;
-    data: TrackWithRelations & { trackUrl: string; albumUrl: string };
-  }> {
-    const track = await this.musicService.getTrack(id);
+  async getTrack(@Param('id') id: string): Promise<TrackDetailDto> {
+    const track = await this.musicService.getTrackWithAccessCheck(id);
 
-    if (!track.audioFile) {
-      throw new NotFoundException('Audio file not found for this track');
-    }
-
-    await this.musicService.verifyTrackAccess(track.audioFile.storageKey);
-
-    if (!track.album.albumArtKey) {
-      throw new NotFoundException('Album art not found for this track');
-    }
-
-    const albumUrl = await this.storageService.getPresignedUrl(
-      track.album.albumArtKey,
-      86400,
-    );
-
-    const trackUrl = await this.storageService.getPresignedUrl(
-      track.audioFile.storageKey,
-      86400,
-    );
-
-    return {
-      statusCode: HttpStatus.OK,
-      data: { ...track, trackUrl: trackUrl, albumUrl: albumUrl },
-    };
+    return toTrackDetailDto(track);
   }
 
   /**
@@ -228,24 +200,24 @@ export class MusicController {
    */
   @Get('tracks/:id/stream')
   @UseGuards(OptionalAuthGuard)
-  async streamTrack(@Param('id') id: string): Promise<StreamItemResponse> {
-    const track = await this.musicService.getTrack(id);
+  async streamTrack(
+    @Param('id') id: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    const track = await this.musicService.getTrackWithAccessCheck(id);
 
     if (!track.audioFile) {
-      throw new NotFoundException('Audio file not found for this track');
+      res.status(404).json({ message: 'Audio file not found' });
+      return;
     }
-
-    await this.musicService.verifyTrackAccess(track.audioFile.storageKey);
 
     const url = await this.storageService.getPresignedUrl(
       track.audioFile.storageKey,
-      86400,
+      3600,
     );
 
-    return {
-      url,
-      expiresIn: 86400,
-    };
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    res.redirect(url);
   }
 
   /**
