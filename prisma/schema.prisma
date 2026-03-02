@@ -25,9 +25,11 @@ model User {
   refreshTokens      RefreshToken[]
   authorizationCodes AuthorizationCode[]
   playlists          Playlist[]
-  library            UserLibrary[]
+  likedTracks        LikedTrack[]
+  savedAlbums        SavedAlbum[]
   listeningHistory   ListeningHistory[]
   playbackQueue      PlaybackQueue?
+  savedArtists       SavedArtist[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -38,14 +40,17 @@ model User {
 model OAuthProvider {
   id         String @id @default(uuid())
   userId     String @map("user_id")
-  name       String @map("name") @unique
-  providerId String @map("provider_id") @unique
+  name       String @map("name")
+  providerId String @map("provider_id")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+
+  @@unique([userId, name])
+  @@unique([name, providerId])
   @@map("accounts")
 }
 
@@ -59,15 +64,17 @@ model RefreshToken {
 
   createdAt DateTime @default(now()) @map("created_at")
 
+  @@index([userId])
   @@map("refresh_tokens")
 }
 
 model AuthorizationCode {
+  // Use cuid for authorization codes to avoid collisions
   id        String   @id @default(cuid())
   code      String   @unique
-  userId    String
-  expiresAt DateTime
-  createdAt DateTime @default(now())
+  userId    String   @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -79,9 +86,10 @@ model Artist {
   name          String        @unique
   albums        Album[]
   tracks        TrackArtist[]
-  artistArtPath String?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  savedArtists  SavedArtist[]
+  artistArtPath String?       @map("artist_art_path")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
 
   @@map("artists")
 }
@@ -90,15 +98,17 @@ model Album {
   id          String   @id @default(uuid())
   title       String
   artist      Artist   @relation(fields: [artistId], references: [id])
-  artistId    String
-  releaseYear Int?
+  artistId    String   @map("artist_id")
+  releaseYear Int?     @map("release_year")
   genre       String?
-  albumArtKey String?
+  albumArtKey String?   @map("album_art_key")
   tracks      Track[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  savedAlbums SavedAlbum[]
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   @@unique([title, artistId])
+  @@index([artistId])
   @@map("albums")
 }
 
@@ -106,30 +116,28 @@ model Track {
   id               String             @id @default(uuid())
   title            String
   album            Album              @relation(fields: [albumId], references: [id])
-  albumId          String
+  albumId          String             @map("album_id")
   artists          TrackArtist[]
-  trackNumber      Int?
-  discNumber       Int?
-  duration         Int?
-  playCount        Int                @default(0)
-  lastPlayedAt     DateTime?
+  trackNumber      Int?               @map("track_number")
+  discNumber       Int?               @map("disc_number")
+  duration         Int?               
   audioFile        AudioFile?
   playlistTracks   PlaylistTrack[]
-  libraryEntries   UserLibrary[]
+  likedTracks      LikedTrack[]
   listeningHistory ListeningHistory[]
   queueItems       QueueItem[]
   currentInQueues  PlaybackQueue[]
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
 
   @@map("tracks")
 }
 
 model TrackArtist {
   track    Track  @relation(fields: [trackId], references: [id], onDelete: Cascade)
-  trackId  String
+  trackId  String @map("track_id")
   artist   Artist @relation(fields: [artistId], references: [id], onDelete: Cascade)
-  artistId String
+  artistId String @map("artist_id")
   order    Int    @default(0)
 
   @@id([trackId, artistId])
@@ -139,15 +147,15 @@ model TrackArtist {
 model AudioFile {
   id         String   @id @default(uuid())
   track      Track    @relation(fields: [trackId], references: [id])
-  trackId    String   @unique
-  storageKey String   @unique
+  trackId    String   @unique @map("track_id")
+  storageKey String   @unique @map("storage_key")
   format     String
   bitrate    Int?
-  sampleRate Int?
-  fileSize   BigInt
+  sampleRate Int?   @map("sample_rate")
+  fileSize   BigInt   @map("file_size")
   checksum   String   @unique
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
 
   @@map("audio_files")
 }
@@ -156,12 +164,12 @@ model Playlist {
   id          String   @id @default(uuid())
   name        String
   description String?
-  userId      String
+  userId      String   @map("user_id")
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  isPublic    Boolean  @default(false)
-  coverImage  String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isPublic    Boolean  @default(false) @map("is_public")
+  coverImage  String?  @map("cover_image")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   tracks PlaylistTrack[]
 
@@ -171,12 +179,12 @@ model Playlist {
 
 model PlaylistTrack {
   id         String   @id @default(uuid())
-  playlistId String
+  playlistId String   @map("playlist_id")
   playlist   Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
-  trackId    String
+  trackId    String   @map("track_id")
   track      Track    @relation(fields: [trackId], references: [id], onDelete: Cascade)
   position   Int
-  addedAt    DateTime @default(now())
+  addedAt    DateTime @default(now()) @map("added_at")
 
   @@unique([playlistId, trackId])
   @@index([playlistId])
@@ -184,27 +192,27 @@ model PlaylistTrack {
   @@map("playlist_tracks")
 }
 
-model UserLibrary {
+model LikedTrack {
   id      String   @id @default(uuid())
-  userId  String
+  userId  String   @map("user_id")
   user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  trackId String
+  trackId String   @map("track_id")
   track   Track    @relation(fields: [trackId], references: [id], onDelete: Cascade)
-  addedAt DateTime @default(now())
+  addedAt DateTime @default(now()) @map("added_at")
 
   @@unique([userId, trackId])
   @@index([userId])
   @@index([trackId])
-  @@map("user_library")
+  @@map("liked_tracks")
 }
 
 model ListeningHistory {
   id       String   @id @default(uuid())
-  userId   String
+  userId   String   @map("user_id")
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  trackId  String
+  trackId  String   @map("track_id")
   track    Track    @relation(fields: [trackId], references: [id], onDelete: Cascade)
-  playedAt DateTime @default(now())
+  playedAt DateTime @default(now()) @map("played_at")
   duration Int?
 
   @@index([userId, playedAt])
@@ -214,14 +222,14 @@ model ListeningHistory {
 
 model PlaybackQueue {
   id             String     @id @default(uuid())
-  userId         String     @unique
+  userId         String     @unique @map("user_id")
   user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  currentTrackId  String?
+  currentTrackId  String?    @map("current_track_id")
   currentTrack    Track?     @relation(fields: [currentTrackId], references: [id], onDelete: SetNull)
   position       Int        @default(0)
-  shuffleEnabled Boolean    @default(false)
-  repeatMode     RepeatMode @default(OFF)
-  updatedAt      DateTime   @updatedAt
+  shuffleEnabled Boolean    @default(false) @map("shuffle_enabled")
+  repeatMode     RepeatMode @default(OFF) @map("repeat_mode")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
 
   queueItems QueueItem[]
 
@@ -230,14 +238,41 @@ model PlaybackQueue {
 
 model QueueItem {
   id       String        @id @default(uuid())
-  queueId  String
+  queueId  String        @map("queue_id")
   queue    PlaybackQueue @relation(fields: [queueId], references: [id], onDelete: Cascade)
-  trackId  String
+  trackId  String        @map("track_id")
   track    Track         @relation(fields: [trackId], references: [id], onDelete: Cascade)
   position Int
 
   @@index([queueId])
+  @@unique([queueId, position])
   @@map("queue_items")
+}
+
+model SavedAlbum {
+  id      String   @id @default(uuid())
+  userId  String   @map("user_id")
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  albumId String   @map("album_id")
+  album   Album    @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  savedAt DateTime @default(now()) @map("saved_at")
+
+  @@unique([userId, albumId])
+  @@index([userId])
+  @@map("saved_albums")
+}
+
+model SavedArtist {
+  id       String   @id @default(uuid())
+  userId   String   @map("user_id")
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  artistId String   @map("artist_id")
+  artist   Artist   @relation(fields: [artistId], references: [id], onDelete: Cascade)
+  savedAt  DateTime @default(now()) @map("saved_at")
+
+  @@unique([userId, artistId])
+  @@index([userId])
+  @@map("saved_artists")
 }
 
 enum RepeatMode {
