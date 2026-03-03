@@ -123,7 +123,7 @@ export class MusicRepository {
             artist: true,
           },
         },
-        audioFile: { select: { storageKey: true } },
+        audioFile: { select: { storageKey: true, mimeType: true, size: true } },
       },
     });
   }
@@ -135,8 +135,7 @@ export class MusicRepository {
     return this.prisma.track.update({
       where: { id: trackId },
       data: {
-        playCount: { increment: 1 },
-        lastPlayedAt: new Date(),
+        updatedAt: new Date(),
       },
     });
   }
@@ -149,8 +148,7 @@ export class MusicRepository {
       this.prisma.track.findUnique({
         where: { id: trackId },
         select: {
-          playCount: true,
-          lastPlayedAt: true,
+          updatedAt: true,
         },
       }),
       this.prisma.listeningHistory.count({
@@ -160,8 +158,7 @@ export class MusicRepository {
 
     return {
       trackId,
-      playCount: track?.playCount ?? 0,
-      lastPlayedAt: track?.lastPlayedAt,
+      updatedAt: track?.updatedAt,
       historyCount,
     };
   }
@@ -470,14 +467,14 @@ export class MusicRepository {
       releaseYear: number | null;
       genre: string | null;
       duration: number;
-      format: string;
+      mimeType: string;
       bitrate: number | null;
       sampleRate: number | null;
     };
     audioKey: string;
     albumArtKey: string | undefined;
     checksum: string;
-    fileSize: number;
+    size: number;
   }) {
     return this.prisma.$transaction(async (tx) => {
       // 1. Create or find album artist
@@ -549,10 +546,10 @@ export class MusicRepository {
         data: {
           trackId: track.id,
           storageKey: data.audioKey,
-          format: data.metadata.format,
+          mimeType: data.metadata.mimeType,
           bitrate: data.metadata.bitrate,
           sampleRate: data.metadata.sampleRate,
-          fileSize: BigInt(data.fileSize),
+          size: BigInt(data.size),
           checksum: data.checksum,
         },
       });

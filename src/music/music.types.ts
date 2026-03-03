@@ -30,7 +30,7 @@ export type TrackWithRelations = Prisma.TrackGetPayload<{
   include: {
     artists: { include: { artist: true } };
     album: { include: { artist: true } };
-    audioFile: { select: { storageKey: true } };
+    audioFile: { select: { storageKey: true; mimeType: true; size: true } };
   };
 }>;
 
@@ -83,7 +83,7 @@ export interface ExtractedMetadata {
   releaseYear: number | null;
   genre: string | null;
   duration: number;
-  format: string;
+  mimeType: string;
   bitrate: number | null;
   sampleRate: number | null;
   picture?: mm.IPicture;

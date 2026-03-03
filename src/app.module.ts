@@ -9,7 +9,6 @@ import authConfig from './config/auth.config.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { MusicModule } from './music/music.module.js';
 import { PlaylistModule } from './playlist/playlist.module.js';
-import { LibraryModule } from './library/library.module.js';
 import { HistoryModule } from './history/history.module.js';
 import { QueueModule } from './queue/queue.module.js';
 
@@ -24,7 +23,6 @@ import { QueueModule } from './queue/queue.module.js';
     PrismaModule,
     MusicModule,
     PlaylistModule,
-    LibraryModule,
     HistoryModule,
     QueueModule,
   ],

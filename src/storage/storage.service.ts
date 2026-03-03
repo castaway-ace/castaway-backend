@@ -3,35 +3,40 @@ import { ConfigService } from '@nestjs/config';
 import * as Minio from 'minio';
 import { Readable } from 'stream';
 import { StorageUploadResult } from './storage.types.js';
+import { StorageConfig } from 'src/config/config.types.js';
 
 @Injectable()
 export class StorageService {
   private readonly logger = new Logger(StorageService.name);
   private readonly bucketName: string;
   private readonly region: string;
+  private readonly publicEndPoint?: string;
+  private readonly publicPort?: number;
+  private readonly publicUseSSL?: boolean;
 
   constructor(
-    @Inject('MINIO_CLIENT') private readonly minioClient: Minio.Client,
-    @Inject('MINIO_PUBLIC_CLIENT')
-    private readonly minioPublicClient: Minio.Client,
-    private readonly configService: ConfigService,
+    @Inject('MINIO_CLIENT') private readonly client: Minio.Client,
+    private readonly config: ConfigService,
   ) {
-    this.bucketName = this.configService.get<string>(
-      'storage.bucketName',
-      'castaway-audio',
-    );
-    this.region = this.configService.get<string>('storage.region', 'us-west-2');
+    const storageConfig = this.config.get<StorageConfig>('storage');
+    if (!storageConfig) {
+      throw new Error('Storage configuration not found');
+    }
+
+    this.bucketName = storageConfig.bucketName;
+    this.region = storageConfig.region;
+    this.publicEndPoint = storageConfig.publicEndPoint;
+    this.publicPort = storageConfig.publicPort;
+    this.publicUseSSL = storageConfig.publicUseSSL;
   }
 
   async ensureBucketExists(): Promise<void> {
     try {
-      const exists = await this.minioClient.bucketExists(this.bucketName);
+      const exists = await this.client.bucketExists(this.bucketName);
 
       if (!exists) {
-        await this.minioClient.makeBucket(this.bucketName, this.region);
+        await this.client.makeBucket(this.bucketName, this.region);
         this.logger.log(`Bucket "${this.bucketName}" created successfully`);
-
-        await this.setBucketPolicy();
       } else {
         this.logger.log(`Bucket "${this.bucketName}" already exists`);
       }
@@ -40,32 +45,6 @@ export class StorageService {
         error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`Error ensuring bucket exists: ${errorMessage}`);
       throw error;
-    }
-  }
-
-  private async setBucketPolicy(): Promise<void> {
-    const policy = {
-      Version: '2012-10-17',
-      Statement: [
-        {
-          Effect: 'Allow',
-          Principal: { AWS: ['*'] },
-          Action: ['s3:GetObject'],
-          Resource: [`arn:aws:s3:::${this.bucketName}/*`],
-        },
-      ],
-    };
-
-    try {
-      await this.minioClient.setBucketPolicy(
-        this.bucketName,
-        JSON.stringify(policy),
-      );
-      this.logger.log('Bucket policy set for public read access');
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error';
-      this.logger.warn(`Could not set bucket policy: ${errorMessage}`);
     }
   }
 
@@ -81,7 +60,7 @@ export class StorageService {
         ...metadata,
       };
 
-      const uploadInfo = await this.minioClient.putObject(
+      const uploadInfo = await this.client.putObject(
         this.bucketName,
         key,
         buffer,
@@ -109,11 +88,7 @@ export class StorageService {
    */
   async getFile(storageKey: string): Promise<Readable> {
     try {
-      const stream = await this.minioClient.getObject(
-        this.bucketName,
-        storageKey,
-      );
-      this.logger.log(`Retrieved file: ${storageKey}`);
+      const stream = await this.client.getObject(this.bucketName, storageKey);
       return stream;
     } catch (error) {
       const errorMessage =
@@ -136,14 +111,11 @@ export class StorageService {
     length: number,
   ): Promise<Readable> {
     try {
-      const stream = await this.minioClient.getPartialObject(
+      const stream = await this.client.getPartialObject(
         this.bucketName,
         storageKey,
         offset,
         length,
-      );
-      this.logger.log(
-        `Retrieved partial file: ${storageKey} (${offset}-${offset + length})`,
       );
       return stream;
     } catch (error) {
@@ -163,10 +135,7 @@ export class StorageService {
    */
   async getFileStats(storageKey: string): Promise<Minio.BucketItemStat> {
     try {
-      const stats = await this.minioClient.statObject(
-        this.bucketName,
-        storageKey,
-      );
+      const stats = await this.client.statObject(this.bucketName, storageKey);
       return stats;
     } catch (error) {
       const errorMessage =
@@ -184,7 +153,7 @@ export class StorageService {
    */
   async deleteFile(storageKey: string): Promise<void> {
     try {
-      await this.minioClient.removeObject(this.bucketName, storageKey);
+      await this.client.removeObject(this.bucketName, storageKey);
       this.logger.log(`File deleted successfully: ${storageKey}`);
     } catch (error) {
       const errorMessage =
@@ -201,7 +170,7 @@ export class StorageService {
    */
   async fileExists(storageKey: string): Promise<boolean> {
     try {
-      await this.minioClient.statObject(this.bucketName, storageKey);
+      await this.client.statObject(this.bucketName, storageKey);
       return true;
     } catch (error) {
       if (
@@ -222,25 +191,22 @@ export class StorageService {
    * @param expirySeconds - URL expiry time in seconds (default: 24 hours)
    * @returns Presigned URL
    */
-  async getPresignedUrl(
-    storageKey: string,
-    expirySeconds: number = 86400,
-  ): Promise<string> {
-    try {
-      const url = await this.minioPublicClient.presignedGetObject(
-        this.bucketName,
-        storageKey,
-        expirySeconds,
-      );
+  async getPresignedUrl(key: string, expiry: number): Promise<string> {
+    const internalUrl = await this.client.presignedGetObject(
+      this.bucketName,
+      key,
+      expiry,
+    );
 
-      return url;
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(
-        `Error generating presigned URL for "${storageKey}": ${errorMessage}`,
-      );
-      throw error;
+    if (!this.publicEndPoint) {
+      return internalUrl;
     }
+
+    const url = new URL(internalUrl);
+    url.hostname = this.publicEndPoint;
+    url.port = String(this.publicPort ?? url.port);
+    url.protocol = this.publicUseSSL ? 'https:' : 'http:';
+
+    return url.toString();
   }
 }

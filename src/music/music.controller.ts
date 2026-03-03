@@ -13,6 +13,7 @@ import {
   Logger,
   NotFoundException,
   Res,
+  Req,
 } from '@nestjs/common';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { MusicService } from './music.service.js';
@@ -24,7 +25,7 @@ import { TrackFilter } from './music.types.js';
 import { StorageService } from '../storage/storage.service.js';
 import { TrackListResponseDto } from './dto/track-list-response.dto.js';
 import { toTrackItemDto } from './dto/track-item.mapper.js';
-import { type Response } from 'express';
+import { type Request, type Response } from 'express';
 import { TrackDetailDto } from './dto/track-detail.dto.js';
 import { toTrackDetailDto } from './dto/track-detail.mapper.js';
 import { ArtistListResponseDto } from './dto/artist-list-response.dto.js';
@@ -205,6 +206,7 @@ export class MusicController {
   @UseGuards(OptionalAuthGuard)
   async streamTrack(
     @Param('id') id: string,
+    @Req() req: Request,
     @Res() res: Response,
   ): Promise<void> {
     const track = await this.musicService.getTrackWithAccessCheck(id);
@@ -214,13 +216,47 @@ export class MusicController {
       return;
     }
 
-    const url = await this.storageService.getPresignedUrl(
-      track.audioFile.storageKey,
-      3600,
-    );
+    const { storageKey, mimeType } = track.audioFile;
 
-    res.setHeader('Cache-Control', 'private, max-age=3600');
-    res.redirect(url);
+    const size = Number(track.audioFile.size);
+    const range = req.headers.range;
+
+    if (range) {
+      const match = range.match(/bytes=(\d+)-(\d*)/);
+      if (!match) {
+        res.status(416).setHeader('Content-Range', `bytes */${size}`);
+        res.end();
+        return;
+      }
+
+      const start = parseInt(match[1], 10);
+      const end = match[2] ? parseInt(match[2], 10) : size - 1;
+      const length = end - start + 1;
+
+      const stream = await this.storageService.getFileRange(
+        storageKey,
+        start,
+        length,
+      );
+
+      res.status(206);
+      res.setHeader('Content-Type', mimeType);
+      res.setHeader('Content-Length', length);
+      res.setHeader('Content-Range', `bytes ${start}-${end}/${size}`);
+      res.setHeader('Accept-Ranges', 'bytes');
+      res.setHeader('Cache-Control', 'no-store');
+
+      stream.pipe(res);
+    } else {
+      const stream = await this.storageService.getFile(storageKey);
+
+      res.setHeader('Content-Type', mimeType);
+      res.setHeader('Content-Length', size);
+      res.setHeader('Accept-Ranges', 'bytes');
+      res.setHeader('Cache-Control', 'no-store');
+
+      stream.pipe(res);
+    }
   }
 
   /**
@@ -315,6 +351,10 @@ export class MusicController {
     };
   }
 
+  /**
+   * Get the album cover for an album
+   * GET /music/albums/:id/cover
+   */
   @Get('albums/:id/cover')
   @UseGuards(OptionalAuthGuard)
   async getAlbumCover(
@@ -327,13 +367,14 @@ export class MusicController {
       throw new NotFoundException('Album art not found');
     }
 
-    const url = await this.storageService.getPresignedUrl(
-      albumArtKey,
-      86400, // 24 hours
-    );
+    const stats = await this.storageService.getFileStats(albumArtKey);
+    const stream = await this.storageService.getFile(albumArtKey);
 
     res.setHeader('Cache-Control', 'private, max-age=86400');
-    res.redirect(url);
+    res.setHeader('Content-Length', stats.size);
+    res.setHeader('Cache-Control', 'private, max-age=86400');
+
+    stream.pipe(res);
   }
 
   // ==================== SEARCH ====================

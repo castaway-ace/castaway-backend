@@ -55,8 +55,7 @@ export class HistoryService {
 
     return {
       trackId: stats.trackId,
-      playCount: stats.playCount,
-      lastPlayedAt: stats.lastPlayedAt,
+      updatedAt: stats.updatedAt,
       totalPlays: stats.historyCount,
     };
   }

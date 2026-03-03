@@ -149,10 +149,10 @@ model AudioFile {
   track      Track    @relation(fields: [trackId], references: [id])
   trackId    String   @unique @map("track_id")
   storageKey String   @unique @map("storage_key")
-  format     String
+  mimeType     String @map("mime_type")
   bitrate    Int?
-  sampleRate Int?   @map("sample_rate")
-  fileSize   BigInt   @map("file_size")
+  sampleRate Int?     @map("sample_rate")
+  size       BigInt   
   checksum   String   @unique
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")

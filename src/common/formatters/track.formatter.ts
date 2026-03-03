@@ -24,10 +24,10 @@ export function formatTrackResponse(track: {
   };
   audioFile?: {
     storageKey: string;
-    format: string;
+    mimeType: string;
     bitrate: number | null;
     sampleRate: number | null;
-    fileSize: bigint;
+    size: bigint;
   } | null;
 }) {
   const sortedArtists = [...track.artists].sort((a, b) => a.order - b.order);
@@ -56,10 +56,10 @@ export function formatTrackResponse(track: {
     audioFile: track.audioFile
       ? {
           storageKey: track.audioFile.storageKey,
-          format: track.audioFile.format,
+          mimeType: track.audioFile.mimeType,
           bitrate: track.audioFile.bitrate,
           sampleRate: track.audioFile.sampleRate,
-          fileSize: track.audioFile.fileSize.toString(),
+          size: track.audioFile.size.toString(),
         }
       : null,
   };

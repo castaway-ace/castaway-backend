@@ -65,7 +65,7 @@ export class MusicService {
       );
     }
 
-    const storageKey = `${this.TRACK_PREFIX}${checksum}.${metadata.format}`;
+    const storageKey = `${this.TRACK_PREFIX}${checksum}.${file.mimetype}`;
 
     // Step 5: Upload audio file to MinIO
     const audioUpload: StorageUploadResult = await this.storage.uploadFile(
@@ -98,14 +98,14 @@ export class MusicService {
         releaseYear: metadata.releaseYear,
         genre: metadata.genre,
         duration: metadata.duration,
-        format: metadata.format,
+        mimeType: metadata.mimeType,
         bitrate: metadata.bitrate,
         sampleRate: metadata.sampleRate,
       },
       audioKey: audioUpload.storageKey,
       albumArtKey,
       checksum,
-      fileSize: audioUpload.size,
+      size: audioUpload.size,
     });
 
     return {
@@ -229,8 +229,6 @@ export class MusicService {
 
     return {
       trackId: stats.trackId,
-      playCount: stats.playCount,
-      lastPlayedAt: stats.lastPlayedAt,
       totalPlays: stats.historyCount,
     };
   }
@@ -347,10 +345,10 @@ export class MusicService {
           audioFile: track.audioFile
             ? {
                 storageKey: track.audioFile.storageKey,
-                format: track.audioFile.format,
+                mimeType: track.audioFile.mimeType,
                 bitrate: track.audioFile.bitrate,
                 sampleRate: track.audioFile.sampleRate,
-                fileSize: track.audioFile.fileSize.toString(),
+                size: track.audioFile.size.toString(),
               }
             : null,
         };
@@ -452,7 +450,7 @@ export class MusicService {
       releaseYear: common.year ?? null,
       genre: common.genre?.[0] ?? null,
       duration: Math.floor(metadata.format.duration || 0),
-      format: metadata.format.container || 'unknown',
+      mimeType: mimeType,
       bitrate: metadata.format.bitrate ?? null,
       sampleRate: metadata.format.sampleRate ?? null,
       picture: common.picture?.[0],
@@ -558,10 +556,10 @@ export class MusicService {
     };
     audioFile?: {
       storageKey: string;
-      format: string;
+      mimeType: string;
       bitrate: number | null;
       sampleRate: number | null;
-      fileSize: bigint;
+      size: bigint;
     } | null;
   }) {
     const sortedArtists = [...track.artists].sort((a, b) => a.order - b.order);
@@ -590,10 +588,10 @@ export class MusicService {
       audioFile: track.audioFile
         ? {
             storageKey: track.audioFile.storageKey,
-            format: track.audioFile.format,
+            mimeType: track.audioFile.mimeType,
             bitrate: track.audioFile.bitrate,
             sampleRate: track.audioFile.sampleRate,
-            fileSize: track.audioFile.fileSize.toString(),
+            size: track.audioFile.size.toString(),
           }
         : null,
     };
