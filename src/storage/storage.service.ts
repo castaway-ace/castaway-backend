@@ -10,9 +10,6 @@ export class StorageService {
   private readonly logger = new Logger(StorageService.name);
   private readonly bucketName: string;
   private readonly region: string;
-  private readonly publicEndPoint?: string;
-  private readonly publicPort?: number;
-  private readonly publicUseSSL?: boolean;
 
   constructor(
     @Inject('MINIO_CLIENT') private readonly client: Minio.Client,
@@ -25,9 +22,6 @@ export class StorageService {
 
     this.bucketName = storageConfig.bucketName;
     this.region = storageConfig.region;
-    this.publicEndPoint = storageConfig.publicEndPoint;
-    this.publicPort = storageConfig.publicPort;
-    this.publicUseSSL = storageConfig.publicUseSSL;
   }
 
   async ensureBucketExists(): Promise<void> {
@@ -161,52 +155,5 @@ export class StorageService {
       this.logger.error(`Error deleting file "${storageKey}": ${errorMessage}`);
       throw error;
     }
-  }
-
-  /**
-   * Checks if a file exists in the bucket
-   * @param storageKey - Full storage key including prefix
-   * @returns True if file exists, false otherwise
-   */
-  async fileExists(storageKey: string): Promise<boolean> {
-    try {
-      await this.client.statObject(this.bucketName, storageKey);
-      return true;
-    } catch (error) {
-      if (
-        error instanceof Error &&
-        'code' in error &&
-        error.code === 'NotFound'
-      ) {
-        return false;
-      }
-      throw error;
-    }
-  }
-
-  /**
-   * Generates a presigned URL for temporary access to a file
-   * Useful for mobile apps to download files directly from MinIO
-   * @param storageKey - Full storage key including prefix
-   * @param expirySeconds - URL expiry time in seconds (default: 24 hours)
-   * @returns Presigned URL
-   */
-  async getPresignedUrl(key: string, expiry: number): Promise<string> {
-    const internalUrl = await this.client.presignedGetObject(
-      this.bucketName,
-      key,
-      expiry,
-    );
-
-    if (!this.publicEndPoint) {
-      return internalUrl;
-    }
-
-    const url = new URL(internalUrl);
-    url.hostname = this.publicEndPoint;
-    url.port = String(this.publicPort ?? url.port);
-    url.protocol = this.publicUseSSL ? 'https:' : 'http:';
-
-    return url.toString();
   }
 }
