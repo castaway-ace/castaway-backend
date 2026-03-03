@@ -26,7 +26,9 @@ export class UserRepository {
   /**
    * Find a user by ID with their OAuth providers and refresh tokens
    */
-  async findById(id: string): Promise<UserWithProvidersAndTokens | null> {
+  async findByIdWithTokens(
+    id: string,
+  ): Promise<UserWithProvidersAndTokens | null> {
     return this.prisma.user.findUnique({
       where: { id },
       include: {
@@ -69,32 +71,17 @@ export class UserRepository {
 
     this.logger.log(`Created new user: ${email} via ${provider}`);
 
-    return {
-      ...createdUser,
-    };
+    return createdUser;
   }
 
   /**
    * Update user profile information
    */
   async updateUser(userId: string, data: UpdateUserData): Promise<void> {
-    const updateData: Record<string, string> = {};
-
-    if (data.name) {
-      updateData.name = data.name;
-    }
-
-    if (data.avatar) {
-      updateData.avatar = data.avatar;
-    }
-
-    // Only update if there is data to update
-    if (Object.keys(updateData).length > 0) {
-      await this.prisma.user.update({
-        where: { id: userId },
-        data: updateData,
-      });
-    }
+    await this.prisma.user.update({
+      where: { id: userId },
+      data,
+    });
   }
 
   /**
@@ -115,19 +102,6 @@ export class UserRepository {
 
     this.logger.log(
       `Linked ${providerName} account to user ID: ${userId} with provider ID: ${providerId}`,
-    );
-  }
-
-  /**
-   * Check if a user already has a specific OAuth provider linked
-   */
-  hasProvider(
-    user: UserWithProviders,
-    providerName: string,
-    providerId: string,
-  ): boolean {
-    return user.providers.some(
-      (p) => p.name === providerName && p.providerId === providerId,
     );
   }
 }

@@ -17,9 +17,9 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { MusicService } from './music.service.js';
-import { Roles, RolesGuard } from '../auth/guards/roles.guard.js';
+import { RolesGuard } from '../auth/guards/roles.guard.js';
+import { Roles } from '../auth/decorators/roles.decorator.js';
 import { UserRole } from '../generated/prisma/enums.js';
-import { OptionalAuthGuard } from '../auth/guards/optional-oauth.guard.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-oauth.guard.js';
 import { TrackFilter } from './music.types.js';
 import { StorageService } from '../storage/storage.service.js';
@@ -159,7 +159,7 @@ export class MusicController {
    * GET /music/tracks?artist=Beatles&album=Abbey%20Road
    */
   @Get('tracks')
-  @UseGuards(OptionalAuthGuard)
+  @UseGuards(JwtAuthGuard)
   async getTracks(
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 20,
@@ -191,7 +191,7 @@ export class MusicController {
    * GET /music/tracks/:id
    */
   @Get('tracks/:id')
-  @UseGuards(OptionalAuthGuard)
+  @UseGuards(JwtAuthGuard)
   async getTrack(@Param('id') id: string): Promise<TrackDetailDto> {
     const track = await this.musicService.getTrackWithAccessCheck(id);
 
@@ -203,7 +203,7 @@ export class MusicController {
    * GET /music/tracks/:id/stream
    */
   @Get('tracks/:id/stream')
-  @UseGuards(OptionalAuthGuard)
+  @UseGuards(JwtAuthGuard)
   async streamTrack(
     @Param('id') id: string,
     @Req() req: Request,
@@ -281,7 +281,7 @@ export class MusicController {
    * GET /music/artists
    */
   @Get('artists')
-  @UseGuards(OptionalAuthGuard)
+  @UseGuards(JwtAuthGuard)
   async getArtists(
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 20,
@@ -309,7 +309,7 @@ export class MusicController {
    * GET /music/albums
    */
   @Get('albums')
-  @UseGuards(OptionalAuthGuard)
+  @UseGuards(JwtAuthGuard)
   async getAlbums() {
     const albums = await this.musicService.getAlbums();
 
@@ -324,7 +324,7 @@ export class MusicController {
    * GET /music/albums/:id
    */
   @Get('albums/:id')
-  @UseGuards(OptionalAuthGuard)
+  @UseGuards(JwtAuthGuard)
   async getArtistAlbums(@Param('id') id: string) {
     const albums = await this.musicService.getArtistAlbums(id);
 
@@ -341,7 +341,7 @@ export class MusicController {
    * GET /music/albums/:id/tracks
    */
   @Get('albums/:id/tracks')
-  @UseGuards(OptionalAuthGuard)
+  @UseGuards(JwtAuthGuard)
   async getAlbumTracks(@Param('id') id: string) {
     const tracks = await this.musicService.getAlbumTracks(id);
 
@@ -356,7 +356,7 @@ export class MusicController {
    * GET /music/albums/:id/cover
    */
   @Get('albums/:id/cover')
-  @UseGuards(OptionalAuthGuard)
+  @UseGuards(JwtAuthGuard)
   async getAlbumCover(
     @Param('id') id: string,
     @Res() res: Response,
@@ -384,7 +384,7 @@ export class MusicController {
    * GET /music/search?q=query&type=all|track|artist|album
    */
   @Get('search')
-  @UseGuards(OptionalAuthGuard)
+  @UseGuards(JwtAuthGuard)
   async search(
     @Query('q') query: string,
     @Query('type') type?: 'all' | 'track' | 'artist' | 'album',

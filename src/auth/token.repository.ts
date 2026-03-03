@@ -8,6 +8,12 @@ export interface CreateRefreshTokenData {
   expiresAt: Date;
 }
 
+export interface CreateAuthorizationCodeData {
+  code: string;
+  userId: string;
+  expiresAt: Date;
+}
+
 @Injectable()
 export class TokenRepository {
   private readonly logger = new Logger(TokenRepository.name);
@@ -83,6 +89,21 @@ export class TokenRepository {
     });
 
     this.logger.log(`Rotated refresh token for user: ${data.userId}`);
+  }
+
+  /**
+   * Create a short-lived authorization code for the OAuth redirect flow
+   */
+  async createAuthorizationCode(
+    data: CreateAuthorizationCodeData,
+  ): Promise<void> {
+    await this.prisma.authorizationCode.create({
+      data: {
+        code: data.code,
+        userId: data.userId,
+        expiresAt: data.expiresAt,
+      },
+    });
   }
 
   /**

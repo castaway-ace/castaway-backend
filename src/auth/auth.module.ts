@@ -20,6 +20,6 @@ import { UserRepository } from '../user/user.repository.js';
     UserRepository,
     TokenRepository,
   ],
-  exports: [AuthService, JwtModule],
+  exports: [AuthService],
 })
 export class AuthModule {}

@@ -5,7 +5,6 @@ import {
   UseGuards,
   Req,
   Res,
-  HttpStatus,
   Logger,
   Body,
 } from '@nestjs/common';
@@ -13,11 +12,10 @@ import { type Response } from 'express';
 import { GoogleOAuthGuard } from './guards/google-oauth.guard.js';
 import { FacebookOAuthGuard } from './guards/facebook-oauth.guard.js';
 import { JwtAuthGuard } from './guards/jwt-oauth.guard.js';
-import { RefreshTokenDto, type AuthResponse } from './dto/auth.dto.js';
-import { PrismaService } from '../prisma/prisma.service.js';
-import { randomBytes } from 'crypto';
+import { RefreshTokenDto, ExchangeCodeDto } from './dto/auth.dto.js';
 import { AuthService } from './auth.service.js';
 import type {
+  JwtPayload,
   OAuthProfile,
   RequestWithOAuthProfile,
   RequestWithUser,
@@ -28,10 +26,7 @@ import type {
 export class AuthController {
   private readonly logger = new Logger(AuthController.name);
 
-  constructor(
-    private auth: AuthService,
-    private prisma: PrismaService,
-  ) {}
+  constructor(private auth: AuthService) {}
 
   /**
    * Initiate Google OAuth flow
@@ -39,7 +34,7 @@ export class AuthController {
    */
   @Get('google')
   @UseGuards(GoogleOAuthGuard)
-  async googleAuth() {
+  async googleAuth(): Promise<void> {
     // Guard handles the redirect to Google
   }
 
@@ -52,7 +47,7 @@ export class AuthController {
   async googleAuthCallback(
     @Req() req: RequestWithOAuthProfile,
     @Res() res: Response,
-  ) {
+  ): Promise<void> {
     await this.handleOAuthCallback(req.user, res, 'Google');
   }
 
@@ -62,7 +57,7 @@ export class AuthController {
    */
   @Get('facebook')
   @UseGuards(FacebookOAuthGuard)
-  async facebookAuth() {
+  async facebookAuth(): Promise<void> {
     // Guard handles the redirect to Facebook
   }
 
@@ -75,7 +70,7 @@ export class AuthController {
   async facebookAuthCallback(
     @Req() req: RequestWithOAuthProfile,
     @Res() res: Response,
-  ) {
+  ): Promise<void> {
     await this.handleOAuthCallback(req.user, res, 'Facebook');
   }
 
@@ -84,14 +79,8 @@ export class AuthController {
    * POST /auth/refresh
    */
   @Post('refresh')
-  async refreshTokens(@Body() body: RefreshTokenDto) {
-    const tokens = await this.auth.refreshTokens(body.refreshToken);
-    return {
-      statusCode: HttpStatus.OK,
-      message: 'Tokens refreshed successfully',
-      accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken,
-    };
+  async refreshTokens(@Body() body: RefreshTokenDto): Promise<Tokens> {
+    return await this.auth.refreshTokens(body.refreshToken);
   }
 
   /**
@@ -100,25 +89,27 @@ export class AuthController {
    */
   @Post('logout')
   @UseGuards(JwtAuthGuard)
-  async logout(@Req() req: RequestWithUser): Promise<AuthResponse> {
-    await this.auth.logout(req.user.id);
-    return {
-      statusCode: HttpStatus.OK,
-      message: 'Logged out successfully',
-    };
+  async logout(@Req() req: RequestWithUser): Promise<void> {
+    await this.auth.logout(req.user.sub);
   }
 
   /**
-   * Get current user info
+   * Get current user info from JWT payload
    * GET /auth/me
    */
   @Get('me')
   @UseGuards(JwtAuthGuard)
-  getCurrentUser(@Req() req: RequestWithOAuthProfile) {
-    return {
-      statusCode: HttpStatus.OK,
-      user: req.user,
-    };
+  getCurrentUser(@Req() req: RequestWithUser): JwtPayload {
+    return req.user;
+  }
+
+  /**
+   * Exchange an authorization code for access and refresh tokens
+   * POST /auth/exchange
+   */
+  @Post('exchange')
+  async exchangeCodeForTokens(@Body() dto: ExchangeCodeDto): Promise<Tokens> {
+    return this.auth.exchangeAuthorizationCode(dto.code);
   }
 
   private async handleOAuthCallback(
@@ -127,18 +118,8 @@ export class AuthController {
     provider: string,
   ): Promise<void> {
     try {
-      const data = await this.auth.oauthLogin(user);
-
-      const authCode = randomBytes(32).toString('hex');
-      const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
-
-      await this.prisma.authorizationCode.create({
-        data: {
-          code: authCode,
-          userId: data.user.id,
-          expiresAt,
-        },
-      });
+      const resolvedUser = await this.auth.resolveOAuthUser(user);
+      const authCode = await this.auth.createAuthorizationCode(resolvedUser.id);
 
       res.redirect(`castaway://auth/callback?code=${authCode}`);
     } catch (error) {
@@ -150,10 +131,5 @@ export class AuthController {
         `castaway://auth/error?message=${encodeURIComponent(errorMessage)}`,
       );
     }
-  }
-
-  @Post('exchange')
-  async exchangeCodeForTokens(@Body() dto: { code: string }): Promise<Tokens> {
-    return this.auth.exchangeAuthorizationCode(dto.code);
   }
 }

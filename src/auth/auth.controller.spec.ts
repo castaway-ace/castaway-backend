@@ -1,18 +1,18 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { HttpStatus } from '@nestjs/common';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
-import { PrismaService } from '../prisma/prisma.service.js';
 import { GoogleOAuthGuard } from './guards/google-oauth.guard.js';
 import { FacebookOAuthGuard } from './guards/facebook-oauth.guard.js';
 import { JwtAuthGuard } from './guards/jwt-oauth.guard.js';
 import type {
+  JwtPayload,
+  OAuthProfile,
   RequestWithOAuthProfile,
   RequestWithUser,
   Tokens,
 } from './auth.types.js';
 import { Response } from 'express';
-import { AuthorizationCode, UserRole } from '../generated/prisma/client.js';
+import { UserRole } from '../generated/prisma/client.js';
 import { UserWithProviders } from '../user/user.types.js';
 
 const fixedDate = new Date('2026-02-01');
@@ -20,18 +20,11 @@ const fixedDate = new Date('2026-02-01');
 describe('AuthController', () => {
   let controller: AuthController;
   let authService: {
-    oauthLogin: jest.Mock;
+    resolveOAuthUser: jest.Mock;
+    createAuthorizationCode: jest.Mock;
     refreshTokens: jest.Mock;
     logout: jest.Mock;
     exchangeAuthorizationCode: jest.Mock;
-  };
-  let prismaService: {
-    authorizationCode: {
-      create: jest.Mock<
-        Promise<AuthorizationCode>,
-        [{ data: { code: string; userId: string; expiresAt: Date } }]
-      >;
-    };
   };
 
   const mockTokens: Tokens = {
@@ -39,18 +32,7 @@ describe('AuthController', () => {
     refreshToken: 'mock-refresh-token',
   };
 
-  const mockOAuthLoginResponse = {
-    user: {
-      id: 'user-123',
-      email: 'test@example.com',
-      name: 'Test User',
-      avatar: 'https://example.com/avatar.jpg',
-    },
-    accessToken: 'mock-access-token',
-    refreshToken: 'mock-refresh-token',
-  };
-
-  const mockOAuthUser: UserWithProviders = {
+  const mockResolvedUser: UserWithProviders = {
     id: 'user-123',
     email: 'test@example.com',
     name: 'Test User',
@@ -70,38 +52,43 @@ describe('AuthController', () => {
     ],
   };
 
-  const mockFacebookOAuthUser: UserWithProviders = {
-    id: 'user-123',
+  const mockGoogleOAuthProfile: OAuthProfile = {
     email: 'test@example.com',
     name: 'Test User',
     avatar: 'https://example.com/avatar.jpg',
+    provider: 'google',
+    providerId: 'google-123',
+  };
+
+  const mockFacebookOAuthProfile: OAuthProfile = {
+    email: 'test@example.com',
+    name: 'Test User',
+    avatar: 'https://example.com/avatar.jpg',
+    provider: 'facebook',
+    providerId: 'facebook-123',
+  };
+
+  const mockJwtPayload: JwtPayload = {
+    sub: 'user-123',
+    email: 'test@example.com',
+    name: 'Test User',
     role: UserRole.USER,
-    createdAt: fixedDate,
-    updatedAt: fixedDate,
-    providers: [
-      {
-        id: 'provider-123',
-        userId: 'user-123',
-        name: 'facebook',
-        providerId: 'facebook-123',
-        createdAt: fixedDate,
-        updatedAt: fixedDate,
-      },
-    ],
+  };
+
+  const mockAdminJwtPayload: JwtPayload = {
+    sub: 'admin-123',
+    email: 'admin@example.com',
+    name: 'Admin User',
+    role: UserRole.ADMIN,
   };
 
   beforeEach(async () => {
     const mockAuthService = {
-      oauthLogin: jest.fn(),
+      resolveOAuthUser: jest.fn(),
+      createAuthorizationCode: jest.fn(),
       refreshTokens: jest.fn(),
       logout: jest.fn(),
       exchangeAuthorizationCode: jest.fn(),
-    };
-
-    const mockPrismaService = {
-      authorizationCode: {
-        create: jest.fn(),
-      },
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -110,10 +97,6 @@ describe('AuthController', () => {
         {
           provide: AuthService,
           useValue: mockAuthService,
-        },
-        {
-          provide: PrismaService,
-          useValue: mockPrismaService,
         },
       ],
     })
@@ -128,32 +111,10 @@ describe('AuthController', () => {
 
     controller = module.get<AuthController>(AuthController);
     authService = module.get(AuthService);
-    prismaService = module.get(PrismaService);
   });
 
   afterEach(() => {
     jest.clearAllMocks();
-  });
-
-  describe('googleAuth', () => {
-    it('should be defined', () => {
-      expect(controller.googleAuth()).toBeDefined();
-    });
-
-    it('should initiate Google OAuth flow', async () => {
-      await expect(controller.googleAuth()).resolves.toBeUndefined();
-    });
-  });
-
-  describe('facebookAuth', () => {
-    it('should be defined', () => {
-      expect(controller.facebookAuth()).toBeDefined();
-    });
-
-    it('should initiate Facebook OAuth flow', async () => {
-      // This method is empty as the guard handles the redirect
-      await expect(controller.facebookAuth()).resolves.toBeUndefined();
-    });
   });
 
   describe('googleAuthCallback', () => {
@@ -162,7 +123,7 @@ describe('AuthController', () => {
 
     beforeEach(() => {
       mockRequest = {
-        user: mockOAuthUser,
+        user: mockGoogleOAuthProfile,
       } as unknown as RequestWithOAuthProfile;
 
       mockResponse = {
@@ -171,89 +132,28 @@ describe('AuthController', () => {
     });
 
     it('should handle successful Google OAuth callback', async () => {
-      authService.oauthLogin.mockResolvedValue(mockOAuthLoginResponse);
-      prismaService.authorizationCode.create.mockResolvedValue({
-        id: 'auth-code-id',
-        code: expect.any(String) as string,
-        userId: 'user-123',
-        expiresAt: expect.any(Date) as Date,
-        createdAt: fixedDate,
-      });
+      authService.resolveOAuthUser.mockResolvedValue(mockResolvedUser);
+      authService.createAuthorizationCode.mockResolvedValue('mock-auth-code');
 
       await controller.googleAuthCallback(
         mockRequest,
         mockResponse as Response,
       );
 
-      expect(authService.oauthLogin).toHaveBeenCalledWith(mockOAuthUser);
-      expect(prismaService.authorizationCode.create).toHaveBeenCalledWith({
-        data: {
-          code: expect.any(String) as string,
-          userId: 'user-123',
-          expiresAt: expect.any(Date) as Date,
-        },
-      });
+      expect(authService.resolveOAuthUser).toHaveBeenCalledWith(
+        mockGoogleOAuthProfile,
+      );
+      expect(authService.createAuthorizationCode).toHaveBeenCalledWith(
+        'user-123',
+      );
       expect(mockResponse.redirect).toHaveBeenCalledWith(
-        expect.stringMatching(/^castaway:\/\/auth\/callback\?code=.+$/),
+        'castaway://auth/callback?code=mock-auth-code',
       );
-    });
-
-    it('should create authorization code with 5 minute expiration', async () => {
-      authService.oauthLogin.mockResolvedValue(mockOAuthLoginResponse);
-      prismaService.authorizationCode.create.mockResolvedValue({
-        id: 'auth-code-id',
-        code: 'test-code',
-        userId: 'user-123',
-        expiresAt: fixedDate,
-        createdAt: fixedDate,
-      });
-
-      const beforeCall = Date.now();
-      await controller.googleAuthCallback(
-        mockRequest,
-        mockResponse as Response,
-      );
-      const afterCall = Date.now();
-
-      const createCalls = prismaService.authorizationCode.create.mock.calls;
-      expect(createCalls).toHaveLength(1);
-      const createData = createCalls[0][0].data;
-      const expiresAt = createData.expiresAt.getTime();
-
-      // Should be approximately 5 minutes (300000ms) from now
-      const expectedMin = beforeCall + 5 * 60 * 1000;
-      const expectedMax = afterCall + 5 * 60 * 1000;
-
-      expect(expiresAt).toBeGreaterThanOrEqual(expectedMin);
-      expect(expiresAt).toBeLessThanOrEqual(expectedMax);
-    });
-
-    it('should generate random authorization code', async () => {
-      authService.oauthLogin.mockResolvedValue(mockOAuthLoginResponse);
-      prismaService.authorizationCode.create.mockResolvedValue({
-        id: 'auth-code-id',
-        code: 'test-code',
-        userId: 'user-123',
-        expiresAt: fixedDate,
-        createdAt: fixedDate,
-      });
-
-      await controller.googleAuthCallback(
-        mockRequest,
-        mockResponse as Response,
-      );
-
-      const createCalls = prismaService.authorizationCode.create.mock.calls;
-      const code = createCalls[0][0].data.code;
-
-      // Should be 64 characters (32 bytes in hex)
-      expect(code).toHaveLength(64);
-      expect(code).toMatch(/^[a-f0-9]{64}$/);
     });
 
     it('should redirect to error URL on OAuth failure', async () => {
       const error = new Error('OAuth provider error');
-      authService.oauthLogin.mockRejectedValue(error);
+      authService.resolveOAuthUser.mockRejectedValue(error);
 
       await controller.googleAuthCallback(
         mockRequest,
@@ -263,12 +163,12 @@ describe('AuthController', () => {
       expect(mockResponse.redirect).toHaveBeenCalledWith(
         'castaway://auth/error?message=OAuth%20provider%20error',
       );
-      expect(prismaService.authorizationCode.create).not.toHaveBeenCalled();
+      expect(authService.createAuthorizationCode).not.toHaveBeenCalled();
     });
 
     it('should redirect to error URL on authorization code creation failure', async () => {
-      authService.oauthLogin.mockResolvedValue(mockOAuthLoginResponse);
-      prismaService.authorizationCode.create.mockRejectedValue(
+      authService.resolveOAuthUser.mockResolvedValue(mockResolvedUser);
+      authService.createAuthorizationCode.mockRejectedValue(
         new Error('Database error'),
       );
 
@@ -283,7 +183,7 @@ describe('AuthController', () => {
     });
 
     it('should handle unknown error types', async () => {
-      authService.oauthLogin.mockRejectedValue('string error');
+      authService.resolveOAuthUser.mockRejectedValue('string error');
 
       await controller.googleAuthCallback(
         mockRequest,
@@ -297,7 +197,7 @@ describe('AuthController', () => {
 
     it('should handle UnauthorizedException with appropriate message', async () => {
       const error = new Error('Error: User not authorized');
-      authService.oauthLogin.mockRejectedValue(error);
+      authService.resolveOAuthUser.mockRejectedValue(error);
 
       await controller.googleAuthCallback(
         mockRequest,
@@ -307,12 +207,12 @@ describe('AuthController', () => {
       expect(mockResponse.redirect).toHaveBeenCalledWith(
         'castaway://auth/error?message=Error%3A%20User%20not%20authorized',
       );
-      expect(prismaService.authorizationCode.create).not.toHaveBeenCalled();
+      expect(authService.createAuthorizationCode).not.toHaveBeenCalled();
     });
 
     it('should handle network timeout errors', async () => {
       const error = new Error('ETIMEDOUT');
-      authService.oauthLogin.mockRejectedValue(error);
+      authService.resolveOAuthUser.mockRejectedValue(error);
 
       await controller.googleAuthCallback(
         mockRequest,
@@ -331,7 +231,7 @@ describe('AuthController', () => {
 
     beforeEach(() => {
       mockRequest = {
-        user: mockFacebookOAuthUser,
+        user: mockFacebookOAuthProfile,
       } as unknown as RequestWithOAuthProfile;
 
       mockResponse = {
@@ -340,30 +240,24 @@ describe('AuthController', () => {
     });
 
     it('should handle successful Facebook OAuth callback', async () => {
-      authService.oauthLogin.mockResolvedValue(mockOAuthLoginResponse);
-      prismaService.authorizationCode.create.mockResolvedValue({
-        id: 'auth-code-id',
-        code: 'test-code',
-        userId: 'user-123',
-        expiresAt: fixedDate,
-        createdAt: fixedDate,
-      });
+      authService.resolveOAuthUser.mockResolvedValue(mockResolvedUser);
+      authService.createAuthorizationCode.mockResolvedValue('mock-auth-code');
 
       await controller.facebookAuthCallback(
         mockRequest,
         mockResponse as Response,
       );
 
-      expect(authService.oauthLogin).toHaveBeenCalledWith(
-        mockFacebookOAuthUser,
+      expect(authService.resolveOAuthUser).toHaveBeenCalledWith(
+        mockFacebookOAuthProfile,
       );
       expect(mockResponse.redirect).toHaveBeenCalledWith(
-        expect.stringMatching(/^castaway:\/\/auth\/callback\?code=.+$/),
+        'castaway://auth/callback?code=mock-auth-code',
       );
     });
 
     it('should redirect to error URL on failure', async () => {
-      authService.oauthLogin.mockRejectedValue(
+      authService.resolveOAuthUser.mockRejectedValue(
         new Error('Facebook auth failed'),
       );
 
@@ -389,12 +283,7 @@ describe('AuthController', () => {
       expect(authService.refreshTokens).toHaveBeenCalledWith(
         'old-refresh-token',
       );
-      expect(result).toEqual({
-        statusCode: HttpStatus.OK,
-        message: 'Tokens refreshed successfully',
-        accessToken: 'mock-access-token',
-        refreshToken: 'mock-refresh-token',
-      });
+      expect(result).toEqual(mockTokens);
     });
 
     it('should throw error with invalid refresh token', async () => {
@@ -408,63 +297,22 @@ describe('AuthController', () => {
     });
   });
 
-  describe('Role-based authorization', () => {
-    it('should allow admin user to access admin-protected endpoint', () => {
-      const mockAdminRequest = {
-        user: {
-          ...mockOAuthUser,
-          role: UserRole.ADMIN,
-        },
-      } as unknown as RequestWithUser;
-
-      const hasAdminRole = mockAdminRequest.user.role === UserRole.ADMIN;
-
-      expect(hasAdminRole).toBe(true);
-    });
-
-    it('should deny regular user access to admin-protected endpoint', () => {
-      const mockUserRequest = {
-        user: {
-          ...mockOAuthUser,
-          role: UserRole.USER,
-        },
-      } as unknown as RequestWithUser;
-
-      const hasAdminRole = mockUserRequest.user.role === UserRole.ADMIN;
-
-      expect(hasAdminRole).toBe(false);
-    });
-
-    it('should extract role from JWT token payload', () => {
-      const mockRequest = {
-        user: mockOAuthUser,
-      } as unknown as RequestWithUser;
-
-      expect(mockRequest.user).toHaveProperty('role');
-      expect(mockRequest.user.role).toBe(UserRole.USER);
-    });
-  });
-
   describe('logout', () => {
     it('should logout user successfully', async () => {
       const mockRequest = {
-        user: mockOAuthUser,
+        user: mockJwtPayload,
       } as unknown as RequestWithUser;
 
       authService.logout.mockResolvedValue(undefined);
 
-      const result = await controller.logout(mockRequest);
+      await controller.logout(mockRequest);
 
       expect(authService.logout).toHaveBeenCalledWith('user-123');
-      expect(result).toEqual({
-        statusCode: HttpStatus.OK,
-        message: 'Logged out successfully',
-      });
     });
 
     it('should handle logout errors', async () => {
       const mockRequest = {
-        user: mockOAuthUser,
+        user: mockJwtPayload,
       } as unknown as RequestWithUser;
 
       authService.logout.mockRejectedValue(new Error('Logout failed'));
@@ -476,35 +324,29 @@ describe('AuthController', () => {
   });
 
   describe('getCurrentUser', () => {
-    it('should return current user information', () => {
+    it('should return the JWT payload for the authenticated user', () => {
       const mockRequest = {
-        user: mockOAuthUser,
-      } as unknown as RequestWithOAuthProfile;
+        user: mockJwtPayload,
+      } as unknown as RequestWithUser;
 
       const result = controller.getCurrentUser(mockRequest);
 
       expect(result).toEqual({
-        statusCode: HttpStatus.OK,
-        user: {
-          avatar: 'https://example.com/avatar.jpg',
-          id: 'user-123',
-          email: 'test@example.com',
-          name: 'Test User',
-          providers: [
-            {
-              id: 'provider-123',
-              userId: 'user-123',
-              name: 'google',
-              providerId: 'google-123',
-              createdAt: fixedDate,
-              updatedAt: fixedDate,
-            },
-          ],
-          role: UserRole.USER,
-          createdAt: fixedDate,
-          updatedAt: fixedDate,
-        },
+        sub: 'user-123',
+        email: 'test@example.com',
+        name: 'Test User',
+        role: UserRole.USER,
       });
+    });
+
+    it('should return admin role for admin user', () => {
+      const mockRequest = {
+        user: mockAdminJwtPayload,
+      } as unknown as RequestWithUser;
+
+      const result = controller.getCurrentUser(mockRequest);
+
+      expect(result.role).toBe(UserRole.ADMIN);
     });
   });
 
@@ -519,10 +361,7 @@ describe('AuthController', () => {
       expect(authService.exchangeAuthorizationCode).toHaveBeenCalledWith(
         'valid-auth-code',
       );
-      expect(result).toEqual({
-        accessToken: 'mock-access-token',
-        refreshToken: 'mock-refresh-token',
-      });
+      expect(result).toEqual(mockTokens);
     });
 
     it('should throw error with invalid authorization code', async () => {

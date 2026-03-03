@@ -1,28 +1,26 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { RolesGuard, ROLES_KEY } from './roles.guard.js';
+import { RolesGuard } from './roles.guard.js';
+import { ROLES_KEY } from '../decorators/roles.decorator.js';
 import { UserRole } from '../../generated/prisma/client.js';
-import { UserWithProviders } from '../../user/user.types.js';
+import { JwtPayload } from '../auth.types.js';
 
 describe('RolesGuard', () => {
   let guard: RolesGuard;
   let reflector: Reflector;
 
-  const mockUser: UserWithProviders = {
-    id: 'user-123',
+  const mockUser: JwtPayload = {
+    sub: 'user-123',
     email: 'test@example.com',
     name: 'Test User',
-    avatar: null,
     role: UserRole.USER,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    providers: [],
   };
 
-  const mockAdminUser: UserWithProviders = {
-    ...mockUser,
-    id: 'admin-123',
+  const mockAdminUser: JwtPayload = {
+    sub: 'admin-123',
+    email: 'admin@example.com',
+    name: 'Admin User',
     role: UserRole.ADMIN,
   };
 
@@ -44,7 +42,7 @@ describe('RolesGuard', () => {
   });
 
   const createMockExecutionContext = (
-    user: UserWithProviders | null,
+    user: JwtPayload | null,
   ): ExecutionContext => {
     return {
       switchToHttp: () => ({

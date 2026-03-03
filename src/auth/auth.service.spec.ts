@@ -1,36 +1,56 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
 import { UnauthorizedException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { AuthService } from '../auth/auth.service.js';
 import { UserRepository } from '../user/user.repository.js';
-import { TokenRepository } from './token.repository.js';
 import {
-  UserWithProvider,
+  CreateAuthorizationCodeData,
+  TokenRepository,
+} from './token.repository.js';
+import { OAuthProfile } from './auth.types.js';
+import {
   UserWithProviders,
   UserWithProvidersAndTokens,
 } from '../user/user.types.js';
 import { RefreshToken, UserRole } from '../generated/prisma/client.js';
+import { AuthConfig } from 'src/config/config.types.js';
+import { ConfigService } from '@nestjs/config';
 
 const fixedDate = new Date('2026-02-01');
 
 jest.mock('bcrypt');
 const mockedBcrypt = bcrypt as jest.Mocked<typeof bcrypt>;
 
+const defaultAuthConfig: AuthConfig = {
+  jwt: { secret: 'test-jwt-secret' },
+  jwtRefresh: { secret: 'test-refresh-secret' },
+  google: {
+    clientID: 'google-client-id',
+    clientSecret: 'google-client-secret',
+    callbackURL: 'http://localhost/auth/google/callback',
+  },
+  facebook: {
+    appId: 'facebook-app-id',
+    appSecret: 'facebook-app-secret',
+    callbackURL: 'http://localhost/auth/facebook/callback',
+  },
+};
+
 describe('AuthService', () => {
   let service: AuthService;
-  let userRepository: jest.Mocked<UserRepository>;
-  let tokenRepository: jest.Mocked<TokenRepository>;
-  let jwtService: jest.Mocked<JwtService>;
-  let configService: jest.Mocked<ConfigService>;
 
   let findByEmailMock: jest.Mock;
   let createWithProviderMock: jest.Mock;
   let createRefreshTokenMock: jest.Mock;
+  let createAuthorizationCodeMock: jest.Mock<
+    Promise<void>,
+    [CreateAuthorizationCodeData]
+  >;
   let linkProviderMock: jest.Mock;
   let updateUserMock: jest.Mock;
-  let findByIdMock: jest.Mock;
+  let findByIdWithTokensMock: jest.Mock;
+  let findByIdWithProvidersMock: jest.Mock;
   let signAsyncMock: jest.Mock;
   let verifyAsyncMock: jest.Mock;
   let deleteTokenMock: jest.Mock;
@@ -61,29 +81,103 @@ describe('AuthService', () => {
     refreshTokens: [],
   };
 
-  const mockOAuthUser: UserWithProvider = {
+  const mockUserWithProviders: UserWithProviders = {
     id: 'user-123',
+    email: 'test@example.com',
+    name: 'Test User',
+    avatar: 'https://example.com/avatar.jpg',
+    role: UserRole.USER,
+    createdAt: fixedDate,
+    updatedAt: fixedDate,
+    providers: [
+      {
+        id: 'provider-123',
+        userId: 'user-123',
+        name: 'google',
+        providerId: 'google-123',
+        createdAt: fixedDate,
+        updatedAt: fixedDate,
+      },
+    ],
+  };
+
+  const mockOAuthProfile: OAuthProfile = {
     email: 'test@example.com',
     name: 'Test User',
     avatar: 'https://example.com/avatar.jpg',
     provider: 'google',
     providerId: 'google-123',
-    role: 'USER',
-    createdAt: fixedDate,
-    updatedAt: fixedDate,
   };
 
   const mockAccessToken = 'mock-access-token';
   const mockRefreshToken = 'mock-refresh-token';
   const mockHashedToken = 'hashed-refresh-token';
 
+  const buildService = async (
+    configOverrides?: Partial<AuthConfig>,
+  ): Promise<AuthService> => {
+    const config = { ...defaultAuthConfig, ...configOverrides };
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        AuthService,
+        {
+          provide: UserRepository,
+          useValue: {
+            findByEmail: findByEmailMock,
+            findByIdWithTokens: findByIdWithTokensMock,
+            findByIdWithProviders: findByIdWithProvidersMock,
+            createWithProvider: createWithProviderMock,
+            linkProvider: linkProviderMock,
+            updateUser: updateUserMock,
+          },
+        },
+        {
+          provide: TokenRepository,
+          useValue: {
+            createRefreshToken: createRefreshTokenMock,
+            createAuthorizationCode: createAuthorizationCodeMock,
+            findAuthorizationCode: findAuthorizationCodeMock,
+            deleteAuthorizationCode: deleteAuthorizationCodeMock,
+            deleteToken: deleteTokenMock,
+            deleteAllUserTokens: deleteAllUserTokensMock,
+            rotateToken: rotateTokenMock,
+          },
+        },
+        {
+          provide: JwtService,
+          useValue: {
+            signAsync: signAsyncMock,
+            verifyAsync: verifyAsyncMock,
+          },
+        },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn((key: string) => {
+              if (key === 'auth') return config;
+              return undefined;
+            }),
+          } as unknown as ConfigService,
+        },
+      ],
+    }).compile();
+
+    return module.get<AuthService>(AuthService);
+  };
+
   beforeEach(async () => {
     findByEmailMock = jest.fn();
     createWithProviderMock = jest.fn();
     linkProviderMock = jest.fn();
     updateUserMock = jest.fn();
-    findByIdMock = jest.fn();
+    findByIdWithTokensMock = jest.fn();
+    findByIdWithProvidersMock = jest.fn();
     createRefreshTokenMock = jest.fn();
+    createAuthorizationCodeMock = jest.fn() as jest.Mock<
+      Promise<void>,
+      [CreateAuthorizationCodeData]
+    >;
     findAuthorizationCodeMock = jest.fn();
     deleteAuthorizationCodeMock = jest.fn();
     deleteTokenMock = jest.fn();
@@ -92,67 +186,7 @@ describe('AuthService', () => {
     signAsyncMock = jest.fn();
     verifyAsyncMock = jest.fn();
 
-    const mockUserRepository = {
-      findByEmail: findByEmailMock,
-      findById: findByIdMock,
-      createWithProvider: createWithProviderMock,
-      linkProvider: linkProviderMock,
-      updateUser: updateUserMock,
-      hasProvider: jest.fn(),
-    } as unknown as jest.Mocked<UserRepository>;
-
-    const mockTokenRepository = {
-      createRefreshToken: createRefreshTokenMock,
-      findAuthorizationCode: findAuthorizationCodeMock,
-      deleteAuthorizationCode: deleteAuthorizationCodeMock,
-      deleteToken: deleteTokenMock,
-      deleteAllUserTokens: deleteAllUserTokensMock,
-      rotateToken: rotateTokenMock,
-    } as unknown as jest.Mocked<TokenRepository>;
-
-    const mockJwtService = {
-      signAsync: signAsyncMock,
-      verifyAsync: verifyAsyncMock,
-    } as unknown as jest.Mocked<JwtService>;
-
-    const mockConfigService = {
-      get: jest.fn((key: string) => {
-        const config: Record<string, string> = {
-          'auth.jwt.secret': 'test-jwt-secret',
-          'auth.jwtRefresh.secret': 'test-refresh-secret',
-          'auth.allowedEmails': 'test@example.com,admin@example.com',
-        };
-        return config[key] || '';
-      }),
-    };
-
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        AuthService,
-        {
-          provide: UserRepository,
-          useValue: mockUserRepository,
-        },
-        {
-          provide: TokenRepository,
-          useValue: mockTokenRepository,
-        },
-        {
-          provide: JwtService,
-          useValue: mockJwtService,
-        },
-        {
-          provide: ConfigService,
-          useValue: mockConfigService,
-        },
-      ],
-    }).compile();
-
-    service = module.get<AuthService>(AuthService);
-    userRepository = module.get(UserRepository);
-    tokenRepository = module.get(TokenRepository);
-    jwtService = module.get(JwtService);
-    configService = module.get(ConfigService);
+    service = await buildService();
 
     // Default bcrypt behavior
     mockedBcrypt.hash.mockResolvedValue(mockHashedToken as never);
@@ -163,116 +197,42 @@ describe('AuthService', () => {
     jest.clearAllMocks();
   });
 
-  describe('oauthLogin', () => {
+  describe('resolveOAuthUser', () => {
     describe('when user does not exist', () => {
-      it('should create new user and return tokens', async () => {
-        userRepository.findByEmail.mockResolvedValue(null);
-        userRepository.createWithProvider.mockResolvedValue(mockUser);
-        jwtService.signAsync
-          .mockResolvedValueOnce(mockAccessToken)
-          .mockResolvedValueOnce(mockRefreshToken);
+      it('should create new user and return the user', async () => {
+        findByEmailMock.mockResolvedValue(null);
+        createWithProviderMock.mockResolvedValue(mockUserWithProviders);
 
-        const result = await service.oauthLogin(mockOAuthUser);
+        const result = await service.resolveOAuthUser(mockOAuthProfile);
 
-        expect(createWithProviderMock).toHaveBeenCalledWith({
-          email: 'test@example.com',
-          name: 'Test User',
-          role: UserRole.USER,
-          createdAt: fixedDate,
-          updatedAt: fixedDate,
-          id: 'user-123',
-          avatar: 'https://example.com/avatar.jpg',
-          provider: 'google',
-          providerId: 'google-123',
-        });
-        expect(result).toEqual({
-          user: mockUser,
-          tokens: {
-            accessToken: mockAccessToken,
-            refreshToken: mockRefreshToken,
-          },
-        });
-        expect(createRefreshTokenMock).toHaveBeenCalledWith({
-          userId: 'user-123',
-          hashedToken: mockHashedToken,
-          expiresAt: expect.any(Date) as Date,
-        });
+        expect(createWithProviderMock).toHaveBeenCalledWith(mockOAuthProfile);
+        expect(result).toEqual(mockUserWithProviders);
       });
 
-      it('should hash refresh token before storing', async () => {
-        userRepository.findByEmail.mockResolvedValue(null);
-        userRepository.createWithProvider.mockResolvedValue(mockUser);
-        jwtService.signAsync
-          .mockResolvedValueOnce(mockAccessToken)
-          .mockResolvedValueOnce(mockRefreshToken);
+      it('should not generate tokens', async () => {
+        findByEmailMock.mockResolvedValue(null);
+        createWithProviderMock.mockResolvedValue(mockUserWithProviders);
 
-        await service.oauthLogin(mockOAuthUser);
+        await service.resolveOAuthUser(mockOAuthProfile);
 
-        expect(mockedBcrypt.hash).toHaveBeenCalledWith(mockRefreshToken, 10);
-        expect(createRefreshTokenMock).toHaveBeenCalledWith(
-          expect.objectContaining({
-            hashedToken: mockHashedToken,
-          }),
-        );
-      });
-
-      it('should set refresh token expiration to 7 days from now', async () => {
-        userRepository.findByEmail.mockResolvedValue(null);
-        userRepository.createWithProvider.mockResolvedValue(mockUser);
-        jwtService.signAsync
-          .mockResolvedValueOnce(mockAccessToken)
-          .mockResolvedValueOnce(mockRefreshToken);
-
-        const beforeCall = new Date();
-        await service.oauthLogin(mockOAuthUser);
-        const afterCall = new Date();
-
-        const createRefreshTokenCalls =
-          tokenRepository.createRefreshToken.mock.calls;
-        expect(createRefreshTokenCalls).toHaveLength(1);
-        const callArgs = createRefreshTokenCalls[0];
-        expect(callArgs).toHaveLength(1);
-        const createTokenData = callArgs[0];
-        const expiresAt = createTokenData.expiresAt;
-
-        // Should be approximately 7 days from now
-        const expectedMin = new Date(beforeCall);
-        expectedMin.setDate(expectedMin.getDate() + 7);
-        const expectedMax = new Date(afterCall);
-        expectedMax.setDate(expectedMax.getDate() + 7);
-
-        expect(expiresAt.getTime()).toBeGreaterThanOrEqual(
-          expectedMin.getTime(),
-        );
-        expect(expiresAt.getTime()).toBeLessThanOrEqual(expectedMax.getTime());
+        expect(signAsyncMock).not.toHaveBeenCalled();
+        expect(createRefreshTokenMock).not.toHaveBeenCalled();
       });
     });
 
     describe('when user already exists', () => {
-      it('should return tokens without creating new user', async () => {
-        userRepository.findByEmail.mockResolvedValue(mockUser);
-        userRepository.hasProvider.mockImplementation(
-          (user, providerName, providerId) => {
-            return (
-              user.providers.some(
-                (p) => p.name === providerName && p.providerId === providerId,
-              ) || false
-            );
-          },
-        );
-        jwtService.signAsync
-          .mockResolvedValueOnce(mockAccessToken)
-          .mockResolvedValueOnce(mockRefreshToken);
+      it('should return existing user without creating new user', async () => {
+        findByEmailMock.mockResolvedValue(mockUserWithProviders);
 
-        const result = await service.oauthLogin(mockOAuthUser);
+        const result = await service.resolveOAuthUser(mockOAuthProfile);
 
         expect(createWithProviderMock).not.toHaveBeenCalled();
-        expect(result.user.id).toBe('user-123');
+        expect(result.id).toBe('user-123');
       });
 
       it('should link new provider if not already linked', async () => {
         const userWithoutGoogle: UserWithProviders = {
-          ...mockUser,
+          ...mockUserWithProviders,
           providers: [
             {
               id: 'provider-facebook',
@@ -285,13 +245,9 @@ describe('AuthService', () => {
           ],
         };
 
-        userRepository.findByEmail.mockResolvedValue(userWithoutGoogle);
-        userRepository.hasProvider.mockReturnValue(false);
-        jwtService.signAsync
-          .mockResolvedValueOnce(mockAccessToken)
-          .mockResolvedValueOnce(mockRefreshToken);
+        findByEmailMock.mockResolvedValue(userWithoutGoogle);
 
-        await service.oauthLogin(mockOAuthUser);
+        await service.resolveOAuthUser(mockOAuthProfile);
 
         expect(linkProviderMock).toHaveBeenCalledWith(
           'user-123',
@@ -301,31 +257,23 @@ describe('AuthService', () => {
       });
 
       it('should not link provider if already linked', async () => {
-        userRepository.findByEmail.mockResolvedValue(mockUser);
-        userRepository.hasProvider.mockReturnValue(true);
-        jwtService.signAsync
-          .mockResolvedValueOnce(mockAccessToken)
-          .mockResolvedValueOnce(mockRefreshToken);
+        findByEmailMock.mockResolvedValue(mockUserWithProviders);
 
-        await service.oauthLogin(mockOAuthUser);
+        await service.resolveOAuthUser(mockOAuthProfile);
 
         expect(linkProviderMock).not.toHaveBeenCalled();
       });
 
       it('should update user name if provided', async () => {
-        userRepository.findByEmail.mockResolvedValue(mockUser);
-        userRepository.hasProvider.mockReturnValue(true);
-        jwtService.signAsync
-          .mockResolvedValueOnce(mockAccessToken)
-          .mockResolvedValueOnce(mockRefreshToken);
+        findByEmailMock.mockResolvedValue(mockUserWithProviders);
 
-        const oauthUserWithNewName: UserWithProvider = {
-          ...mockOAuthUser,
+        const oauthProfileWithNewName: OAuthProfile = {
+          ...mockOAuthProfile,
           name: 'Updated Name',
-          avatar: null,
+          avatar: '',
         };
 
-        await service.oauthLogin(oauthUserWithNewName);
+        await service.resolveOAuthUser(oauthProfileWithNewName);
 
         expect(updateUserMock).toHaveBeenCalledWith('user-123', {
           name: 'Updated Name',
@@ -333,19 +281,15 @@ describe('AuthService', () => {
       });
 
       it('should update user avatar if provided', async () => {
-        userRepository.findByEmail.mockResolvedValue(mockUser);
-        userRepository.hasProvider.mockReturnValue(true);
-        jwtService.signAsync
-          .mockResolvedValueOnce(mockAccessToken)
-          .mockResolvedValueOnce(mockRefreshToken);
+        findByEmailMock.mockResolvedValue(mockUserWithProviders);
 
-        const oauthUserWithNewAvatar: UserWithProvider = {
-          ...mockOAuthUser,
+        const oauthProfileWithNewAvatar: OAuthProfile = {
+          ...mockOAuthProfile,
           name: '',
           avatar: 'https://example.com/new-avatar.jpg',
         };
 
-        await service.oauthLogin(oauthUserWithNewAvatar);
+        await service.resolveOAuthUser(oauthProfileWithNewAvatar);
 
         expect(updateUserMock).toHaveBeenCalledWith('user-123', {
           avatar: 'https://example.com/new-avatar.jpg',
@@ -353,19 +297,15 @@ describe('AuthService', () => {
       });
 
       it('should update both name and avatar if both provided', async () => {
-        userRepository.findByEmail.mockResolvedValue(mockUser);
-        userRepository.hasProvider.mockReturnValue(true);
-        jwtService.signAsync
-          .mockResolvedValueOnce(mockAccessToken)
-          .mockResolvedValueOnce(mockRefreshToken);
+        findByEmailMock.mockResolvedValue(mockUserWithProviders);
 
-        const oauthUserWithUpdates: UserWithProvider = {
-          ...mockOAuthUser,
+        const oauthProfileWithUpdates: OAuthProfile = {
+          ...mockOAuthProfile,
           name: 'Updated Name',
           avatar: 'https://example.com/new-avatar.jpg',
         };
 
-        await service.oauthLogin(oauthUserWithUpdates);
+        await service.resolveOAuthUser(oauthProfileWithUpdates);
 
         expect(updateUserMock).toHaveBeenCalledWith('user-123', {
           name: 'Updated Name',
@@ -374,53 +314,35 @@ describe('AuthService', () => {
       });
 
       it('should not update user if name and avatar are not provided', async () => {
-        userRepository.findByEmail.mockResolvedValue(mockUser);
-        userRepository.hasProvider.mockReturnValue(true);
-        jwtService.signAsync
-          .mockResolvedValueOnce(mockAccessToken)
-          .mockResolvedValueOnce(mockRefreshToken);
+        findByEmailMock.mockResolvedValue(mockUserWithProviders);
 
-        const oauthUserWithoutUpdates: UserWithProvider = {
-          ...mockOAuthUser,
+        const oauthProfileWithoutUpdates: OAuthProfile = {
+          ...mockOAuthProfile,
           name: '',
-          avatar: null,
+          avatar: '',
         };
 
-        await service.oauthLogin(oauthUserWithoutUpdates);
+        await service.resolveOAuthUser(oauthProfileWithoutUpdates);
 
         expect(updateUserMock).not.toHaveBeenCalled();
       });
 
       it('should update user with fresh OAuth data', async () => {
         const staleDbUser: UserWithProviders = {
-          ...mockUser,
+          ...mockUserWithProviders,
           name: 'Old Name',
           avatar: 'https://example.com/old-avatar.jpg',
-          providers: [
-            {
-              id: 'provider-123',
-              userId: 'user-123',
-              name: 'google',
-              providerId: 'google-123',
-              createdAt: fixedDate,
-              updatedAt: fixedDate,
-            },
-          ],
         };
 
-        const freshOAuthUser: UserWithProvider = {
-          ...mockOAuthUser,
+        const freshOAuthProfile: OAuthProfile = {
+          ...mockOAuthProfile,
           name: 'Fresh Name',
           avatar: 'https://example.com/fresh-avatar.jpg',
         };
 
-        userRepository.findByEmail.mockResolvedValue(staleDbUser);
-        userRepository.hasProvider.mockReturnValue(true);
-        jwtService.signAsync
-          .mockResolvedValueOnce(mockAccessToken)
-          .mockResolvedValueOnce(mockRefreshToken);
+        findByEmailMock.mockResolvedValue(staleDbUser);
 
-        await service.oauthLogin(freshOAuthUser);
+        await service.resolveOAuthUser(freshOAuthProfile);
 
         expect(updateUserMock).toHaveBeenCalledWith('user-123', {
           name: 'Fresh Name',
@@ -428,45 +350,9 @@ describe('AuthService', () => {
         });
       });
 
-      it('should not update user when name is empty string', async () => {
-        userRepository.findByEmail.mockResolvedValue(mockUser);
-        userRepository.hasProvider.mockReturnValue(true);
-        jwtService.signAsync
-          .mockResolvedValueOnce(mockAccessToken)
-          .mockResolvedValueOnce(mockRefreshToken);
-
-        const oauthUserEmptyName: UserWithProvider = {
-          ...mockOAuthUser,
-          name: '',
-          avatar: null,
-        };
-
-        await service.oauthLogin(oauthUserEmptyName);
-
-        expect(updateUserMock).not.toHaveBeenCalled();
-      });
-
-      it('should not update user when name is null', async () => {
-        userRepository.findByEmail.mockResolvedValue(mockUser);
-        userRepository.hasProvider.mockReturnValue(true);
-        jwtService.signAsync
-          .mockResolvedValueOnce(mockAccessToken)
-          .mockResolvedValueOnce(mockRefreshToken);
-
-        const oauthUserNullName: UserWithProvider = {
-          ...mockOAuthUser,
-          name: null,
-          avatar: null,
-        };
-
-        await service.oauthLogin(oauthUserNullName);
-
-        expect(updateUserMock).not.toHaveBeenCalled();
-      });
-
       it('should link second provider when user logs in with different provider', async () => {
         const userWithGoogle: UserWithProviders = {
-          ...mockUser,
+          ...mockUserWithProviders,
           providers: [
             {
               id: 'provider-google',
@@ -479,19 +365,15 @@ describe('AuthService', () => {
           ],
         };
 
-        const facebookOAuthUser: UserWithProvider = {
-          ...mockOAuthUser,
+        const facebookOAuthProfile: OAuthProfile = {
+          ...mockOAuthProfile,
           provider: 'facebook',
           providerId: 'facebook-456',
         };
 
-        userRepository.findByEmail.mockResolvedValue(userWithGoogle);
-        userRepository.hasProvider.mockReturnValue(false);
-        jwtService.signAsync
-          .mockResolvedValueOnce(mockAccessToken)
-          .mockResolvedValueOnce(mockRefreshToken);
+        findByEmailMock.mockResolvedValue(userWithGoogle);
 
-        await service.oauthLogin(facebookOAuthUser);
+        await service.resolveOAuthUser(facebookOAuthProfile);
 
         expect(linkProviderMock).toHaveBeenCalledWith(
           'user-123',
@@ -505,224 +387,162 @@ describe('AuthService', () => {
 
     describe('email validation', () => {
       it('should throw UnauthorizedException if email is not provided', async () => {
-        const oauthUserWithoutEmail: UserWithProvider = {
-          ...mockOAuthUser,
+        const oauthProfileWithoutEmail: OAuthProfile = {
+          ...mockOAuthProfile,
           email: '',
         };
 
-        await expect(service.oauthLogin(oauthUserWithoutEmail)).rejects.toThrow(
+        await expect(
+          service.resolveOAuthUser(oauthProfileWithoutEmail),
+        ).rejects.toThrow(
           new UnauthorizedException('Email not provided by OAuth provider'),
         );
 
         expect(findByEmailMock).not.toHaveBeenCalled();
       });
+    });
+  });
 
-      it('should throw UnauthorizedException if email is not in whitelist', async () => {
-        const unauthorizedOAuthUser: UserWithProvider = {
-          ...mockOAuthUser,
-          email: 'unauthorized@example.com',
-        };
+  describe('createAuthorizationCode', () => {
+    it('should create an authorization code and return it', async () => {
+      createAuthorizationCodeMock.mockResolvedValue(undefined);
 
-        await expect(service.oauthLogin(unauthorizedOAuthUser)).rejects.toThrow(
-          new UnauthorizedException(
-            'Access denied. This application is private.',
-          ),
-        );
+      const code = await service.createAuthorizationCode('user-123');
 
-        expect(findByEmailMock).not.toHaveBeenCalled();
-      });
-
-      it('should allow email in whitelist (case insensitive)', async () => {
-        userRepository.findByEmail.mockResolvedValue(null);
-        userRepository.createWithProvider.mockResolvedValue(mockUser);
-        jwtService.signAsync
-          .mockResolvedValueOnce(mockAccessToken)
-          .mockResolvedValueOnce(mockRefreshToken);
-
-        const oauthUserUpperCase: UserWithProvider = {
-          ...mockOAuthUser,
-          email: 'TEST@EXAMPLE.COM',
-        };
-
-        await expect(
-          service.oauthLogin(oauthUserUpperCase),
-        ).resolves.toBeDefined();
-      });
-
-      it('should throw UnauthorizedException if no allowed emails configured', async () => {
-        configService.get.mockImplementation((key: string) => {
-          if (key === 'auth.allowedEmails') return '';
-          return 'test-secret';
-        });
-
-        const module: TestingModule = await Test.createTestingModule({
-          providers: [
-            AuthService,
-            { provide: UserRepository, useValue: userRepository },
-            { provide: TokenRepository, useValue: tokenRepository },
-            { provide: JwtService, useValue: jwtService },
-            { provide: ConfigService, useValue: configService },
-          ],
-        }).compile();
-
-        const serviceWithNoEmails = module.get<AuthService>(AuthService);
-
-        await expect(
-          serviceWithNoEmails.oauthLogin(mockOAuthUser),
-        ).rejects.toThrow(
-          new UnauthorizedException(
-            'Access control not configured. Please contact the administrator.',
-          ),
-        );
-      });
-
-      it('should trim whitespace from allowed emails', async () => {
-        configService.get.mockImplementation((key: string) => {
-          if (key === 'auth.allowedEmails')
-            return '  test@example.com  ,  admin@example.com  ';
-          return 'test-secret';
-        });
-
-        const module: TestingModule = await Test.createTestingModule({
-          providers: [
-            AuthService,
-            { provide: UserRepository, useValue: userRepository },
-            { provide: TokenRepository, useValue: tokenRepository },
-            { provide: JwtService, useValue: jwtService },
-            { provide: ConfigService, useValue: configService },
-          ],
-        }).compile();
-
-        const serviceWithWhitespace = module.get<AuthService>(AuthService);
-
-        userRepository.findByEmail.mockResolvedValue(null);
-        userRepository.createWithProvider.mockResolvedValue(mockUser);
-        jwtService.signAsync
-          .mockResolvedValueOnce(mockAccessToken)
-          .mockResolvedValueOnce(mockRefreshToken);
-
-        await expect(
-          serviceWithWhitespace.oauthLogin(mockOAuthUser),
-        ).resolves.toBeDefined();
+      expect(code).toHaveLength(64);
+      expect(code).toMatch(/^[a-f0-9]{64}$/);
+      expect(createAuthorizationCodeMock).toHaveBeenCalledWith({
+        code,
+        userId: 'user-123',
+        expiresAt: expect.any(Date) as Date,
       });
     });
 
-    describe('token generation', () => {
-      it('should generate JWT with correct payload', async () => {
-        userRepository.findByEmail.mockResolvedValue(null);
-        userRepository.createWithProvider.mockResolvedValue(mockUser);
-        jwtService.signAsync
-          .mockResolvedValueOnce(mockAccessToken)
-          .mockResolvedValueOnce(mockRefreshToken);
+    it('should set expiration to 5 minutes from now', async () => {
+      createAuthorizationCodeMock.mockResolvedValue(undefined);
 
-        await service.oauthLogin(mockOAuthUser);
+      const beforeCall = Date.now();
+      await service.createAuthorizationCode('user-123');
+      const afterCall = Date.now();
 
-        expect(signAsyncMock).toHaveBeenCalledWith(
-          {
-            sub: 'user-123',
-            email: 'test@example.com',
-            name: 'Test User',
-            role: UserRole.USER,
-          },
-          {
-            expiresIn: '15m',
-            secret: 'test-jwt-secret',
-          },
-        );
+      const callArgs = createAuthorizationCodeMock.mock.calls[0][0];
+      const expiresAt = callArgs.expiresAt.getTime();
+
+      const expectedMin = beforeCall + 5 * 60 * 1000;
+      const expectedMax = afterCall + 5 * 60 * 1000;
+
+      expect(expiresAt).toBeGreaterThanOrEqual(expectedMin);
+      expect(expiresAt).toBeLessThanOrEqual(expectedMax);
+    });
+
+    it('should generate unique codes on each call', async () => {
+      createAuthorizationCodeMock.mockResolvedValue(undefined);
+
+      const code1 = await service.createAuthorizationCode('user-123');
+      const code2 = await service.createAuthorizationCode('user-123');
+
+      expect(code1).not.toBe(code2);
+    });
+  });
+
+  describe('exchangeAuthorizationCode', () => {
+    const mockAuthCode = {
+      id: 'auth-code-123',
+      code: 'valid-code',
+      userId: 'user-123',
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+      createdAt: fixedDate,
+      user: mockUserWithProviders,
+    };
+
+    it('should exchange valid code for tokens', async () => {
+      findAuthorizationCodeMock.mockResolvedValue(mockAuthCode);
+      signAsyncMock
+        .mockResolvedValueOnce(mockAccessToken)
+        .mockResolvedValueOnce(mockRefreshToken);
+
+      const result = await service.exchangeAuthorizationCode('valid-code');
+
+      expect(findAuthorizationCodeMock).toHaveBeenCalledWith('valid-code');
+      expect(deleteAuthorizationCodeMock).toHaveBeenCalledWith('auth-code-123');
+      expect(result).toEqual({
+        accessToken: mockAccessToken,
+        refreshToken: mockRefreshToken,
       });
+    });
 
-      it('should generate refresh token with correct payload and secret', async () => {
-        userRepository.findByEmail.mockResolvedValue(null);
-        userRepository.createWithProvider.mockResolvedValue(mockUser);
-        jwtService.signAsync
-          .mockResolvedValueOnce(mockAccessToken)
-          .mockResolvedValueOnce(mockRefreshToken);
+    it('should throw UnauthorizedException if code not found', async () => {
+      findAuthorizationCodeMock.mockResolvedValue(null);
 
-        await service.oauthLogin(mockOAuthUser);
+      await expect(
+        service.exchangeAuthorizationCode('invalid-code'),
+      ).rejects.toThrow(
+        new UnauthorizedException('Invalid or expired authorization code'),
+      );
 
-        expect(signAsyncMock).toHaveBeenCalledWith(
-          {
-            sub: 'user-123',
-            email: 'test@example.com',
-            name: 'Test User',
-            role: UserRole.USER,
-          },
-          {
-            expiresIn: '7d',
-            secret: 'test-refresh-secret',
-          },
-        );
-      });
+      expect(deleteAuthorizationCodeMock).not.toHaveBeenCalled();
+    });
 
-      it('should include role in JWT payload', async () => {
-        userRepository.findByEmail.mockResolvedValue(null);
-        userRepository.createWithProvider.mockResolvedValue(mockUser);
-        jwtService.signAsync
-          .mockResolvedValueOnce(mockAccessToken)
-          .mockResolvedValueOnce(mockRefreshToken);
+    it('should throw UnauthorizedException if code is expired', async () => {
+      const expiredAuthCode = {
+        ...mockAuthCode,
+        expiresAt: new Date(Date.now() - 1000),
+      };
 
-        await service.oauthLogin(mockOAuthUser);
+      findAuthorizationCodeMock.mockResolvedValue(expiredAuthCode);
 
-        expect(signAsyncMock).toHaveBeenCalledWith(
-          {
-            sub: 'user-123',
-            email: 'test@example.com',
-            name: 'Test User',
-            role: UserRole.USER,
-          },
-          {
-            expiresIn: '15m',
-            secret: 'test-jwt-secret',
-          },
-        );
-      });
+      await expect(
+        service.exchangeAuthorizationCode('expired-code'),
+      ).rejects.toThrow(
+        new UnauthorizedException('Invalid or expired authorization code'),
+      );
 
-      it('should include role in refresh token payload', async () => {
-        userRepository.findByEmail.mockResolvedValue(null);
-        userRepository.createWithProvider.mockResolvedValue(mockUser);
-        jwtService.signAsync
-          .mockResolvedValueOnce(mockAccessToken)
-          .mockResolvedValueOnce(mockRefreshToken);
+      expect(deleteAuthorizationCodeMock).not.toHaveBeenCalled();
+    });
 
-        await service.oauthLogin(mockOAuthUser);
+    it('should delete authorization code after successful exchange', async () => {
+      findAuthorizationCodeMock.mockResolvedValue(mockAuthCode);
+      signAsyncMock
+        .mockResolvedValueOnce(mockAccessToken)
+        .mockResolvedValueOnce(mockRefreshToken);
 
-        expect(signAsyncMock).toHaveBeenCalledWith(
-          {
-            sub: 'user-123',
-            email: 'test@example.com',
-            name: 'Test User',
-            role: UserRole.USER,
-          },
-          {
-            expiresIn: '7d',
-            secret: 'test-refresh-secret',
-          },
-        );
-      });
+      await service.exchangeAuthorizationCode('valid-code');
 
-      it('should include admin role in JWT for admin users', async () => {
-        const mockAdminUser: UserWithProvider = {
-          ...mockOAuthUser,
-          role: UserRole.ADMIN,
-        };
+      expect(deleteAuthorizationCodeMock).toHaveBeenCalledWith('auth-code-123');
+    });
 
-        userRepository.findByEmail.mockResolvedValue(null);
-        userRepository.createWithProvider.mockResolvedValue({
-          ...mockUser,
-          role: UserRole.ADMIN,
-        });
-        jwtService.signAsync
-          .mockResolvedValueOnce(mockAccessToken)
-          .mockResolvedValueOnce(mockRefreshToken);
+    it('should generate tokens for the user associated with the code', async () => {
+      findAuthorizationCodeMock.mockResolvedValue(mockAuthCode);
+      signAsyncMock
+        .mockResolvedValueOnce(mockAccessToken)
+        .mockResolvedValueOnce(mockRefreshToken);
 
-        await service.oauthLogin(mockAdminUser);
+      await service.exchangeAuthorizationCode('valid-code');
 
-        expect(signAsyncMock).toHaveBeenCalledWith(
-          expect.objectContaining({
-            role: UserRole.ADMIN,
-          }),
-          expect.any(Object),
-        );
+      expect(signAsyncMock).toHaveBeenCalledWith(
+        {
+          sub: 'user-123',
+          email: 'test@example.com',
+          name: 'Test User',
+          role: UserRole.USER,
+        },
+        expect.any(Object),
+      );
+    });
+
+    it('should store hashed refresh token after exchange', async () => {
+      findAuthorizationCodeMock.mockResolvedValue(mockAuthCode);
+      signAsyncMock
+        .mockResolvedValueOnce(mockAccessToken)
+        .mockResolvedValueOnce(mockRefreshToken);
+
+      await service.exchangeAuthorizationCode('valid-code');
+
+      expect(mockedBcrypt.hash).toHaveBeenCalledWith(mockRefreshToken, 10);
+      expect(createRefreshTokenMock).toHaveBeenCalledWith({
+        userId: 'user-123',
+        hashedToken: mockHashedToken,
+        expiresAt: expect.any(Date) as Date,
       });
     });
   });
@@ -742,7 +562,7 @@ describe('AuthService', () => {
     };
 
     beforeEach(() => {
-      jwtService.verifyAsync.mockResolvedValue({
+      verifyAsyncMock.mockResolvedValue({
         sub: 'user-123',
         email: 'test@example.com',
         name: 'Test User',
@@ -753,9 +573,9 @@ describe('AuthService', () => {
     });
 
     it('should successfully refresh tokens with valid refresh token', async () => {
-      userRepository.findById.mockResolvedValue(mockUserWithTokens);
+      findByIdWithTokensMock.mockResolvedValue(mockUserWithTokens);
       mockedBcrypt.compare.mockResolvedValue(true as never);
-      jwtService.signAsync
+      signAsyncMock
         .mockResolvedValueOnce('new-access-token')
         .mockResolvedValueOnce('new-refresh-token');
 
@@ -764,7 +584,7 @@ describe('AuthService', () => {
       expect(verifyAsyncMock).toHaveBeenCalledWith(mockRefreshToken, {
         secret: 'test-refresh-secret',
       });
-      expect(findByIdMock).toHaveBeenCalledWith('user-123');
+      expect(findByIdWithTokensMock).toHaveBeenCalledWith('user-123');
       expect(result).toEqual({
         accessToken: 'new-access-token',
         refreshToken: 'new-refresh-token',
@@ -772,17 +592,17 @@ describe('AuthService', () => {
     });
 
     it('should throw UnauthorizedException if JWT verification fails', async () => {
-      jwtService.verifyAsync.mockRejectedValue(new Error('Invalid token'));
+      verifyAsyncMock.mockRejectedValue(new Error('Invalid token'));
 
       await expect(service.refreshTokens(mockRefreshToken)).rejects.toThrow(
         new UnauthorizedException('Invalid or expired refresh token'),
       );
 
-      expect(findByIdMock).not.toHaveBeenCalled();
+      expect(findByIdWithTokensMock).not.toHaveBeenCalled();
     });
 
     it('should throw UnauthorizedException if user not found', async () => {
-      userRepository.findById.mockResolvedValue(null);
+      findByIdWithTokensMock.mockResolvedValue(null);
 
       await expect(service.refreshTokens(mockRefreshToken)).rejects.toThrow(
         new UnauthorizedException('User not found'),
@@ -790,7 +610,7 @@ describe('AuthService', () => {
     });
 
     it('should throw UnauthorizedException if no matching stored token', async () => {
-      userRepository.findById.mockResolvedValue(mockUserWithTokens);
+      findByIdWithTokensMock.mockResolvedValue(mockUserWithTokens);
       mockedBcrypt.compare.mockResolvedValue(false as never);
 
       await expect(service.refreshTokens(mockRefreshToken)).rejects.toThrow(
@@ -809,7 +629,7 @@ describe('AuthService', () => {
         refreshTokens: [expiredToken],
       };
 
-      userRepository.findById.mockResolvedValue(userWithExpiredToken);
+      findByIdWithTokensMock.mockResolvedValue(userWithExpiredToken);
       mockedBcrypt.compare.mockResolvedValue(true as never);
 
       await expect(service.refreshTokens(mockRefreshToken)).rejects.toThrow(
@@ -820,9 +640,9 @@ describe('AuthService', () => {
     });
 
     it('should rotate refresh token (delete old, create new)', async () => {
-      userRepository.findById.mockResolvedValue(mockUserWithTokens);
+      findByIdWithTokensMock.mockResolvedValue(mockUserWithTokens);
       mockedBcrypt.compare.mockResolvedValue(true as never);
-      jwtService.signAsync
+      signAsyncMock
         .mockResolvedValueOnce('new-access-token')
         .mockResolvedValueOnce('new-refresh-token');
       mockedBcrypt.hash.mockResolvedValue('new-hashed-token' as never);
@@ -837,9 +657,9 @@ describe('AuthService', () => {
     });
 
     it('should hash new refresh token during rotation', async () => {
-      userRepository.findById.mockResolvedValue(mockUserWithTokens);
+      findByIdWithTokensMock.mockResolvedValue(mockUserWithTokens);
       mockedBcrypt.compare.mockResolvedValue(true as never);
-      jwtService.signAsync
+      signAsyncMock
         .mockResolvedValueOnce('new-access-token')
         .mockResolvedValueOnce('new-refresh-token');
 
@@ -860,12 +680,12 @@ describe('AuthService', () => {
         refreshTokens: multipleTokens,
       };
 
-      userRepository.findById.mockResolvedValue(userWithMultipleTokens);
+      findByIdWithTokensMock.mockResolvedValue(userWithMultipleTokens);
       mockedBcrypt.compare
         .mockResolvedValueOnce(false as never)
         .mockResolvedValueOnce(false as never)
         .mockResolvedValueOnce(true as never);
-      jwtService.signAsync
+      signAsyncMock
         .mockResolvedValueOnce('new-access-token')
         .mockResolvedValueOnce('new-refresh-token');
 
@@ -885,9 +705,9 @@ describe('AuthService', () => {
         refreshTokens: [mockStoredToken],
       };
 
-      userRepository.findById.mockResolvedValue(mockUserWithUpdatedRole);
+      findByIdWithTokensMock.mockResolvedValue(mockUserWithUpdatedRole);
       mockedBcrypt.compare.mockResolvedValue(true as never);
-      jwtService.signAsync
+      signAsyncMock
         .mockResolvedValueOnce('new-access-token')
         .mockResolvedValueOnce('new-refresh-token');
 
@@ -908,9 +728,9 @@ describe('AuthService', () => {
         refreshTokens: [mockStoredToken],
       };
 
-      userRepository.findById.mockResolvedValue(mockUserDowngraded);
+      findByIdWithTokensMock.mockResolvedValue(mockUserDowngraded);
       mockedBcrypt.compare.mockResolvedValue(true as never);
-      jwtService.signAsync
+      signAsyncMock
         .mockResolvedValueOnce('new-access-token')
         .mockResolvedValueOnce('new-refresh-token');
 
@@ -933,95 +753,9 @@ describe('AuthService', () => {
     });
 
     it('should not throw error if user has no tokens', async () => {
-      tokenRepository.deleteAllUserTokens.mockResolvedValue(undefined);
+      deleteAllUserTokensMock.mockResolvedValue(undefined);
 
       await expect(service.logout('user-123')).resolves.not.toThrow();
-    });
-  });
-
-  describe('exchangeAuthorizationCode', () => {
-    const mockAuthCode = {
-      id: 'auth-code-123',
-      code: 'valid-code',
-      userId: 'user-123',
-      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
-      createdAt: fixedDate,
-      user: mockUser,
-    };
-
-    it('should exchange valid code for tokens', async () => {
-      tokenRepository.findAuthorizationCode.mockResolvedValue(mockAuthCode);
-      jwtService.signAsync
-        .mockResolvedValueOnce(mockAccessToken)
-        .mockResolvedValueOnce(mockRefreshToken);
-
-      const result = await service.exchangeAuthorizationCode('valid-code');
-
-      expect(findAuthorizationCodeMock).toHaveBeenCalledWith('valid-code');
-      expect(deleteAuthorizationCodeMock).toHaveBeenCalledWith('auth-code-123');
-      expect(result).toEqual({
-        accessToken: mockAccessToken,
-        refreshToken: mockRefreshToken,
-      });
-    });
-
-    it('should throw UnauthorizedException if code not found', async () => {
-      tokenRepository.findAuthorizationCode.mockResolvedValue(null);
-
-      await expect(
-        service.exchangeAuthorizationCode('invalid-code'),
-      ).rejects.toThrow(
-        new UnauthorizedException('Invalid or expired authorization code'),
-      );
-
-      expect(deleteAuthorizationCodeMock).not.toHaveBeenCalled();
-    });
-
-    it('should throw UnauthorizedException if code is expired', async () => {
-      const expiredAuthCode = {
-        ...mockAuthCode,
-        expiresAt: new Date(Date.now() - 1000),
-      };
-
-      tokenRepository.findAuthorizationCode.mockResolvedValue(expiredAuthCode);
-
-      await expect(
-        service.exchangeAuthorizationCode('expired-code'),
-      ).rejects.toThrow(
-        new UnauthorizedException('Invalid or expired authorization code'),
-      );
-
-      expect(deleteAuthorizationCodeMock).not.toHaveBeenCalled();
-    });
-
-    it('should delete authorization code after successful exchange', async () => {
-      tokenRepository.findAuthorizationCode.mockResolvedValue(mockAuthCode);
-      jwtService.signAsync
-        .mockResolvedValueOnce(mockAccessToken)
-        .mockResolvedValueOnce(mockRefreshToken);
-
-      await service.exchangeAuthorizationCode('valid-code');
-
-      expect(deleteAuthorizationCodeMock).toHaveBeenCalledWith('auth-code-123');
-    });
-
-    it('should generate tokens for the user associated with the code', async () => {
-      tokenRepository.findAuthorizationCode.mockResolvedValue(mockAuthCode);
-      jwtService.signAsync
-        .mockResolvedValueOnce(mockAccessToken)
-        .mockResolvedValueOnce(mockRefreshToken);
-
-      await service.exchangeAuthorizationCode('valid-code');
-
-      expect(signAsyncMock).toHaveBeenCalledWith(
-        {
-          sub: 'user-123',
-          email: 'test@example.com',
-          name: 'Test User',
-          role: UserRole.USER,
-        },
-        expect.any(Object),
-      );
     });
   });
 });

@@ -10,9 +10,10 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { type AuthenticatedUser, CurrentUser } from '../user/user.decorator.js';
+import { CurrentUser } from '../user/user.decorator.js';
 import { PlaylistService } from './playlist.service.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-oauth.guard.js';
+import type { JwtPayload } from '../auth/auth.types.js';
 
 @Controller('playlist')
 @UseGuards(JwtAuthGuard)
@@ -24,8 +25,8 @@ export class PlaylistController {
    * GET /playlists
    */
   @Get('/')
-  async getPlaylists(@CurrentUser() user: AuthenticatedUser) {
-    const playlists = await this.playlistService.getPlaylists(user.userId);
+  async getPlaylists(@CurrentUser() user: JwtPayload) {
+    const playlists = await this.playlistService.getPlaylists(user.sub);
 
     return {
       statusCode: HttpStatus.OK,
@@ -38,11 +39,8 @@ export class PlaylistController {
    * GET /playlists/:id
    */
   @Get('/:id')
-  async getPlaylist(
-    @Param('id') id: string,
-    @CurrentUser() user: AuthenticatedUser,
-  ) {
-    const playlist = await this.playlistService.getPlaylist(id, user.userId);
+  async getPlaylist(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    const playlist = await this.playlistService.getPlaylist(id, user.sub);
 
     return {
       statusCode: HttpStatus.OK,
@@ -57,14 +55,14 @@ export class PlaylistController {
    */
   @Post('/')
   async createPlaylist(
-    @CurrentUser() user: AuthenticatedUser,
+    @CurrentUser() user: JwtPayload,
     @Body() body: { name: string; description?: string; isPublic?: boolean },
   ) {
     if (!body.name || body.name.trim().length === 0) {
       throw new BadRequestException('Playlist name is required');
     }
 
-    const playlist = await this.playlistService.createPlaylist(user.userId, {
+    const playlist = await this.playlistService.createPlaylist(user.sub, {
       name: body.name,
       description: body.description,
       isPublic: body.isPublic,
@@ -85,7 +83,7 @@ export class PlaylistController {
   @Patch('/:id')
   async updatePlaylist(
     @Param('id') id: string,
-    @CurrentUser() user: AuthenticatedUser,
+    @CurrentUser() user: JwtPayload,
     @Body()
     body: {
       name?: string;
@@ -96,7 +94,7 @@ export class PlaylistController {
   ) {
     const playlist = await this.playlistService.updatePlaylist(
       id,
-      user.userId,
+      user.sub,
       body,
     );
 
@@ -114,9 +112,9 @@ export class PlaylistController {
   @Delete('/:id')
   async deletePlaylist(
     @Param('id') id: string,
-    @CurrentUser() user: AuthenticatedUser,
+    @CurrentUser() user: JwtPayload,
   ) {
-    const result = await this.playlistService.deletePlaylist(id, user.userId);
+    const result = await this.playlistService.deletePlaylist(id, user.sub);
 
     return {
       statusCode: HttpStatus.OK,
@@ -132,7 +130,7 @@ export class PlaylistController {
   @Post('/:id/tracks')
   async addTracksToPlaylist(
     @Param('id') id: string,
-    @CurrentUser() user: AuthenticatedUser,
+    @CurrentUser() user: JwtPayload,
     @Body() body: { trackIds: string[] },
   ) {
     if (!body.trackIds || body.trackIds.length === 0) {
@@ -141,7 +139,7 @@ export class PlaylistController {
 
     const result = await this.playlistService.addTracksToPlaylist(
       id,
-      user.userId,
+      user.sub,
       body.trackIds,
     );
 
@@ -159,12 +157,12 @@ export class PlaylistController {
   async removeTrackFromPlaylist(
     @Param('id') id: string,
     @Param('trackId') trackId: string,
-    @CurrentUser() user: AuthenticatedUser,
+    @CurrentUser() user: JwtPayload,
   ) {
     const result = await this.playlistService.removeTrackFromPlaylist(
       id,
       trackId,
-      user.userId,
+      user.sub,
     );
 
     return {
@@ -181,7 +179,7 @@ export class PlaylistController {
   @Patch('/:id/tracks/reorder')
   async reorderPlaylistTracks(
     @Param('id') id: string,
-    @CurrentUser() user: AuthenticatedUser,
+    @CurrentUser() user: JwtPayload,
     @Body() body: { updates: Array<{ id: string; position: number }> },
   ) {
     if (!body.updates || body.updates.length === 0) {
@@ -190,7 +188,7 @@ export class PlaylistController {
 
     const result = await this.playlistService.reorderPlaylistTracks(
       id,
-      user.userId,
+      user.sub,
       body.updates,
     );
 

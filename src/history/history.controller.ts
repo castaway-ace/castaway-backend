@@ -9,8 +9,9 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { HistoryService } from './history.service.js';
-import { type AuthenticatedUser, CurrentUser } from '../user/user.decorator.js';
+import { CurrentUser } from '../user/user.decorator.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-oauth.guard.js';
+import type { JwtPayload } from '../auth/auth.types.js';
 
 @Controller('history')
 @UseGuards(JwtAuthGuard)
@@ -23,7 +24,7 @@ export class HistoryController {
    */
   @Post('/')
   async recordPlay(
-    @CurrentUser() user: AuthenticatedUser,
+    @CurrentUser() user: JwtPayload,
     @Body() body: { trackId: string; duration?: number },
   ) {
     if (!body.trackId) {
@@ -31,7 +32,7 @@ export class HistoryController {
     }
 
     const result = await this.historyService.recordPlay(
-      user.userId,
+      user.sub,
       body.trackId,
       body.duration,
     );
@@ -48,11 +49,11 @@ export class HistoryController {
    */
   @Get('/recent')
   async getRecentPlays(
-    @CurrentUser() user: AuthenticatedUser,
+    @CurrentUser() user: JwtPayload,
     @Query('limit') limit?: string,
   ) {
     const history = await this.historyService.getRecentPlays(
-      user.userId,
+      user.sub,
       limit ? parseInt(limit, 10) : 50,
     );
 

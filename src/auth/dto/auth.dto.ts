@@ -6,8 +6,8 @@ export class RefreshTokenDto {
   refreshToken: string;
 }
 
-export interface AuthResponse<T = unknown> {
-  statusCode: number;
-  message: string;
-  data?: T;
+export class ExchangeCodeDto {
+  @IsString()
+  @IsNotEmpty()
+  code!: string;
 }

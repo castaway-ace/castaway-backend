@@ -11,8 +11,9 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { QueueService } from './queue.service.js';
-import { CurrentUser, type AuthenticatedUser } from '../user/user.decorator.js';
+import { CurrentUser } from '../user/user.decorator.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-oauth.guard.js';
+import type { JwtPayload } from '../auth/auth.types.js';
 
 @Controller('queue')
 @UseGuards(JwtAuthGuard)
@@ -23,8 +24,8 @@ export class QueueController {
    * GET /queue
    */
   @Get('/')
-  async getQueue(@CurrentUser() user: AuthenticatedUser) {
-    const queue = await this.queueService.getQueue(user.userId);
+  async getQueue(@CurrentUser() user: JwtPayload) {
+    const queue = await this.queueService.getQueue(user.sub);
 
     return {
       statusCode: HttpStatus.OK,
@@ -39,7 +40,7 @@ export class QueueController {
    */
   @Post('/')
   async setQueue(
-    @CurrentUser() user: AuthenticatedUser,
+    @CurrentUser() user: JwtPayload,
     @Body() body: { trackIds: string[]; currentTrackId?: string },
   ) {
     if (!body.trackIds || body.trackIds.length === 0) {
@@ -47,7 +48,7 @@ export class QueueController {
     }
 
     const result = await this.queueService.setQueue(
-      user.userId,
+      user.sub,
       body.trackIds,
       body.currentTrackId,
     );
@@ -65,7 +66,7 @@ export class QueueController {
    */
   @Patch('/')
   async updateQueue(
-    @CurrentUser() user: AuthenticatedUser,
+    @CurrentUser() user: JwtPayload,
     @Body()
     body: {
       currentTrackId?: string;
@@ -74,7 +75,7 @@ export class QueueController {
       repeatMode?: 'OFF' | 'ONE' | 'ALL';
     },
   ) {
-    const result = await this.queueService.updateQueue(user.userId, body);
+    const result = await this.queueService.updateQueue(user.sub, body);
 
     return {
       statusCode: HttpStatus.OK,
@@ -89,17 +90,14 @@ export class QueueController {
    */
   @Post('/tracks')
   async addToQueue(
-    @CurrentUser() user: AuthenticatedUser,
+    @CurrentUser() user: JwtPayload,
     @Body() body: { trackIds: string[] },
   ) {
     if (!body.trackIds || body.trackIds.length === 0) {
       throw new BadRequestException('Track IDs are required');
     }
 
-    const result = await this.queueService.addToQueue(
-      user.userId,
-      body.trackIds,
-    );
+    const result = await this.queueService.addToQueue(user.sub, body.trackIds);
 
     return {
       statusCode: HttpStatus.OK,
