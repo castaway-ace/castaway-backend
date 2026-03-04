@@ -9,11 +9,10 @@ import {
   UseInterceptors,
   UseGuards,
   BadRequestException,
-  HttpStatus,
-  Logger,
-  NotFoundException,
   Res,
   Req,
+  ParseIntPipe,
+  DefaultValuePipe,
 } from '@nestjs/common';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { MusicService } from './music.service.js';
@@ -21,21 +20,33 @@ import { RolesGuard } from '../auth/guards/roles.guard.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
 import { UserRole } from '../generated/prisma/enums.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-oauth.guard.js';
-import { TrackFilter } from './music.types.js';
-import { StorageService } from '../storage/storage.service.js';
-import { TrackListResponseDto } from './dto/track-list-response.dto.js';
-import { toTrackItemDto } from './dto/track-item.mapper.js';
+import {
+  AlbumUploadResult,
+  TrackFilter,
+  TrackStats,
+  UploadResult,
+} from './music.types.js';
 import { type Request, type Response } from 'express';
-import { TrackDetailDto } from './dto/track-detail.dto.js';
-import { toTrackDetailDto } from './dto/track-detail.mapper.js';
-import { ArtistListResponseDto } from './dto/artist-list-response.dto.js';
 import { PaginationFilter } from 'src/types/pagination.types.js';
-import { toArtistItemDto } from './dto/artist-item.mapper.js';
+import {
+  ArtistAlbumsDto,
+  ArtistItemDto,
+  ArtistListResponseDto,
+} from './dto/artist.dto.js';
+import {
+  TrackListResponseDto,
+  TrackDetailDto,
+  TrackItemDto,
+} from './dto/track.dto.js';
+import {
+  AlbumDetailDto,
+  AlbumItemDto,
+  AlbumListResponseDto,
+} from './dto/album.dto.js';
+import { SearchResponseDto } from './dto/search.dto.js';
 
 @Controller('music')
 export class MusicController {
-  private readonly logger = new Logger(MusicController.name);
-
   private readonly ALLOWED_MIME_TYPES = [
     'audio/mpeg',
     'audio/mp3',
@@ -51,10 +62,7 @@ export class MusicController {
 
   private readonly MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
 
-  constructor(
-    private readonly musicService: MusicService,
-    private readonly storageService: StorageService,
-  ) {}
+  constructor(private readonly musicService: MusicService) {}
 
   // ==================== UPLOAD ====================
 
@@ -66,42 +74,11 @@ export class MusicController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @UseInterceptors(FileInterceptor('file'))
-  async uploadTrack(@UploadedFile() file: Express.Multer.File) {
-    if (!file) {
-      throw new BadRequestException('No file provided');
-    }
-
-    // Validate file type
-    if (!this.ALLOWED_MIME_TYPES.includes(file.mimetype)) {
-      throw new BadRequestException(
-        `Invalid file type. Allowed types: ${this.ALLOWED_MIME_TYPES.join(', ')}`,
-      );
-    }
-
-    // Validate file size
-    if (file.size > this.MAX_FILE_SIZE) {
-      throw new BadRequestException(
-        `File too large. Maximum size: ${this.MAX_FILE_SIZE / 1024 / 1024}MB`,
-      );
-    }
-
-    try {
-      const result = await this.musicService.uploadTrack(file);
-
-      return {
-        statusCode: HttpStatus.OK,
-        message: result.message,
-        data: {
-          trackId: result.trackId,
-          duplicate: result.duplicate,
-        },
-      };
-    } catch (error) {
-      this.logger.error(
-        `Upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      );
-      throw error;
-    }
+  async uploadTrack(
+    @UploadedFile() file: Express.Multer.File,
+  ): Promise<UploadResult> {
+    this.validateFile(file);
+    return await this.musicService.uploadTrack(file);
   }
 
   /**
@@ -109,47 +86,16 @@ export class MusicController {
    * POST /music/upload/album
    */
   @Post('upload/album')
-  @UseGuards(RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @UseInterceptors(FilesInterceptor('files', 30))
-  async uploadAlbum(@UploadedFiles() files: Express.Multer.File[]) {
-    if (!files || files.length === 0) {
-      throw new BadRequestException('No files provided');
-    }
-
-    // Validate all files
+  async uploadAlbum(
+    @UploadedFiles() files: Express.Multer.File[],
+  ): Promise<AlbumUploadResult> {
     for (const file of files) {
-      if (!this.ALLOWED_MIME_TYPES.includes(file.mimetype)) {
-        throw new BadRequestException(
-          `Invalid file type for ${file.originalname}. Allowed types: ${this.ALLOWED_MIME_TYPES.join(', ')}`,
-        );
-      }
-
-      if (file.size > this.MAX_FILE_SIZE) {
-        throw new BadRequestException(
-          `File ${file.originalname} too large. Maximum size: ${this.MAX_FILE_SIZE / 1024 / 1024}MB`,
-        );
-      }
+      this.validateFile(file);
     }
-
-    try {
-      const result = await this.musicService.uploadAlbum(files);
-
-      return {
-        statusCode: HttpStatus.OK,
-        message: result.message,
-        data: {
-          trackIds: result.trackIds,
-          duplicates: result.duplicates,
-          failures: result.failures,
-        },
-      };
-    } catch (error) {
-      this.logger.error(
-        `Album upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      );
-      throw error;
-    }
+    return await this.musicService.uploadAlbum(files);
   }
 
   // ==================== TRACKS ====================
@@ -161,8 +107,8 @@ export class MusicController {
   @Get('tracks')
   @UseGuards(JwtAuthGuard)
   async getTracks(
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 20,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
     @Query('artist') artist?: string,
     @Query('album') album?: string,
   ): Promise<TrackListResponseDto> {
@@ -176,7 +122,7 @@ export class MusicController {
     const { tracks, total } = await this.musicService.getTracks(filter);
 
     return {
-      data: tracks.map(toTrackItemDto),
+      data: tracks.map((track) => TrackItemDto.from(track)),
       meta: {
         total,
         page,
@@ -193,9 +139,9 @@ export class MusicController {
   @Get('tracks/:id')
   @UseGuards(JwtAuthGuard)
   async getTrack(@Param('id') id: string): Promise<TrackDetailDto> {
-    const track = await this.musicService.getTrackWithAccessCheck(id);
+    const track = await this.musicService.getTrackById(id);
 
-    return toTrackDetailDto(track);
+    return TrackDetailDto.from(track);
   }
 
   /**
@@ -209,54 +155,30 @@ export class MusicController {
     @Req() req: Request,
     @Res() res: Response,
   ): Promise<void> {
-    const track = await this.musicService.getTrackWithAccessCheck(id);
+    const descriptor = await this.musicService.getTrackStream(
+      id,
+      req.headers.range,
+    );
 
-    if (!track.audioFile) {
-      res.status(404).json({ message: 'Audio file not found' });
-      return;
-    }
-
-    const { storageKey, mimeType } = track.audioFile;
-
-    const size = Number(track.audioFile.size);
-    const range = req.headers.range;
-
-    if (range) {
-      const match = range.match(/bytes=(\d+)-(\d*)/);
-      if (!match) {
-        res.status(416).setHeader('Content-Range', `bytes */${size}`);
-        res.end();
-        return;
-      }
-
-      const start = parseInt(match[1], 10);
-      const end = match[2] ? parseInt(match[2], 10) : size - 1;
-      const length = end - start + 1;
-
-      const stream = await this.storageService.getFileRange(
-        storageKey,
-        start,
-        length,
-      );
+    if (descriptor.range) {
+      const { start, end, length } = descriptor.range;
 
       res.status(206);
-      res.setHeader('Content-Type', mimeType);
+      res.setHeader('Content-Type', descriptor.mimeType);
       res.setHeader('Content-Length', length);
-      res.setHeader('Content-Range', `bytes ${start}-${end}/${size}`);
-      res.setHeader('Accept-Ranges', 'bytes');
-      res.setHeader('Cache-Control', 'no-store');
-
-      stream.pipe(res);
+      res.setHeader(
+        'Content-Range',
+        `bytes ${start}-${end}/${descriptor.size}`,
+      );
     } else {
-      const stream = await this.storageService.getFile(storageKey);
-
-      res.setHeader('Content-Type', mimeType);
-      res.setHeader('Content-Length', size);
-      res.setHeader('Accept-Ranges', 'bytes');
-      res.setHeader('Cache-Control', 'no-store');
-
-      stream.pipe(res);
+      res.setHeader('Content-Type', descriptor.mimeType);
+      res.setHeader('Content-Length', descriptor.size);
     }
+
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('Cache-Control', 'no-store');
+
+    descriptor.stream.pipe(res);
   }
 
   /**
@@ -265,13 +187,10 @@ export class MusicController {
    */
   @Get('tracks/:id/stats')
   @UseGuards(JwtAuthGuard)
-  async getTrackStats(@Param('id') id: string) {
+  async getTrackStats(@Param('id') id: string): Promise<{ data: TrackStats }> {
     const stats = await this.musicService.getTrackStats(id);
 
-    return {
-      statusCode: HttpStatus.OK,
-      data: stats,
-    };
+    return { data: stats };
   }
 
   // ==================== ARTISTS ====================
@@ -283,8 +202,8 @@ export class MusicController {
   @Get('artists')
   @UseGuards(JwtAuthGuard)
   async getArtists(
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 20,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
   ): Promise<ArtistListResponseDto> {
     const filter: PaginationFilter = {
       limit,
@@ -294,7 +213,7 @@ export class MusicController {
     const { artists, total } = await this.musicService.getArtists(filter);
 
     return {
-      data: artists.map(toArtistItemDto),
+      data: artists.map((artist) => ArtistItemDto.from(artist)),
       meta: {
         total,
         page,
@@ -305,36 +224,44 @@ export class MusicController {
   }
 
   /**
+   * Get all albums for an artist
+   * GET /music/artists/:id/albums
+   */
+  @Get('artists/:id/albums')
+  @UseGuards(JwtAuthGuard)
+  async getArtistAlbums(@Param('id') id: string): Promise<ArtistAlbumsDto> {
+    return await this.musicService.getArtistAlbums(id);
+  }
+
+  // ==================== ALBUMS ====================
+
+  /**
    * Get all albums
    * GET /music/albums
    */
   @Get('albums')
   @UseGuards(JwtAuthGuard)
-  async getAlbums() {
-    const albums = await this.musicService.getAlbums();
+  async getAlbums(
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
+  ): Promise<AlbumListResponseDto> {
+    const filter: PaginationFilter = {
+      limit,
+      offset: (page - 1) * limit,
+    };
+
+    const { albums, total } = await this.musicService.getAlbums(filter);
 
     return {
-      statusCode: HttpStatus.OK,
-      data: albums,
+      data: albums.map((album) => AlbumItemDto.from(album)),
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
     };
   }
-
-  /**
-   * Get all albums by an artist
-   * GET /music/albums/:id
-   */
-  @Get('albums/:id')
-  @UseGuards(JwtAuthGuard)
-  async getArtistAlbums(@Param('id') id: string) {
-    const albums = await this.musicService.getArtistAlbums(id);
-
-    return {
-      statusCode: HttpStatus.OK,
-      data: albums,
-    };
-  }
-
-  // ==================== ALBUMS ====================
 
   /**
    * Get all tracks in an album
@@ -342,13 +269,8 @@ export class MusicController {
    */
   @Get('albums/:id/tracks')
   @UseGuards(JwtAuthGuard)
-  async getAlbumTracks(@Param('id') id: string) {
-    const tracks = await this.musicService.getAlbumTracks(id);
-
-    return {
-      statusCode: HttpStatus.OK,
-      data: tracks,
-    };
+  async getAlbumTracks(@Param('id') id: string): Promise<AlbumDetailDto> {
+    return await this.musicService.getAlbumTracks(id);
   }
 
   /**
@@ -361,17 +283,11 @@ export class MusicController {
     @Param('id') id: string,
     @Res() res: Response,
   ): Promise<void> {
-    const albumArtKey = await this.musicService.getAlbumArtKey(id);
+    const { stream, size, mimeType } =
+      await this.musicService.getAlbumArtStream(id);
 
-    if (!albumArtKey) {
-      throw new NotFoundException('Album art not found');
-    }
-
-    const stats = await this.storageService.getFileStats(albumArtKey);
-    const stream = await this.storageService.getFile(albumArtKey);
-
-    res.setHeader('Cache-Control', 'private, max-age=86400');
-    res.setHeader('Content-Length', stats.size);
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader('Content-Length', size);
     res.setHeader('Cache-Control', 'private, max-age=86400');
 
     stream.pipe(res);
@@ -388,16 +304,33 @@ export class MusicController {
   async search(
     @Query('q') query: string,
     @Query('type') type?: 'all' | 'track' | 'artist' | 'album',
-  ) {
+  ): Promise<SearchResponseDto> {
     if (!query || query.trim().length === 0) {
       throw new BadRequestException('Search query is required');
     }
 
     const results = await this.musicService.search(query, type || 'all');
 
-    return {
-      statusCode: HttpStatus.OK,
-      data: results,
-    };
+    return SearchResponseDto.from(results);
+  }
+
+  // ==================== PRIVATE HELPERS ====================
+
+  private validateFile(file: Express.Multer.File): void {
+    if (!file) {
+      throw new BadRequestException('No file provided');
+    }
+
+    if (!this.ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+      throw new BadRequestException(
+        `Invalid file type: ${file.mimetype}. Allowed types: ${this.ALLOWED_MIME_TYPES.join(', ')}`,
+      );
+    }
+
+    if (file.size > this.MAX_FILE_SIZE) {
+      throw new BadRequestException(
+        `File too large. Maximum size: ${this.MAX_FILE_SIZE / 1024 / 1024}MB`,
+      );
+    }
   }
 }

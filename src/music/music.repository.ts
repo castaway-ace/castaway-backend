@@ -1,13 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { Prisma } from '../generated/prisma/client.js';
+import { Prisma, Track } from '../generated/prisma/client.js';
 import {
-  AlbumWithRelations,
+  AlbumArtInfo,
+  AlbumListItem,
   AlbumWithTracks,
   ArtistWithAlbums,
   ArtistWithCounts,
   AudioFileWithTrackVisibility,
+  SearchResults,
   TrackItemWithRelations,
+  TrackStats,
   TrackWithRelations,
 } from './music.types.js';
 
@@ -20,9 +23,22 @@ export class MusicRepository {
   /**
    * Find an audio file by its checksum
    */
-  async findAudioFileByChecksum(checksum: string) {
+  async findAudioFileByChecksum(
+    checksum: string,
+  ): Promise<AudioFileWithTrackVisibility | null> {
     return this.prisma.audioFile.findUnique({
       where: { checksum },
+      include: {
+        track: true,
+      },
+    });
+  }
+
+  async findAudioFileByStorageKey(
+    storageKey: string,
+  ): Promise<AudioFileWithTrackVisibility | null> {
+    return this.prisma.audioFile.findUnique({
+      where: { storageKey },
       include: {
         track: true,
       },
@@ -34,7 +50,10 @@ export class MusicRepository {
   /**
    * Find tracks by metadata (title and album) with artist relations
    */
-  async findTracksByMetadata(title: string, albumTitle: string) {
+  async findTracksByMetadata(
+    title: string,
+    albumTitle: string,
+  ): Promise<TrackItemWithRelations[]> {
     return this.prisma.track.findMany({
       where: {
         title,
@@ -48,21 +67,15 @@ export class MusicRepository {
             artist: true,
           },
         },
+        album: {
+          select: {
+            id: true,
+            title: true,
+            albumArtKey: true,
+          },
+        },
       },
-    });
-  }
-
-  /**
-   * Find audio file by storage key with track visibility
-   */
-  async findAudioFileByStorageKey(
-    storageKey: string,
-  ): Promise<AudioFileWithTrackVisibility | null> {
-    return this.prisma.audioFile.findUnique({
-      where: { storageKey },
-      include: {
-        track: true,
-      },
+      orderBy: [{ album: { title: 'asc' } }],
     });
   }
 
@@ -129,37 +142,16 @@ export class MusicRepository {
   }
 
   /**
-   * Update track play statistics
-   */
-  async updateTrackPlayStats(trackId: string) {
-    return this.prisma.track.update({
-      where: { id: trackId },
-      data: {
-        updatedAt: new Date(),
-      },
-    });
-  }
-
-  /**
    * Get play statistics for a track
    */
-  async getTrackStats(trackId: string) {
-    const [track, historyCount] = await Promise.all([
-      this.prisma.track.findUnique({
-        where: { id: trackId },
-        select: {
-          updatedAt: true,
-        },
-      }),
-      this.prisma.listeningHistory.count({
-        where: { trackId },
-      }),
-    ]);
+  async getTrackStats(trackId: string): Promise<TrackStats> {
+    const totalPlays = await this.prisma.listeningHistory.count({
+      where: { trackId },
+    });
 
     return {
       trackId,
-      updatedAt: track?.updatedAt,
-      historyCount,
+      totalPlays,
     };
   }
 
@@ -204,8 +196,8 @@ export class MusicRepository {
         albums: {
           include: {
             tracks: {
-              include: {
-                audioFile: true,
+              select: {
+                duration: true,
               },
             },
           },
@@ -229,23 +221,43 @@ export class MusicRepository {
   /**
    * Find all albums with tracks and artists
    */
-  async findAllAlbums() {
+  async findAllAlbums(options?: {
+    take?: number;
+    skip?: number;
+  }): Promise<AlbumListItem[]> {
     return this.prisma.album.findMany({
-      include: {
-        tracks: {
-          include: {
-            artists: { include: { artist: true } },
+      select: {
+        id: true,
+        title: true,
+        releaseYear: true,
+        genre: true,
+        albumArtKey: true,
+        artist: {
+          select: {
+            id: true,
+            name: true,
           },
         },
-        artist: true,
+        _count: {
+          select: {
+            tracks: true,
+          },
+        },
       },
+      orderBy: { title: 'asc' },
+      take: options?.take ?? 50,
+      skip: options?.skip ?? 0,
     });
+  }
+
+  async countAlbums(): Promise<number> {
+    return this.prisma.album.count();
   }
 
   /**
    * Find an album by ID
    */
-  async findAlbumById(albumId: string): Promise<AlbumWithRelations | null> {
+  async findAlbumById(albumId: string): Promise<AlbumArtInfo | null> {
     return this.prisma.album.findUnique({
       where: { id: albumId },
       select: {
@@ -286,169 +298,125 @@ export class MusicRepository {
   async search(
     query: string,
     type: 'all' | 'track' | 'artist' | 'album' = 'all',
-  ) {
+  ): Promise<SearchResults> {
     const searchTerm = query.trim();
+    const results: SearchResults = {};
 
-    const trackWhere: Prisma.TrackWhereInput = {};
-    const artistWhere: Prisma.ArtistWhereInput = {};
-    const albumWhere: Prisma.AlbumWhereInput = {};
+    const shouldSearchTracks = type === 'all' || type === 'track';
+    const shouldSearchArtists = type === 'all' || type === 'artist';
+    const shouldSearchAlbums = type === 'all' || type === 'album';
 
-    if (type === 'track' || type === 'all') {
-      const tracks = await this.prisma.track.findMany({
-        where: {
-          ...trackWhere,
-          OR: [
-            { title: { contains: searchTerm, mode: 'insensitive' } },
-            {
+    const promises: Promise<void>[] = [];
+
+    if (shouldSearchTracks) {
+      promises.push(
+        this.prisma.track
+          .findMany({
+            where: {
+              OR: [
+                { title: { contains: searchTerm, mode: 'insensitive' } },
+                {
+                  artists: {
+                    some: {
+                      artist: {
+                        name: {
+                          contains: searchTerm,
+                          mode: 'insensitive',
+                        },
+                      },
+                    },
+                  },
+                },
+                {
+                  album: {
+                    title: { contains: searchTerm, mode: 'insensitive' },
+                  },
+                },
+              ],
+            },
+            include: {
               artists: {
-                some: {
+                include: {
+                  artist: true,
+                },
+              },
+              album: {
+                include: {
+                  artist: true,
+                },
+              },
+              audioFile: {
+                select: {
+                  storageKey: true,
+                  mimeType: true,
+                  size: true,
+                },
+              },
+            },
+            take: 20,
+          })
+          .then((tracks) => {
+            results.tracks = tracks;
+          }),
+      );
+    }
+
+    if (shouldSearchArtists) {
+      promises.push(
+        this.prisma.artist
+          .findMany({
+            where: {
+              name: { contains: searchTerm, mode: 'insensitive' },
+            },
+            include: {
+              _count: {
+                select: {
+                  albums: true,
+                  tracks: true,
+                },
+              },
+            },
+            take: 10,
+          })
+          .then((artists) => {
+            results.artists = artists;
+          }),
+      );
+    }
+
+    if (shouldSearchAlbums) {
+      promises.push(
+        this.prisma.album
+          .findMany({
+            where: {
+              OR: [
+                { title: { contains: searchTerm, mode: 'insensitive' } },
+                {
                   artist: {
                     name: { contains: searchTerm, mode: 'insensitive' },
                   },
                 },
-              },
+              ],
             },
-            {
-              album: {
-                title: { contains: searchTerm, mode: 'insensitive' },
-              },
-            },
-          ],
-        },
-        include: {
-          artists: {
             include: {
               artist: true,
-            },
-          },
-          album: {
-            include: {
-              artist: true,
-            },
-          },
-          audioFile: true,
-        },
-        take: 20,
-      });
-
-      if (type === 'track') {
-        return { tracks };
-      }
-    }
-
-    if (type === 'artist' || type === 'all') {
-      const artists = await this.prisma.artist.findMany({
-        where: {
-          ...artistWhere,
-          name: { contains: searchTerm, mode: 'insensitive' },
-        },
-        include: {
-          albums: true,
-          tracks: true,
-        },
-        take: 10,
-      });
-
-      if (type === 'artist') {
-        return { artists };
-      }
-    }
-
-    if (type === 'album' || type === 'all') {
-      const albums = await this.prisma.album.findMany({
-        where: {
-          ...albumWhere,
-          OR: [
-            { title: { contains: searchTerm, mode: 'insensitive' } },
-            {
-              artist: {
-                name: { contains: searchTerm, mode: 'insensitive' },
-              },
-            },
-          ],
-        },
-        include: {
-          artist: true,
-          tracks: true,
-        },
-        take: 10,
-      });
-
-      if (type === 'album') {
-        return { albums };
-      }
-    }
-
-    // Return all if type is 'all'
-    const [tracks, artists, albums] = await Promise.all([
-      this.prisma.track.findMany({
-        where: {
-          ...trackWhere,
-          OR: [
-            { title: { contains: searchTerm, mode: 'insensitive' } },
-            {
-              artists: {
-                some: {
-                  artist: {
-                    name: { contains: searchTerm, mode: 'insensitive' },
-                  },
+              _count: {
+                select: {
+                  tracks: true,
                 },
               },
             },
-            {
-              album: {
-                title: { contains: searchTerm, mode: 'insensitive' },
-              },
-            },
-          ],
-        },
-        include: {
-          artists: {
-            include: {
-              artist: true,
-            },
-          },
-          album: {
-            include: {
-              artist: true,
-            },
-          },
-          audioFile: true,
-        },
-        take: 20,
-      }),
-      this.prisma.artist.findMany({
-        where: {
-          ...artistWhere,
-          name: { contains: searchTerm, mode: 'insensitive' },
-        },
-        include: {
-          albums: true,
-          tracks: true,
-        },
-        take: 10,
-      }),
-      this.prisma.album.findMany({
-        where: {
-          ...albumWhere,
-          OR: [
-            { title: { contains: searchTerm, mode: 'insensitive' } },
-            {
-              artist: {
-                name: { contains: searchTerm, mode: 'insensitive' },
-              },
-            },
-          ],
-        },
-        include: {
-          artist: true,
-          tracks: true,
-        },
-        take: 10,
-      }),
-    ]);
+            take: 10,
+          })
+          .then((albums) => {
+            results.albums = albums;
+          }),
+      );
+    }
 
-    return { tracks, artists, albums };
+    await Promise.all(promises);
+
+    return results;
   }
 
   // ==================== TRACK CREATION ====================
@@ -475,7 +443,7 @@ export class MusicRepository {
     albumArtKey: string | undefined;
     checksum: string;
     size: number;
-  }) {
+  }): Promise<Track> {
     return this.prisma.$transaction(async (tx) => {
       // 1. Create or find album artist
       const albumArtist = await tx.artist.upsert({

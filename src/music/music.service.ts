@@ -2,27 +2,31 @@ import {
   Injectable,
   ConflictException,
   NotFoundException,
-  HttpStatus,
   Logger,
   BadRequestException,
 } from '@nestjs/common';
 import { StorageService } from '../storage/storage.service.js';
-import { type Response } from 'express';
 import * as mm from 'music-metadata';
 import { createHash } from 'crypto';
 import { Prisma } from '../generated/prisma/client.js';
 import { MusicRepository } from './music.repository.js';
 import {
+  AlbumListItem,
   AlbumUploadResult,
   ArtistWithCounts,
   ExtractedMetadata,
+  SearchResults,
+  StreamDescriptor,
   TrackFilter,
   TrackItemWithRelations,
+  TrackStats,
   TrackWithRelations,
   UploadResult,
 } from './music.types.js';
 import { StorageUploadResult } from '../storage/storage.types.js';
 import { PaginationFilter } from 'src/types/pagination.types.js';
+import { ArtistAlbumsDto } from './dto/artist.dto.js';
+import { AlbumDetailDto } from './dto/album.dto.js';
 
 @Injectable()
 export class MusicService {
@@ -41,7 +45,6 @@ export class MusicService {
    * Upload a track with automatic metadata extraction and storage
    */
   async uploadTrack(file: Express.Multer.File): Promise<UploadResult> {
-    // Step 1: Calculate checksum
     const checksum = this.calculateChecksum(file.buffer);
 
     const existingFile =
@@ -53,21 +56,18 @@ export class MusicService {
       );
     }
 
-    // Step 3: Extract metadata
     const metadata = await this.extractMetadata(file.buffer, file.mimetype);
 
-    // Step 4: Check for metadata-based duplicates
     const potentialDuplicate = await this.findMetadataDuplicate(metadata);
 
     if (potentialDuplicate) {
-      console.warn(
+      this.logger.warn(
         `Potential duplicate found: ${metadata.title} by ${metadata.artists.join(', ')}`,
       );
     }
 
     const storageKey = `${this.TRACK_PREFIX}${checksum}.${file.mimetype}`;
 
-    // Step 5: Upload audio file to MinIO
     const audioUpload: StorageUploadResult = await this.storage.uploadFile(
       storageKey,
       file.buffer,
@@ -79,14 +79,12 @@ export class MusicService {
       },
     );
 
-    // Step 6: Handle album art if present
     let albumArtKey: string | undefined;
     if (metadata.picture) {
       const artUpload = await this.uploadAlbumArt(metadata.picture);
       albumArtKey = artUpload.storageKey;
     }
 
-    // Step 7: Create database records (transaction)
     const track = await this.musicRepository.createTrackWithRelations({
       metadata: {
         title: metadata.title,
@@ -205,41 +203,62 @@ export class MusicService {
   /**
    * Get a single track by ID
    */
-  async getTrackWithAccessCheck(id: string): Promise<TrackWithRelations> {
+  async getTrackById(id: string): Promise<TrackWithRelations> {
     const track = await this.musicRepository.findTrackById(id);
 
     if (!track) {
       throw new NotFoundException(`Track with ID ${id} not found`);
     }
 
+    return track;
+  }
+
+  /**
+   * Get a track stream
+   */
+  async getTrackStream(
+    id: string,
+    rangeHeader?: string,
+  ): Promise<StreamDescriptor> {
+    const track = await this.getTrackById(id);
+
     if (!track.audioFile) {
       throw new NotFoundException('Audio file not found for this track');
     }
 
-    await this.verifyTrackAccess(track.audioFile.storageKey);
+    const { storageKey, mimeType } = track.audioFile;
+    const size = Number(track.audioFile.size);
 
-    return track;
+    if (rangeHeader) {
+      const match = rangeHeader.match(/bytes=(\d+)-(\d*)/);
+      if (!match) {
+        throw new BadRequestException('Invalid range header');
+      }
+
+      const start = parseInt(match[1], 10);
+      const end = match[2] ? parseInt(match[2], 10) : size - 1;
+      const length = end - start + 1;
+
+      const stream = await this.storage.getFileRange(storageKey, start, length);
+
+      return {
+        stream,
+        mimeType,
+        size,
+        range: { start, end, length },
+      };
+    }
+
+    const stream = await this.storage.getFile(storageKey);
+
+    return { stream, mimeType, size };
   }
 
   /**
    * Get play statistics for a track
    */
-  async getTrackStats(trackId: string) {
-    const stats = await this.musicRepository.getTrackStats(trackId);
-
-    return {
-      trackId: stats.trackId,
-      totalPlays: stats.historyCount,
-    };
-  }
-
-  async verifyTrackAccess(storageKey: string): Promise<void> {
-    const audioFile =
-      await this.musicRepository.findAudioFileByStorageKey(storageKey);
-
-    if (!audioFile) {
-      throw new NotFoundException('Track not found');
-    }
+  async getTrackStats(trackId: string): Promise<TrackStats> {
+    return await this.musicRepository.getTrackStats(trackId);
   }
 
   // ==================== ARTISTS ====================
@@ -260,113 +279,65 @@ export class MusicService {
     return { artists, total };
   }
 
-  async getAlbums() {
-    const albums = await this.musicRepository.findAllAlbums();
-    return albums.map((album) => ({
-      id: album.id,
-      title: album.title,
-      releaseYear: album.releaseYear,
-      genre: album.genre,
-      albumArtKey: album.albumArtKey,
-      trackCount: album.tracks.length,
-      totalDuration: album.tracks.reduce(
-        (sum, track) => sum + (track.duration || 0),
-        0,
-      ),
-    }));
-  }
-
   /**
    * Get all albums by an artist
    */
-  async getArtistAlbums(artistId: string) {
+  async getArtistAlbums(artistId: string): Promise<ArtistAlbumsDto> {
     const artist = await this.musicRepository.findArtistById(artistId);
 
     if (!artist) {
       throw new NotFoundException(`Artist with ID ${artistId} not found`);
     }
 
-    return {
-      id: artist.id,
-      name: artist.name,
-      albums: artist.albums.map((album) => ({
-        id: album.id,
-        title: album.title,
-        releaseYear: album.releaseYear,
-        genre: album.genre,
-        albumArtKey: album.albumArtKey,
-        trackCount: album.tracks.length,
-        totalDuration: album.tracks.reduce(
-          (sum, track) => sum + (track.duration || 0),
-          0,
-        ),
-      })),
-    };
+    return ArtistAlbumsDto.from(artist);
   }
 
   // ==================== ALBUMS ====================
 
+  async getAlbums(
+    filter: PaginationFilter,
+  ): Promise<{ albums: AlbumListItem[]; total: number }> {
+    const [albums, total] = await Promise.all([
+      this.musicRepository.findAllAlbums({
+        take: filter.limit,
+        skip: filter.offset,
+      }),
+      this.musicRepository.countAlbums(),
+    ]);
+
+    return { albums, total };
+  }
+
   /**
    * Get all tracks in an album
    */
-  async getAlbumTracks(albumId: string) {
+  async getAlbumTracks(albumId: string): Promise<AlbumDetailDto> {
     const album = await this.musicRepository.findAlbumWithTracks(albumId);
 
     if (!album) {
       throw new NotFoundException(`Album with ID ${albumId} not found`);
     }
 
-    return {
-      id: album.id,
-      title: album.title,
-      releaseYear: album.releaseYear,
-      genre: album.genre,
-      albumArtKey: album.albumArtKey,
-      artist: {
-        id: album.artist.id,
-        name: album.artist.name,
-      },
-      tracks: album.tracks.map((track) => {
-        // Sort artists by order in application code
-        const sortedArtists = [...track.artists].sort(
-          (a, b) => a.order - b.order,
-        );
-
-        return {
-          id: track.id,
-          title: track.title,
-          trackNumber: track.trackNumber,
-          discNumber: track.discNumber,
-          duration: track.duration,
-          artists: sortedArtists.map((ta) => ({
-            id: ta.artist.id,
-            name: ta.artist.name,
-          })),
-          audioFile: track.audioFile
-            ? {
-                storageKey: track.audioFile.storageKey,
-                mimeType: track.audioFile.mimeType,
-                bitrate: track.audioFile.bitrate,
-                sampleRate: track.audioFile.sampleRate,
-                size: track.audioFile.size.toString(),
-              }
-            : null,
-        };
-      }),
-    };
+    return AlbumDetailDto.from(album);
   }
 
   /**
-   * Get album art key
+   * Get album art stream
    */
-  async getAlbumArtKey(albumId: string): Promise<string | undefined> {
+  async getAlbumArtStream(albumId: string): Promise<StreamDescriptor> {
     const album = await this.musicRepository.findAlbumById(albumId);
 
-    if (!album) {
-      throw new NotFoundException('Album not found');
+    if (!album || !album.albumArtKey) {
+      throw new NotFoundException('Album art not found');
     }
 
-    return album.albumArtKey ?? undefined;
+    const stats = await this.storage.getFileStats(album.albumArtKey);
+    const stream = await this.storage.getFile(album.albumArtKey);
+
+    const extension = album.albumArtKey.split('.').pop() ?? 'jpg';
+    const mimeType = `image/${extension === 'jpg' ? 'jpeg' : extension}`;
+
+    return { stream, mimeType, size: stats.size };
   }
 
   // ==================== SEARCH ====================
@@ -374,50 +345,15 @@ export class MusicService {
   /**
    * Search tracks, artists, and albums
    */
-  async search(query: string, type: 'all' | 'track' | 'artist' | 'album') {
+  async search(
+    query: string,
+    type: 'all' | 'track' | 'artist' | 'album',
+  ): Promise<SearchResults> {
     if (!query || query.trim().length === 0) {
       throw new BadRequestException('Search query cannot be empty');
     }
 
-    const results = await this.musicRepository.search(query, type);
-
-    const response: {
-      tracks?: unknown[];
-      artists?: unknown[];
-      albums?: unknown[];
-    } = {};
-
-    if ('tracks' in results && results.tracks) {
-      response.tracks = results.tracks.map((track) =>
-        this.formatTrackResponse(track),
-      );
-    }
-
-    if ('artists' in results && results.artists) {
-      response.artists = results.artists.map((artist) => ({
-        id: artist.id,
-        name: artist.name,
-        albumCount: artist.albums.length,
-        trackCount: artist.tracks.length,
-      }));
-    }
-
-    if ('albums' in results && results.albums) {
-      response.albums = results.albums.map((album) => ({
-        id: album.id,
-        title: album.title,
-        releaseYear: album.releaseYear,
-        genre: album.genre,
-        albumArtKey: album.albumArtKey,
-        trackCount: album.tracks.length,
-        artist: {
-          id: album.artist.id,
-          name: album.artist.name,
-        },
-      }));
-    }
-
-    return response;
+    return this.musicRepository.search(query, type);
   }
 
   // ==================== PRIVATE HELPERS ====================
@@ -483,7 +419,9 @@ export class MusicService {
   /**
    * Upload album art to storage with deduplication
    */
-  private async uploadAlbumArt(picture: mm.IPicture) {
+  private async uploadAlbumArt(
+    picture: mm.IPicture,
+  ): Promise<StorageUploadResult> {
     const imageBuffer = Buffer.from(picture.data);
 
     const artChecksum = createHash('sha256')
@@ -525,106 +463,5 @@ export class MusicService {
     }
 
     return null;
-  }
-
-  /**
-   * Format track response with consistent structure
-   */
-  private formatTrackResponse(track: {
-    id: string;
-    title: string;
-    trackNumber: number | null;
-    discNumber: number | null;
-    duration: number | null;
-    artists: Array<{
-      order: number;
-      artist: {
-        id: string;
-        name: string;
-      };
-    }>;
-    album: {
-      id: string;
-      title: string;
-      releaseYear: number | null;
-      genre: string | null;
-      albumArtKey: string | null;
-      artist: {
-        id: string;
-        name: string;
-      };
-    };
-    audioFile?: {
-      storageKey: string;
-      mimeType: string;
-      bitrate: number | null;
-      sampleRate: number | null;
-      size: bigint;
-    } | null;
-  }) {
-    const sortedArtists = [...track.artists].sort((a, b) => a.order - b.order);
-
-    return {
-      id: track.id,
-      title: track.title,
-      trackNumber: track.trackNumber,
-      discNumber: track.discNumber,
-      duration: track.duration,
-      artists: sortedArtists.map((ta) => ({
-        id: ta.artist.id,
-        name: ta.artist.name,
-      })),
-      album: {
-        id: track.album.id,
-        title: track.album.title,
-        releaseYear: track.album.releaseYear,
-        genre: track.album.genre,
-        albumArtKey: track.album.albumArtKey,
-        artist: {
-          id: track.album.artist.id,
-          name: track.album.artist.name,
-        },
-      },
-      audioFile: track.audioFile
-        ? {
-            storageKey: track.audioFile.storageKey,
-            mimeType: track.audioFile.mimeType,
-            bitrate: track.audioFile.bitrate,
-            sampleRate: track.audioFile.sampleRate,
-            size: track.audioFile.size.toString(),
-          }
-        : null,
-    };
-  }
-
-  private getContentType(
-    metaData: Record<string, any>,
-    defaultType: string,
-  ): string {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    const contentType = metaData['content-type'];
-    if (typeof contentType === 'string') {
-      return contentType;
-    }
-    return defaultType;
-  }
-
-  private handleStreamError(error: unknown, res: Response): void {
-    const errorMessage =
-      error instanceof Error ? error.message : 'Unknown error';
-    this.logger.error(`Streaming failed: ${errorMessage}`);
-
-    if (!res.headersSent) {
-      if (error instanceof NotFoundException) {
-        res.status(HttpStatus.NOT_FOUND).json({
-          message: 'File not found',
-        });
-      } else {
-        res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
-          message: 'Streaming failed',
-          error: errorMessage,
-        });
-      }
-    }
   }
 }
