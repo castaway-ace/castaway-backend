@@ -45,7 +45,7 @@ export type AlbumArtInfo = Prisma.AlbumGetPayload<{
   };
 }>;
 
-export type AlbumWithTracks = Prisma.AlbumGetPayload<{
+export type AlbumItem = Prisma.AlbumGetPayload<{
   include: {
     artist: true;
     tracks: {

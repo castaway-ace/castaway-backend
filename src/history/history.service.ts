@@ -24,11 +24,7 @@ export class HistoryService {
     await this.historyRepository.recordPlay(userId, trackId, duration);
 
     // Update track play statistics
-    await this.musicRepository.updateTrackPlayStats(trackId);
-
-    return {
-      message: 'Play recorded',
-    };
+    await this.musicRepository.getTrackStats(trackId);
   }
 
   /**
@@ -55,8 +51,7 @@ export class HistoryService {
 
     return {
       trackId: stats.trackId,
-      updatedAt: stats.updatedAt,
-      totalPlays: stats.historyCount,
+      totalPlays: stats.totalPlays,
     };
   }
 }

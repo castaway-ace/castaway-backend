@@ -1,4 +1,4 @@
-import { AlbumListItem, AlbumWithTracks } from '../music.types.js';
+import { AlbumItem, AlbumListItem } from '../music.types.js';
 
 // ==================== ALBUM ITEM (list view) ====================
 
@@ -48,7 +48,7 @@ export class AlbumDetailDto {
   artist: { id: string; name: string };
   tracks: AlbumTrackDto[];
 
-  static from(album: AlbumWithTracks): AlbumDetailDto {
+  static from(album: AlbumItem): AlbumDetailDto {
     return {
       id: album.id,
       title: album.title,
@@ -74,15 +74,6 @@ export class AlbumDetailDto {
             id: ta.artist.id,
             name: ta.artist.name,
           })),
-          audioFile: track.audioFile
-            ? {
-                storageKey: track.audioFile.storageKey,
-                mimeType: track.audioFile.mimeType,
-                bitrate: track.audioFile.bitrate,
-                sampleRate: track.audioFile.sampleRate,
-                size: track.audioFile.size.toString(),
-              }
-            : null,
         };
       }),
     };
@@ -96,11 +87,4 @@ export interface AlbumTrackDto {
   discNumber: number | null;
   duration: number | null;
   artists: Array<{ id: string; name: string }>;
-  audioFile: {
-    storageKey: string;
-    mimeType: string;
-    bitrate: number | null;
-    sampleRate: number | null;
-    size: string;
-  } | null;
 }

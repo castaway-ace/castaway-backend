@@ -39,9 +39,9 @@ import {
   TrackItemDto,
 } from './dto/track.dto.js';
 import {
-  AlbumDetailDto,
   AlbumItemDto,
   AlbumListResponseDto,
+  AlbumDetailDto,
 } from './dto/album.dto.js';
 import { SearchResponseDto } from './dto/search.dto.js';
 
@@ -224,13 +224,13 @@ export class MusicController {
   }
 
   /**
-   * Get all albums for an artist
-   * GET /music/artists/:id/albums
+   * Get an artist by ID
+   * GET /music/artists/:id
    */
-  @Get('artists/:id/albums')
+  @Get('artists/:id')
   @UseGuards(JwtAuthGuard)
-  async getArtistAlbums(@Param('id') id: string): Promise<ArtistAlbumsDto> {
-    return await this.musicService.getArtistAlbums(id);
+  async getArtist(@Param('id') id: string): Promise<ArtistAlbumsDto> {
+    return await this.musicService.getArtistById(id);
   }
 
   // ==================== ALBUMS ====================
@@ -264,13 +264,13 @@ export class MusicController {
   }
 
   /**
-   * Get all tracks in an album
-   * GET /music/albums/:id/tracks
+   * Get an album by ID
+   * GET /music/albums/:id
    */
-  @Get('albums/:id/tracks')
+  @Get('albums/:id')
   @UseGuards(JwtAuthGuard)
-  async getAlbumTracks(@Param('id') id: string): Promise<AlbumDetailDto> {
-    return await this.musicService.getAlbumTracks(id);
+  async getAlbum(@Param('id') id: string): Promise<AlbumDetailDto> {
+    return await this.musicService.getAlbum(id);
   }
 
   /**

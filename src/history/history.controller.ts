@@ -31,16 +31,7 @@ export class HistoryController {
       throw new BadRequestException('Track ID is required');
     }
 
-    const result = await this.historyService.recordPlay(
-      user.sub,
-      body.trackId,
-      body.duration,
-    );
-
-    return {
-      statusCode: HttpStatus.OK,
-      message: result.message,
-    };
+    await this.historyService.recordPlay(user.sub, body.trackId, body.duration);
   }
 
   /**

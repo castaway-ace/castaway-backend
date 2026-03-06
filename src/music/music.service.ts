@@ -280,9 +280,9 @@ export class MusicService {
   }
 
   /**
-   * Get all albums by an artist
+   * Get an artist by ID
    */
-  async getArtistAlbums(artistId: string): Promise<ArtistAlbumsDto> {
+  async getArtistById(artistId: string): Promise<ArtistAlbumsDto> {
     const artist = await this.musicRepository.findArtistById(artistId);
 
     if (!artist) {
@@ -309,10 +309,10 @@ export class MusicService {
   }
 
   /**
-   * Get all tracks in an album
+   * Get an album by ID
    */
-  async getAlbumTracks(albumId: string): Promise<AlbumDetailDto> {
-    const album = await this.musicRepository.findAlbumWithTracks(albumId);
+  async getAlbum(albumId: string): Promise<AlbumDetailDto> {
+    const album = await this.musicRepository.findAlbumById(albumId);
 
     if (!album) {
       throw new NotFoundException(`Album with ID ${albumId} not found`);
@@ -325,7 +325,7 @@ export class MusicService {
    * Get album art stream
    */
   async getAlbumArtStream(albumId: string): Promise<StreamDescriptor> {
-    const album = await this.musicRepository.findAlbumById(albumId);
+    const album = await this.musicRepository.findAlbumArt(albumId);
 
     if (!album || !album.albumArtKey) {
       throw new NotFoundException('Album art not found');

@@ -3,8 +3,8 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { Prisma, Track } from '../generated/prisma/client.js';
 import {
   AlbumArtInfo,
+  AlbumItem,
   AlbumListItem,
-  AlbumWithTracks,
   ArtistWithAlbums,
   ArtistWithCounts,
   AudioFileWithTrackVisibility,
@@ -254,23 +254,17 @@ export class MusicRepository {
     return this.prisma.album.count();
   }
 
-  /**
-   * Find an album by ID
-   */
-  async findAlbumById(albumId: string): Promise<AlbumArtInfo | null> {
+  async findAlbumArt(albumId: string): Promise<AlbumArtInfo | null> {
     return this.prisma.album.findUnique({
       where: { id: albumId },
-      select: {
-        id: true,
-        albumArtKey: true,
-      },
+      select: { id: true, albumArtKey: true },
     });
   }
 
   /**
    * Find an album by ID with full relations (tracks, artists, etc.)
    */
-  async findAlbumWithTracks(albumId: string): Promise<AlbumWithTracks | null> {
+  async findAlbumById(albumId: string): Promise<AlbumItem | null> {
     return this.prisma.album.findUnique({
       where: { id: albumId },
       include: {
