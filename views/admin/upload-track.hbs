@@ -1,0 +1,16 @@
+<h1>Upload Track</h1>
+
+{{#if success}}
+  <div class="success">{{success}} (ID: {{trackId}})</div>
+{{/if}}
+
+{{#if error}}
+  <div class="error">{{error}}</div>
+{{/if}}
+
+<form method="POST" action="/admin/upload/track" enctype="multipart/form-data">
+  <label for="track">Audio File</label>
+  <input type="file" name="track" id="track" accept="audio/*" required />
+
+  <button type="submit">Upload</button>
+</form>

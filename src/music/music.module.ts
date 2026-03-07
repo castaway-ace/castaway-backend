@@ -9,5 +9,6 @@ import { PrismaModule } from '../prisma/prisma.module.js';
   imports: [StorageModule, PrismaModule],
   controllers: [MusicController],
   providers: [MusicService, MusicRepository],
+  exports: [MusicService],
 })
 export class MusicModule {}

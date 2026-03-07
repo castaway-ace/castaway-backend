@@ -11,6 +11,7 @@ import { MusicModule } from './music/music.module.js';
 import { PlaylistModule } from './playlist/playlist.module.js';
 import { HistoryModule } from './history/history.module.js';
 import { QueueModule } from './queue/queue.module.js';
+import { AdminModule } from './admin/admin.module.js';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { QueueModule } from './queue/queue.module.js';
     PlaylistModule,
     HistoryModule,
     QueueModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [AppService],
