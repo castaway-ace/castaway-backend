@@ -27,7 +27,7 @@ import {
   UploadResult,
 } from './music.types.js';
 import { type Request, type Response } from 'express';
-import { PaginationFilter } from 'src/types/pagination.types.js';
+import { PaginationFilter } from '../types/pagination.types.js';
 import {
   ArtistAlbumsDto,
   ArtistItemDto,
@@ -44,6 +44,7 @@ import {
   AlbumDetailDto,
 } from './dto/album.dto.js';
 import { SearchResponseDto } from './dto/search.dto.js';
+import { Public } from '../auth/decorators/public.decorator.js';
 
 @Controller('music')
 export class MusicController {
@@ -278,7 +279,7 @@ export class MusicController {
    * GET /music/albums/:id/cover
    */
   @Get('albums/:id/cover')
-  @UseGuards(JwtAuthGuard)
+  @Public()
   async getAlbumCover(
     @Param('id') id: string,
     @Res() res: Response,
@@ -288,7 +289,7 @@ export class MusicController {
 
     res.setHeader('Content-Type', mimeType);
     res.setHeader('Content-Length', size);
-    res.setHeader('Cache-Control', 'private, max-age=86400');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
 
     stream.pipe(res);
   }
