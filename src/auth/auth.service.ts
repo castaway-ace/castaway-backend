@@ -3,7 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
-import { RefreshToken } from '../generated/prisma/client.js';
+import { RefreshToken, User } from '../generated/prisma/client.js';
 import { UserRepository } from '../user/user.repository.js';
 import { TokenRepository } from './token.repository.js';
 import {
@@ -80,6 +80,21 @@ export class AuthService {
     });
 
     return code;
+  }
+
+  async validateAdminCredentials(
+    email: string,
+    password: string,
+  ): Promise<User | null> {
+    const user = await this.userRepository.findByEmail(email);
+
+    if (!user || !user.password || user.role !== 'ADMIN') {
+      return null;
+    }
+
+    const isValid = await bcrypt.compare(password, user.password);
+
+    return isValid ? user : null;
   }
 
   /**

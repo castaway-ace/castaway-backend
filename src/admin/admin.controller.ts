@@ -15,36 +15,40 @@ import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { type Response, type Request } from 'express';
 import { MusicService } from '../music/music.service.js';
 import { AdminGuard } from './admin.guard.js';
+import { AuthService } from '../auth/auth.service.js';
 
 @Controller('admin')
 export class AdminController {
-  constructor(private readonly musicService: MusicService) {}
+  constructor(
+    private readonly musicService: MusicService,
+    private readonly authService: AuthService,
+  ) {}
 
   // ==================== AUTH ====================
 
   @Get('login')
   @Render('admin/login')
-  loginPage() {
-    return {};
+  loginPage(): Record<string, boolean> {
+    return { showNav: false };
   }
 
   @Post('login')
-  login(
+  async login(
     @Body() body: { email: string; password: string },
     @Req() req: Request,
     @Res() res: Response,
-  ): void {
-    // Simple hardcoded check for now
-    // Wire to your AuthService + bcrypt later
-    if (
-      body.email === process.env.ADMIN_EMAIL &&
-      body.password === process.env.ADMIN_PASSWORD
-    ) {
-      req.session.admin = true;
-      return res.redirect('/admin');
+  ): Promise<void> {
+    const user = await this.authService.validateAdminCredentials(
+      body.email,
+      body.password,
+    );
+
+    if (!user) {
+      return res.render('admin/login', { error: 'Invalid credentials' });
     }
 
-    return res.render('admin/login', { error: 'Invalid credentials' });
+    req.session.admin = true;
+    return res.redirect('/admin');
   }
 
   @Get('logout')
@@ -73,7 +77,15 @@ export class AdminController {
       offset: 0,
     });
 
-    return { albums, albumCount, tracks, trackCount, artists, artistCount };
+    return {
+      albums,
+      albumCount,
+      tracks,
+      trackCount,
+      artists,
+      artistCount,
+      showNav: true,
+    };
   }
 
   // ==================== UPLOADS ====================
@@ -81,8 +93,8 @@ export class AdminController {
   @Get('upload/track')
   @UseGuards(AdminGuard)
   @Render('admin/upload-track')
-  uploadTrackPage() {
-    return {};
+  uploadTrackPage(): Record<string, boolean> {
+    return { showNav: true };
   }
 
   @Post('upload/track')
@@ -91,39 +103,52 @@ export class AdminController {
   async uploadTrack(
     @UploadedFile() file: Express.Multer.File,
     @Res() res: Response,
-  ) {
+  ): Promise<void> {
     try {
       const result = await this.musicService.uploadTrack(file);
       return res.render('admin/upload-track', {
         success: result.message,
         trackId: result.trackId,
+        showNav: true,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Upload failed';
-      return res.render('admin/upload-track', { error: message });
+      return res.render('admin/upload-track', {
+        error: message,
+        showNav: true,
+      });
     }
   }
 
   @Get('upload/album')
   @UseGuards(AdminGuard)
   @Render('admin/upload-album')
-  uploadAlbumPage() {
-    return {};
+  uploadAlbumPage(): Record<string, boolean> {
+    return { showNav: true };
   }
 
   @Post('upload/album')
   @UseGuards(AdminGuard)
-  @UseInterceptors(FilesInterceptor('tracks', 50))
+  @UseInterceptors(
+    FilesInterceptor('album', 100, {
+      limits: {
+        fileSize: 100 * 1024 * 1024, // 100MB per file
+      },
+    }),
+  )
   async uploadAlbum(
     @UploadedFiles() files: Express.Multer.File[],
     @Res() res: Response,
-  ) {
+  ): Promise<void> {
     try {
       const result = await this.musicService.uploadAlbum(files);
-      return res.render('admin/upload-album', { result });
+      return res.render('admin/upload-album', { result, showNav: true });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Upload failed';
-      return res.render('admin/upload-album', { error: message });
+      return res.render('admin/upload-album', {
+        error: message,
+        showNav: true,
+      });
     }
   }
 }

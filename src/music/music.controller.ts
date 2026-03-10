@@ -46,6 +46,8 @@ import {
 import { SearchResponseDto } from './dto/search.dto.js';
 import { Public } from '../auth/decorators/public.decorator.js';
 
+const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+
 @Controller('music')
 export class MusicController {
   private readonly ALLOWED_MIME_TYPES = [
@@ -60,8 +62,6 @@ export class MusicController {
     'audio/mp4',
     'audio/x-m4a',
   ];
-
-  private readonly MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
 
   constructor(private readonly musicService: MusicService) {}
 
@@ -89,7 +89,13 @@ export class MusicController {
   @Post('upload/album')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  @UseInterceptors(FilesInterceptor('files', 30))
+  @UseInterceptors(
+    FilesInterceptor('album', 100, {
+      limits: {
+        fileSize: MAX_FILE_SIZE,
+      },
+    }),
+  )
   async uploadAlbum(
     @UploadedFiles() files: Express.Multer.File[],
   ): Promise<AlbumUploadResult> {
@@ -328,9 +334,9 @@ export class MusicController {
       );
     }
 
-    if (file.size > this.MAX_FILE_SIZE) {
+    if (file.size > MAX_FILE_SIZE) {
       throw new BadRequestException(
-        `File too large. Maximum size: ${this.MAX_FILE_SIZE / 1024 / 1024}MB`,
+        `File too large. Maximum size: ${MAX_FILE_SIZE / 1024 / 1024}MB`,
       );
     }
   }

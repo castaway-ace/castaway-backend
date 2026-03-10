@@ -11,14 +11,14 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const hbs = hbsModule as { registerPartials: (dir: string) => void };
 
-  // View engine setup
   const viewsDir = join(import.meta.dirname, '..', '..', 'views');
   app.setBaseViewsDir(viewsDir);
   app.setViewEngine('hbs');
+  app.set('view options', { layout: 'layouts/main' });
   hbs.registerPartials(join(viewsDir, 'partials'));
 
-  // Static assets (CSS, JS for the admin panel)
-  app.useStaticAssets(join(import.meta.dirname, '..', '..', 'public'));
+  const publicDir = join(import.meta.dirname, '..', '..', 'public');
+  app.useStaticAssets(publicDir);
 
   app.useGlobalPipes(
     new ValidationPipe({
