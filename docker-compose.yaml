@@ -1,7 +1,7 @@
 services:
   postgres:
     image: postgres:16.4-alpine
-    container_name: castaway-db
+    container_name: db
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${DB_USER}
@@ -11,105 +11,32 @@ services:
       - "${DB_PORT}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    networks:
-      - castaway-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      test: ["CMD-SHELL", "sh -c 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}'"]
       interval: 10s
-      timeout: 5s
-      retries: 5
+      timeout: 3s
+      retries: 3
     
-  backend:
+  app:
     build:
       dockerfile: Dockerfile
       target: development
-    container_name: castaway-backend
+    container_name: app
     restart: unless-stopped
-    environment:
-      DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@postgres:${DB_PORT}/${DB_NAME}
-      BACKEND_PORT: ${BACKEND_PORT}
-
-      SESSION_SECRET: ${SESSION_SECRET}
-
-      MINIO_ENDPOINT: ${MINIO_ENDPOINT}
-      MINIO_PORT: ${MINIO_PORT}
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-      MINIO_USE_SSL: ${MINIO_USE_SSL}
-      MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME}
-      MINIO_REGION: ${MINIO_REGION}
-      MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT}
-      MINIO_PUBLIC_PORT: ${MINIO_PUBLIC_PORT}
-      MINIO_PUBLIC_USE_SSL: ${MINIO_PUBLIC_USE_SSL}
-
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
-      GOOGLE_CALLBACK_URL: ${GOOGLE_CALLBACK_URL}
-
-      FACEBOOK_APP_ID: ${FACEBOOK_APP_ID}
-      FACEBOOK_APP_SECRET: ${FACEBOOK_APP_SECRET}
-      FACEBOOK_CALLBACK_URL: ${FACEBOOK_CALLBACK_URL}
-
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
-
-      ADMIN_EMAIL: ${ADMIN_EMAIL}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+    env_file:
+      - .env
     ports:
-      - "${BACKEND_PORT}:3000"
-      - "${PRISMA_PORT}:5556"
+      - "${APP_PORT}:3000"
     volumes:
       - ./src:/app/src
       - ./prisma:/app/prisma
       - /app/node_modules
       - ./views:/app/views
       - ./public:/app/public
-    networks:
-      - castaway-network
     depends_on:
       postgres:
         condition: service_healthy
     command: sh -c "npx prisma generate && npx prisma migrate deploy && npm run start:dev"
 
-  
-  minio:
-    image: minio/minio:latest
-    container_name: castaway-minio
-    restart: unless-stopped
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-    ports:
-      - "${MINIO_API_PORT}:9000"
-      - "${MINIO_CONSOLE_PORT}:9001"
-    volumes:
-      - minio_data:/data
-    networks:
-      - castaway-network              
-    command: server /data --console-address ":9001"
-    healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-  
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    container_name: castaway-tunnel
-    restart: unless-stopped
-    command: tunnel run
-    environment:
-      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
-    networks:
-      - castaway-network
-    depends_on:
-      - backend
-      - minio
-
-networks:
-  castaway-network:
-    driver: bridge
-
 volumes:
   postgres_data:
-  minio_data:
