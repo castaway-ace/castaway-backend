@@ -1,11 +1,10 @@
 {
   "compilerOptions": {
     "module": "nodenext",
-    "moduleResolution": "node16",
+    "moduleResolution": "nodenext",
     "resolvePackageJsonExports": true,
     "esModuleInterop": true,
     "isolatedModules": true,
-    "declaration": true,
     "removeComments": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
@@ -18,8 +17,9 @@
     "skipLibCheck": true,
     "strictNullChecks": true,
     "forceConsistentCasingInFileNames": true,
-    "noImplicitAny": false,
+    "noImplicitAny": true,
     "strictBindCallApply": false,
+    "strict": true,
     "noFallthroughCasesInSwitch": false
   }
 }
