@@ -49,7 +49,7 @@ async function bootstrap() {
     credentials: true,
   });
 
-  const port = process.env.BACKEND_PORT || 3000;
+  const port = process.env.APP_PORT || 3000;
   await app.listen(port);
 
   console.log(`Castaway running on http://localhost:${port}`);

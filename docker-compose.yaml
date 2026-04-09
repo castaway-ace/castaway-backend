@@ -1,5 +1,5 @@
 services:
-  postgres:
+  db:
     image: postgres:16.4-alpine
     container_name: db
     restart: unless-stopped
@@ -8,11 +8,11 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME}
     ports:
-      - "${DB_PORT}:5432"
+      - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - db_volume:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "sh -c 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}'"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
       interval: 10s
       timeout: 3s
       retries: 3
@@ -23,8 +23,18 @@ services:
       target: development
     container_name: app
     restart: unless-stopped
-    env_file:
-      - .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      APP_PORT: ${APP_PORT}
+
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      GOOGLE_CALLBACK_URL: ${GOOGLE_CALLBACK_URL}
+
+      FACEBOOK_APP_ID: ${FACEBOOK_APP_ID}
+      FACEBOOK_APP_SECRET: ${FACEBOOK_APP_SECRET}
+      FACEBOOK_CALLBACK_URL: ${FACEBOOK_CALLBACK_URL}
+
     ports:
       - "${APP_PORT}:3000"
     volumes:
@@ -34,9 +44,9 @@ services:
       - ./views:/app/views
       - ./public:/app/public
     depends_on:
-      postgres:
+      db:
         condition: service_healthy
     command: sh -c "npx prisma generate && npx prisma migrate deploy && npm run start:dev"
 
 volumes:
-  postgres_data:
+  db_volume:
