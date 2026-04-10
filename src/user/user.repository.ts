@@ -2,10 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   UpdateUserData,
-  UserWithProviders,
-  UserWithProvidersAndTokens,
+  UserWithAccounts,
+  UserWithAccountsAndTokens,
 } from './user.types.js';
-import { OAuthProfile } from '../auth/auth.types.js';
+import { AuthProfile } from '../auth/auth.types.js';
+import { AuthProvider } from 'src/generated/prisma/client.js';
 
 @Injectable()
 export class UserRepository {
@@ -14,59 +15,59 @@ export class UserRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Find a user by email with their OAuth providers
+   * Find a user by email with their OAuth accounts
    */
-  async findByEmail(email: string): Promise<UserWithProviders | null> {
+  async findByEmail(email: string): Promise<UserWithAccounts | null> {
     return this.prisma.user.findUnique({
       where: { email },
-      include: { providers: true },
+      include: { accounts: true },
     });
   }
 
   /**
-   * Find a user by ID with their OAuth providers and refresh tokens
+   * Find a user by ID with their OAuth accounts and refresh tokens
    */
   async findByIdWithTokens(
     id: string,
-  ): Promise<UserWithProvidersAndTokens | null> {
+  ): Promise<UserWithAccountsAndTokens | null> {
     return this.prisma.user.findUnique({
       where: { id },
       include: {
-        providers: true,
+        accounts: true,
         refreshTokens: true,
       },
     });
   }
 
   /**
-   * Find a user by ID with only OAuth providers (no tokens)
+   * Find a user by ID with only OAuth accounts (no tokens)
    */
-  async findByIdWithProviders(id: string): Promise<UserWithProviders | null> {
+  async findByIdWithAccounts(id: string): Promise<UserWithAccounts | null> {
     return this.prisma.user.findUnique({
       where: { id },
-      include: { providers: true },
+      include: { accounts: true },
     });
   }
 
   /**
-   * Create a new user with an initial OAuth provider
+   * Create a new user with an initial OAuth account
    */
-  async createWithProvider(user: OAuthProfile): Promise<UserWithProviders> {
+  async createWithAccount(user: AuthProfile): Promise<UserWithAccounts> {
     const { email, name, avatar, provider, providerId } = user;
 
     const createdUser = await this.prisma.user.create({
       data: {
         email,
-        name,
-        avatar,
-        providers: {
+        username: name,
+        avatarUrl: avatar,
+        accounts: {
           create: {
-            name: provider,
+            provider: provider,
             providerId,
           },
         },
       },
-      include: { providers: true },
+      include: { accounts: true },
     });
 
     this.logger.log(`Created new user: ${email} via ${provider}`);
@@ -87,21 +88,21 @@ export class UserRepository {
   /**
    * Link an OAuth provider to an existing user
    */
-  async linkProvider(
+  async linkAccount(
     userId: string,
-    providerName: string,
+    provider: AuthProvider,
     providerId: string,
   ): Promise<void> {
-    await this.prisma.oAuthProvider.create({
+    await this.prisma.account.create({
       data: {
         userId,
-        name: providerName,
+        provider,
         providerId,
       },
     });
 
     this.logger.log(
-      `Linked ${providerName} account to user ID: ${userId} with provider ID: ${providerId}`,
+      `Linked ${provider} account to user ID: ${userId} with provider ID: ${providerId}`,
     );
   }
 }

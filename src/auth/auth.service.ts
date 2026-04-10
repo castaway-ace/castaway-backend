@@ -2,17 +2,16 @@ import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
-import { randomBytes } from 'crypto';
-import { RefreshToken, User } from '../generated/prisma/client.js';
+import { RefreshToken } from '../generated/prisma/client.js';
 import { UserRepository } from '../user/user.repository.js';
 import { TokenRepository } from './token.repository.js';
 import {
   JwtPayload,
   JwtVerifiedPayload,
-  OAuthProfile,
+  AuthProfile,
   Tokens,
 } from './auth.types.js';
-import { UserWithProviders } from '../user/user.types.js';
+import { UserWithAccounts } from '../user/user.types.js';
 import { AuthConfig } from 'src/config/config.types.js';
 
 @Injectable()
@@ -23,7 +22,6 @@ export class AuthService {
   private readonly ACCESS_TOKEN_EXPIRY = '15m';
   private readonly REFRESH_TOKEN_EXPIRY = '7d';
   private readonly REFRESH_TOKEN_EXPIRY_DAYS = 7;
-  private readonly AUTH_CODE_EXPIRY = 5 * 60 * 1000;
 
   constructor(
     private jwt: JwtService,
@@ -45,71 +43,23 @@ export class AuthService {
    * Creates the user if they do not exist, or updates the existing user
    * with any new provider links or profile information.
    */
-  async resolveOAuthUser(oauthUser: OAuthProfile): Promise<UserWithProviders> {
-    if (!oauthUser.email) {
+  async resolveOAuthUser(authUser: AuthProfile): Promise<UserWithAccounts> {
+    if (!authUser.email) {
       throw new UnauthorizedException('Email not provided by OAuth provider');
     }
 
-    let user = await this.userRepository.findByEmail(oauthUser.email);
+    let user = await this.userRepository.findByEmail(authUser.email);
 
     if (!user) {
-      user = await this.userRepository.createWithProvider(oauthUser);
+      user = await this.userRepository.createWithAccount(authUser);
       this.logger.log(
-        `New user created: ${oauthUser.email} via ${oauthUser.provider}`,
+        `New user created: ${authUser.email} via ${authUser.provider}`,
       );
     } else {
-      await this.updateUserAndProvider(user, oauthUser);
+      await this.updateUserWithAccount(user, authUser);
     }
 
     return user;
-  }
-
-  /**
-   * Create a short-lived authorization code for a user.
-   * Used in the OAuth redirect flow so the mobile app can exchange
-   * the code for tokens in a separate request.
-   */
-  async createAuthorizationCode(userId: string): Promise<string> {
-    const code = randomBytes(32).toString('hex');
-    const expiresAt = new Date(Date.now() + this.AUTH_CODE_EXPIRY);
-
-    await this.tokenRepository.createAuthorizationCode({
-      code,
-      userId,
-      expiresAt,
-    });
-
-    return code;
-  }
-
-  async validateAdminCredentials(
-    email: string,
-    password: string,
-  ): Promise<User | null> {
-    const user = await this.userRepository.findByEmail(email);
-
-    if (!user || !user.password || user.role !== 'ADMIN') {
-      return null;
-    }
-
-    const isValid = await bcrypt.compare(password, user.password);
-
-    return isValid ? user : null;
-  }
-
-  /**
-   * Exchange an authorization code for access and refresh tokens.
-   */
-  async exchangeAuthorizationCode(code: string): Promise<Tokens> {
-    const authCode = await this.tokenRepository.findAuthorizationCode(code);
-
-    if (!authCode || authCode.expiresAt < new Date()) {
-      throw new UnauthorizedException('Invalid or expired authorization code');
-    }
-
-    await this.tokenRepository.deleteAuthorizationCode(authCode.id);
-
-    return this.generateTokens(authCode.user);
   }
 
   /**
@@ -163,46 +113,39 @@ export class AuthService {
   /**
    * Check if a user already has a specific OAuth provider linked.
    */
-  private hasProvider(
-    user: UserWithProviders,
+  private hasAccount(
+    user: UserWithAccounts,
     providerName: string,
     providerId: string,
   ): boolean {
-    return user.providers.some(
-      (p) => p.name === providerName && p.providerId === providerId,
+    return user.accounts.some(
+      (p) => p.provider === providerName && p.providerId === providerId,
     );
   }
 
-  private async updateUserAndProvider(
-    existingUser: UserWithProviders,
-    oauthUser: OAuthProfile,
+  private async updateUserWithAccount(
+    existingUser: UserWithAccounts,
+    authUser: AuthProfile,
   ): Promise<void> {
     if (
-      !this.hasProvider(existingUser, oauthUser.provider, oauthUser.providerId)
+      !this.hasAccount(existingUser, authUser.provider, authUser.providerId)
     ) {
-      await this.userRepository.linkProvider(
+      await this.userRepository.linkAccount(
         existingUser.id,
-        oauthUser.provider,
-        oauthUser.providerId,
+        authUser.provider,
+        authUser.providerId,
       );
-    }
-
-    if (oauthUser.name || oauthUser.avatar) {
-      await this.userRepository.updateUser(existingUser.id, {
-        ...(oauthUser.name && { name: oauthUser.name }),
-        ...(oauthUser.avatar && { avatar: oauthUser.avatar }),
-      });
     }
   }
 
   /**
    * Generate access and refresh tokens
    */
-  private async generateTokens(user: UserWithProviders): Promise<Tokens> {
+  private async generateTokens(user: UserWithAccounts): Promise<Tokens> {
     const payload: JwtPayload = {
       sub: user.id,
       email: user.email,
-      name: user.name,
+      name: user.username,
       role: user.role,
     };
 
@@ -240,13 +183,13 @@ export class AuthService {
   }
 
   private async rotateRefreshToken(
-    user: UserWithProviders,
+    user: UserWithAccounts,
     oldTokenId: string,
   ): Promise<Tokens> {
     const payload: JwtPayload = {
       sub: user.id,
       email: user.email,
-      name: user.name,
+      name: user.username,
       role: user.role,
     };
 
@@ -281,7 +224,7 @@ export class AuthService {
     tokens: RefreshToken[],
   ): Promise<RefreshToken | null> {
     for (const storedToken of tokens) {
-      const matches = await bcrypt.compare(refreshToken, storedToken.token);
+      const matches = await bcrypt.compare(refreshToken, storedToken.tokenHash);
       if (matches) {
         return storedToken;
       }

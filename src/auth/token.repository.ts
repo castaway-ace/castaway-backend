@@ -27,7 +27,7 @@ export class TokenRepository {
     await this.prisma.refreshToken.create({
       data: {
         userId: data.userId,
-        token: data.hashedToken,
+        tokenHash: data.hashedToken,
         expiresAt: data.expiresAt,
       },
     });
@@ -82,46 +82,12 @@ export class TokenRepository {
       await tx.refreshToken.create({
         data: {
           userId: data.userId,
-          token: data.hashedToken,
+          tokenHash: data.hashedToken,
           expiresAt: data.expiresAt,
         },
       });
     });
 
     this.logger.log(`Rotated refresh token for user: ${data.userId}`);
-  }
-
-  /**
-   * Create a short-lived authorization code for the OAuth redirect flow
-   */
-  async createAuthorizationCode(
-    data: CreateAuthorizationCodeData,
-  ): Promise<void> {
-    await this.prisma.authorizationCode.create({
-      data: {
-        code: data.code,
-        userId: data.userId,
-        expiresAt: data.expiresAt,
-      },
-    });
-  }
-
-  /**
-   * Find an authorization code
-   */
-  async findAuthorizationCode(code: string) {
-    return this.prisma.authorizationCode.findUnique({
-      where: { code },
-      include: { user: { include: { providers: true } } },
-    });
-  }
-
-  /**
-   * Delete an authorization code
-   */
-  async deleteAuthorizationCode(id: string): Promise<void> {
-    await this.prisma.authorizationCode.delete({
-      where: { id },
-    });
   }
 }

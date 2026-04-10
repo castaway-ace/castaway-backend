@@ -12,12 +12,11 @@ import { type Response } from 'express';
 import { GoogleOAuthGuard } from './guards/google-oauth.guard.js';
 import { FacebookOAuthGuard } from './guards/facebook-oauth.guard.js';
 import { JwtAuthGuard } from './guards/jwt-oauth.guard.js';
-import { RefreshTokenDto, ExchangeCodeDto } from './dto/auth.dto.js';
+import { RefreshTokenDto } from './dto/auth.dto.js';
 import { AuthService } from './auth.service.js';
 import type {
-  JwtPayload,
-  OAuthProfile,
-  RequestWithOAuthProfile,
+  AuthProfile,
+  RequestWithAuthProfile,
   RequestWithUser,
   Tokens,
 } from './auth.types.js';
@@ -45,7 +44,7 @@ export class AuthController {
   @Get('google/callback')
   @UseGuards(GoogleOAuthGuard)
   async googleAuthCallback(
-    @Req() req: RequestWithOAuthProfile,
+    @Req() req: RequestWithAuthProfile,
     @Res() res: Response,
   ): Promise<void> {
     await this.handleOAuthCallback(req.user, res, 'Google');
@@ -68,7 +67,7 @@ export class AuthController {
   @Get('facebook/callback')
   @UseGuards(FacebookOAuthGuard)
   async facebookAuthCallback(
-    @Req() req: RequestWithOAuthProfile,
+    @Req() req: RequestWithAuthProfile,
     @Res() res: Response,
   ): Promise<void> {
     await this.handleOAuthCallback(req.user, res, 'Facebook');
@@ -93,35 +92,16 @@ export class AuthController {
     await this.auth.logout(req.user.sub);
   }
 
-  /**
-   * Get current user info from JWT payload
-   * GET /auth/me
-   */
-  @Get('me')
-  @UseGuards(JwtAuthGuard)
-  getCurrentUser(@Req() req: RequestWithUser): JwtPayload {
-    return req.user;
-  }
-
-  /**
-   * Exchange an authorization code for access and refresh tokens
-   * POST /auth/exchange
-   */
-  @Post('exchange')
-  async exchangeCodeForTokens(@Body() dto: ExchangeCodeDto): Promise<Tokens> {
-    return this.auth.exchangeAuthorizationCode(dto.code);
-  }
-
   private async handleOAuthCallback(
-    user: OAuthProfile,
+    user: AuthProfile,
     res: Response,
     provider: string,
   ): Promise<void> {
     try {
-      const resolvedUser = await this.auth.resolveOAuthUser(user);
-      const authCode = await this.auth.createAuthorizationCode(resolvedUser.id);
+      await this.auth.resolveOAuthUser(user);
+      // const authCode = await this.auth.createAuthorizationCode(resolvedUser.id);
 
-      res.redirect(`castaway://auth/callback?code=${authCode}`);
+      // res.redirect(`castaway://auth/callback?code=${authCode}`);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';

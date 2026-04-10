@@ -1,15 +1,11 @@
-import {
-  OAuthProvider,
-  RefreshToken,
-  User,
-} from '../generated/prisma/client.js';
+import { Account, RefreshToken, User } from '../generated/prisma/client.js';
 
-export type UserWithProviders = User & {
-  providers: OAuthProvider[];
+export type UserWithAccounts = User & {
+  accounts: Account[];
 };
 
-export type UserWithProvidersAndTokens = User & {
-  providers: OAuthProvider[];
+export type UserWithAccountsAndTokens = User & {
+  accounts: Account[];
   refreshTokens: RefreshToken[];
 };
 
