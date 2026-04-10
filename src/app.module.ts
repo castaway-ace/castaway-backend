@@ -1,6 +1,4 @@
 import { Module } from '@nestjs/common';
-import { AppController } from './app.controller.js';
-import { AppService } from './app.service.js';
 import { ConfigModule } from '@nestjs/config';
 import { StorageModule } from './storage/storage.module.js';
 import storageConfig from './config/storage.config.js';
@@ -9,9 +7,6 @@ import authConfig from './config/auth.config.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { MusicModule } from './music/music.module.js';
 import { PlaylistModule } from './playlist/playlist.module.js';
-import { HistoryModule } from './history/history.module.js';
-import { QueueModule } from './queue/queue.module.js';
-import { AdminModule } from './admin/admin.module.js';
 
 @Module({
   imports: [
@@ -24,11 +19,6 @@ import { AdminModule } from './admin/admin.module.js';
     PrismaModule,
     MusicModule,
     PlaylistModule,
-    HistoryModule,
-    QueueModule,
-    AdminModule,
   ],
-  controllers: [AppController],
-  providers: [AppService],
 })
 export class AppModule {}
