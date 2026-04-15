@@ -29,24 +29,21 @@ enum AuthProvider {
 // ─── Users & Auth ────────────────────────────────────────────────────────────
 
 model User {
-  id        String   @id @default(uuid()) @db.Uuid
-  email     String   @unique
-  name      String?
-  userName  String?  @unique @map("user_name")
-  avatarUrl String?  @map("avatar_url")
-  password  String?
-  role      Role     @default(User)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  id          String   @id @default(uuid()) @db.Uuid
+  email       String   @unique
+  displayName String?  @unique @map("display_name")
+  avatarUrl   String?  @map("avatar_url")
+  password    String?
+  role        Role     @default(User)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
 
-  accounts             Account[]
-  refreshTokens        RefreshToken[]
-  playlists            Playlist[]
-  mediaFileAnnotations MediaFileAnnotation[]
-  albumAnnotations     AlbumAnnotation[]
-  artistAnnotations    ArtistAnnotation[]
-  scrobbleBuffers      ScrobbleBuffer[]
-  scrobbles            Scrobble[]
+  accounts          Account[]
+  refreshTokens     RefreshToken[]
+  playlists         Playlist[]
+  trackAnnotations  TrackAnnotation[]
+  albumAnnotations  AlbumAnnotation[]
+  artistAnnotations ArtistAnnotation[]
 
   @@map("users")
 }
@@ -58,9 +55,10 @@ model Account {
   providerId String       @map("provider_id")
   createdAt  DateTime     @default(now()) @map("created_at")
 
-  user User @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerId])
+  @@index([userId])
   @@map("accounts")
 }
 
@@ -73,7 +71,7 @@ model RefreshToken {
   expiresAt  DateTime @map("expires_at")
   createdAt  DateTime @default(now()) @map("created_at")
 
-  user User @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@map("refresh_tokens")
@@ -85,38 +83,32 @@ model Artist {
   id        String   @id @default(uuid()) @db.Uuid
   name      String
   bio       String?
-  imageUrl  String?  @map("image_url")
+  imageKey  String?  @map("image_key")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
-  albums             Album[]
-  albumArtistCredits AlbumArtist[]
-  mediaFiles         MediaFile[]       @relation("TrackArtist")
-  albumArtistFiles   MediaFile[]       @relation("TrackAlbumArtist")
-  mediaFileCredits   MediaFileArtist[]
-  artistAnnotations  ArtistAnnotation[]
+  albumCredits      AlbumArtist[]
+  trackCredits      TrackArtist[]
+  artistAnnotations ArtistAnnotation[]
 
   @@index([name])
   @@map("artists")
 }
 
 model Album {
-  id            String   @id @default(uuid()) @db.Uuid
-  name          String
-  releaseDate   DateTime @map("release_date") @db.Date
-  compilation   Boolean  @default(false)
-  genres        String[]
-  albumArtistId String   @map("album_artist_id") @db.Uuid
-  imageUrl      String?  @map("image_url")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at")
+  id              String    @id @default(uuid()) @db.Uuid
+  name            String
+  releaseDate     DateTime? @map("release_date") @db.Date
+  compilation     Boolean   @default(false)
+  genres          String[]
+  imageKey        String?   @map("image_key")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at")
 
-  albumArtist      Artist            @relation(fields: [albumArtistId], references: [id])
   albumArtists     AlbumArtist[]
-  mediaFiles       MediaFile[]
+  tracks           Track[]
   albumAnnotations AlbumAnnotation[]
 
-  @@index([albumArtistId])
   @@index([createdAt])
   @@index([name])
   @@index([genres], type: Gin)
@@ -128,69 +120,59 @@ model AlbumArtist {
   artistId String @map("artist_id") @db.Uuid
   role     String @default("")
 
-  album  Album  @relation(fields: [albumId], references: [id])
-  artist Artist @relation(fields: [artistId], references: [id])
+  album  Album  @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  artist Artist @relation(fields: [artistId], references: [id], onDelete: Cascade)
 
   @@id([albumId, artistId])
-  @@index([albumId])
   @@index([role])
   @@map("album_artists")
 }
 
-// ─── Media Files ─────────────────────────────────────────────────────────────
+// ─── Tracks ──────────────────────────────────────────────────────────────────
 
-model MediaFile {
-  id            String    @id @default(uuid()) @db.Uuid
-  title         String
-  path          String    @default("") @db.VarChar(255)
-  albumId       String    @map("album_id") @db.Uuid
-  artistId      String    @map("artist_id") @db.Uuid
-  albumArtistId String    @map("album_artist_id") @db.Uuid
-  trackNumber   Int       @map("track_number")
-  size          Int       @default(0)
-  suffix        String    @default("") @db.VarChar(255)
-  discNumber    Int       @default(0) @map("disc_number")
-  bitRate       Int       @default(0) @map("bit_rate")
-  lyrics        Json      @default("[]")
-  releaseDate   DateTime? @map("release_date") @db.Date
-  sampleRate    Int       @default(0) @map("sample_rate")
-  genres        String[]
-  bitDepth      Int       @default(0) @map("bit_depth")
-  duration      Int
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at")
+model Track {
+  id              String    @id @default(uuid()) @db.Uuid
+  title           String
+  fileKey         String    @unique @map("file_key")
+  albumId         String    @map("album_id") @db.Uuid
+  trackNumber     Int       @map("track_number")
+  size            Int       @default(0)
+  suffix          String    @default("") @db.VarChar(255)
+  discNumber      Int       @default(0) @map("disc_number")
+  bitRate         Int       @default(0) @map("bit_rate")
+  releaseDate     DateTime? @map("release_date") @db.Date
+  sampleRate      Int       @default(0) @map("sample_rate")
+  genres          String[]
+  bitDepth        Int       @default(0) @map("bit_depth")
+  duration        Int
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at")
 
-  album       Album  @relation(fields: [albumId], references: [id])
-  artist      Artist @relation("TrackArtist", fields: [artistId], references: [id])
-  albumArtist Artist @relation("TrackAlbumArtist", fields: [albumArtistId], references: [id])
+  album         Album  @relation(fields: [albumId], references: [id], onDelete: Cascade)
 
-  mediaFileArtists     MediaFileArtist[]
-  playlistTracks       PlaylistTrack[]
-  mediaFileAnnotations MediaFileAnnotation[]
-  scrobbleBuffers      ScrobbleBuffer[]
-  scrobbles            Scrobble[]
+  trackArtists     TrackArtist[]
+  playlistTracks   PlaylistTrack[]
+  trackAnnotations TrackAnnotation[]
 
   @@index([title])
   @@index([albumId])
-  @@index([artistId])
   @@index([discNumber, trackNumber])
   @@index([genres], type: Gin)
-  @@map("media_files")
+  @@map("tracks")
 }
 
-model MediaFileArtist {
-  mediaFileId String @map("media_file_id") @db.Uuid
-  artistId    String @map("artist_id") @db.Uuid
-  role        String @default("")
-  subRole     String @default("") @map("sub_role")
+model TrackArtist {
+  trackId  String @map("track_id") @db.Uuid
+  artistId String @map("artist_id") @db.Uuid
+  role     String @default("")
+  subRole  String @default("") @map("sub_role")
 
-  mediaFile MediaFile @relation(fields: [mediaFileId], references: [id])
-  artist    Artist    @relation(fields: [artistId], references: [id])
+  track  Track  @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  artist Artist @relation(fields: [artistId], references: [id], onDelete: Cascade)
 
-  @@id([mediaFileId, artistId])
-  @@index([mediaFileId])
+  @@id([trackId, artistId])
   @@index([role])
-  @@map("media_file_artists")
+  @@map("track_artists")
 }
 
 // ─── Playlists ───────────────────────────────────────────────────────────────
@@ -204,43 +186,44 @@ model Playlist {
   updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
   ownerId     String   @map("owner_id") @db.Uuid
 
-  owner  User            @relation(fields: [ownerId], references: [id])
+  owner  User            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   tracks PlaylistTrack[]
 
-  @@index([name])
   @@index([createdAt])
   @@index([updatedAt])
+  @@unique([ownerId, name])
   @@map("playlists")
 }
 
 model PlaylistTrack {
   id          String @id @default(uuid()) @db.Uuid
   playlistId  String @map("playlist_id") @db.Uuid
-  mediaFileId String @map("media_file_id") @db.Uuid
+  trackId String @map("track_id") @db.Uuid
   position    Int
 
-  playlist  Playlist  @relation(fields: [playlistId], references: [id])
-  mediaFile MediaFile @relation(fields: [mediaFileId], references: [id])
+  playlist  Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  track Track    @relation(fields: [trackId], references: [id], onDelete: Cascade)
 
   @@unique([playlistId, position])
+  @@index([trackId])
   @@map("playlist_tracks")
 }
 
 // ─── Annotations ─────────────────────────────────────────────────────────────
 
-model MediaFileAnnotation {
+model TrackAnnotation {
   userId      String    @map("user_id") @db.Uuid
-  mediaFileId String    @map("media_file_id") @db.Uuid
+  trackId String    @map("track_id") @db.Uuid
   playCount   Int       @default(0) @map("play_count")
   playDate    DateTime? @map("play_date")
   liked       Boolean   @default(false)
   likedAt     DateTime? @map("liked_at")
 
-  user      User      @relation(fields: [userId], references: [id])
-  mediaFile MediaFile @relation(fields: [mediaFileId], references: [id])
+  user      User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  track Track @relation(fields: [trackId], references: [id], onDelete: Cascade)
 
-  @@id([userId, mediaFileId])
-  @@map("media_file_annotations")
+  @@id([userId, trackId])
+  @@map("track_annotations")
 }
 
 model AlbumAnnotation {
@@ -249,8 +232,8 @@ model AlbumAnnotation {
   liked   Boolean   @default(false)
   likedAt DateTime? @map("liked_at")
 
-  user  User  @relation(fields: [userId], references: [id])
-  album Album @relation(fields: [albumId], references: [id])
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  album Album @relation(fields: [albumId], references: [id], onDelete: Cascade)
 
   @@id([userId, albumId])
   @@map("album_annotations")
@@ -262,39 +245,9 @@ model ArtistAnnotation {
   liked    Boolean   @default(false)
   likedAt  DateTime? @map("liked_at")
 
-  user   User   @relation(fields: [userId], references: [id])
-  artist Artist @relation(fields: [artistId], references: [id])
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  artist Artist @relation(fields: [artistId], references: [id], onDelete: Cascade)
 
   @@id([userId, artistId])
   @@map("artist_annotations")
-}
-
-// ─── Scrobbling ──────────────────────────────────────────────────────────────
-
-model ScrobbleBuffer {
-  id          String   @id @default(uuid()) @db.Uuid
-  userId      String   @map("user_id") @db.Uuid
-  service     String
-  mediaFileId String   @map("media_file_id") @db.Uuid
-  playTime    DateTime @map("play_time")
-  enqueueTime DateTime @default(now()) @map("enqueue_time")
-
-  user      User      @relation(fields: [userId], references: [id])
-  mediaFile MediaFile @relation(fields: [mediaFileId], references: [id])
-
-  @@unique([userId, service, mediaFileId, playTime])
-  @@map("scrobble_buffer")
-}
-
-model Scrobble {
-  id             String   @id @default(uuid()) @db.Uuid
-  mediaFileId    String   @map("media_file_id") @db.Uuid
-  userId         String   @map("user_id") @db.Uuid
-  submissionTime DateTime @map("submission_time")
-
-  mediaFile MediaFile @relation(fields: [mediaFileId], references: [id])
-  user      User      @relation(fields: [userId], references: [id])
-
-  @@index([submissionTime])
-  @@map("scrobbles")
 }
