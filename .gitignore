@@ -16,4 +16,5 @@ build/
 *.log
 /generated/prisma
 
-/generated/prisma
+# Claude
+.claude/
