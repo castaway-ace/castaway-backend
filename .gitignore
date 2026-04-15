@@ -15,6 +15,3 @@ build/
 # Logs
 *.log
 /generated/prisma
-
-# Claude
-.claude/
