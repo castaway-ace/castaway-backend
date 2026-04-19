@@ -1,42 +1,31 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
-import { RefreshToken } from '../generated/prisma/client.js';
-import { UserRepository } from '../user/user.repository.js';
-import { TokenRepository } from './token.repository.js';
-import {
-  JwtPayload,
-  JwtVerifiedPayload,
-  AuthProfile,
-  Tokens,
-} from './auth.types.js';
+import { JwtPayload, AuthProfile } from './auth.types.js';
 import { UserWithAccounts } from '../user/user.types.js';
-import { AuthConfig } from 'src/config/config.types.js';
+import { UserService } from 'src/user/user.service.js';
+import { type Response } from 'express';
+import { LoginDto } from './dto/auth.dto.js';
+import { RefreshTokenService } from 'src/refresh-token/refresh-token.service.js';
+
+export interface TokenPair {
+  accessToken: string;
+  refreshToken: string;
+}
+
+export interface AuthResult extends TokenPair {
+  userId: string;
+}
 
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
-  private readonly jwtSecret: string;
-  private readonly jwtRefreshSecret: string;
-  private readonly ACCESS_TOKEN_EXPIRY = '15m';
-  private readonly REFRESH_TOKEN_EXPIRY = '7d';
-  private readonly REFRESH_TOKEN_EXPIRY_DAYS = 7;
 
   constructor(
     private jwt: JwtService,
-    private readonly userRepository: UserRepository,
-    private readonly tokenRepository: TokenRepository,
-    private readonly config: ConfigService,
-  ) {
-    const authConfig = this.config.get<AuthConfig>('auth');
-    if (!authConfig) {
-      throw new Error('Auth configuration not found');
-    }
-
-    this.jwtSecret = authConfig.jwt.secret;
-    this.jwtRefreshSecret = authConfig.jwtRefresh.secret;
-  }
+    private readonly userService: UserService,
+    private readonly refreshTokenService: RefreshTokenService,
+  ) {}
 
   /**
    * Resolve an OAuth profile into a user record.
@@ -44,191 +33,160 @@ export class AuthService {
    * with any new provider links or profile information.
    */
   async resolveOAuthUser(authUser: AuthProfile): Promise<UserWithAccounts> {
+    // Confirm email is provided by the OAuth provider
     if (!authUser.email) {
       throw new UnauthorizedException('Email not provided by OAuth provider');
     }
 
-    let user = await this.userRepository.findByEmail(authUser.email);
+    const existingUser = await this.userService.findByEmail(authUser.email);
 
-    if (!user) {
-      user = await this.userRepository.createWithAccount(authUser);
-      this.logger.log(
-        `New user created: ${authUser.email} via ${authUser.provider}`,
-      );
-    } else {
-      await this.updateUserWithAccount(user, authUser);
+    if (!existingUser) {
+      return this.userService.createNewOAuthUser(authUser);
     }
 
-    return user;
+    return this.userService.linkProviderToExistingUser(existingUser, authUser);
   }
 
   /**
-   * Refresh access and refresh tokens using a valid refresh token.
-   * Implements token rotation: the old token is deleted and a new one is issued.
+   * Issue a fresh access and refresh token pair for the given user and device.
+   * Used by login, registration, and OAuth callback flows.
    */
-  async refreshTokens(refreshToken: string): Promise<Tokens> {
-    let payload: JwtVerifiedPayload;
-
-    try {
-      payload = await this.jwt.verifyAsync<JwtVerifiedPayload>(refreshToken, {
-        secret: this.jwtRefreshSecret,
-      });
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    } catch (error) {
-      throw new UnauthorizedException('Invalid or expired refresh token');
-    }
-
-    const user = await this.userRepository.findByIdWithTokens(payload.sub);
-
-    if (!user) {
-      throw new UnauthorizedException('User not found');
-    }
-
-    const storedToken = await this.findMatchingToken(
-      refreshToken,
-      user.refreshTokens,
+  async issueTokenPair(
+    user: UserWithAccounts,
+    deviceName: string,
+    deviceType: string,
+  ): Promise<AuthResult> {
+    const accessToken = await this.signAccessToken(user);
+    const { token: refreshToken } = await this.refreshTokenService.issue(
+      user.id,
+      deviceName,
+      deviceType,
     );
 
-    if (!storedToken) {
+    return {
+      userId: user.id,
+      accessToken,
+      refreshToken,
+    };
+  }
+
+  /**
+   * Validate a refresh token, rotate it, and return a new token pair.
+   * The caller is responsible for having verified the JWT signature
+   * and expiry before invoking this method.
+   */
+  async refreshTokens(
+    userId: string,
+    rawRefreshToken: string,
+    deviceName: string,
+    deviceType: string,
+  ): Promise<AuthResult> {
+    const user = await this.userService.findById(userId);
+    if (!user) {
       throw new UnauthorizedException('Invalid refresh token');
     }
 
-    // Check if token is expired
-    if (storedToken.expiresAt < new Date()) {
-      await this.tokenRepository.deleteToken(storedToken.id);
-      throw new UnauthorizedException('Refresh token expired');
+    const matchingRecord = await this.refreshTokenService.findMatching(
+      userId,
+      rawRefreshToken,
+    );
+
+    if (!matchingRecord) {
+      // The token was signed by us but is not in the database.
+      // Either it was already rotated (possible replay) or revoked.
+      this.logger.warn(
+        `Refresh token not found in database for userId=${userId}. Possible replay attempt.`,
+      );
+      throw new UnauthorizedException('Invalid refresh token');
     }
 
-    return await this.rotateRefreshToken(user, storedToken.id);
+    const { token: newRefreshToken } = await this.refreshTokenService.rotate(
+      matchingRecord.id,
+      userId,
+      deviceName,
+      deviceType,
+    );
+    const accessToken = await this.signAccessToken(user);
+
+    return {
+      userId: user.id,
+      accessToken,
+      refreshToken: newRefreshToken,
+    };
   }
 
   /**
    * Logout a user by deleting all of their refresh tokens.
    */
-  async logout(userId: string): Promise<void> {
-    await this.tokenRepository.deleteAllUserTokens(userId);
+  async logout(userId: string, deviceName?: string): Promise<void> {
+    if (deviceName) {
+      await this.refreshTokenService.revokeByDevice(userId, deviceName);
+    } else {
+      await this.refreshTokenService.revokeAll(userId);
+    }
     this.logger.log(`User logged out: ${userId}`);
   }
 
   /**
-   * Check if a user already has a specific OAuth provider linked.
+   * Sign an access token for a given user.
+   * Uses the default JWT config from the module registration.
    */
-  private hasAccount(
-    user: UserWithAccounts,
-    providerName: string,
-    providerId: string,
-  ): boolean {
-    return user.accounts.some(
-      (p) => p.provider === providerName && p.providerId === providerId,
+  private async signAccessToken(user: UserWithAccounts): Promise<string> {
+    const payload: JwtPayload = {
+      sub: user.id,
+      role: user.role,
+    };
+    return this.jwt.signAsync(payload);
+  }
+
+  async handleOAuthCallback(
+    user: AuthProfile,
+    res: Response,
+    provider: string,
+  ): Promise<void> {
+    try {
+      await this.resolveOAuthUser(user);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+
+      this.logger.error(`${provider} auth failed: ${errorMessage}`);
+    }
+  }
+
+  async login(dto: LoginDto): Promise<{
+    userId: string;
+    accessToken: string;
+    refreshToken: string;
+  }> {
+    const user = await this.userService.findByEmail(dto.email);
+
+    if (!user || !user.password) {
+      // Same error whether the user does not exist or has no password set,
+      // to avoid leaking which emails are registered or OAuth-only.
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    const passwordMatches = await bcrypt.compare(dto.password, user.password);
+    if (!passwordMatches) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    const payload: JwtPayload = { sub: user.id, role: user.role };
+    const accessToken = await this.jwt.signAsync(payload);
+
+    const { token: refreshToken } = await this.refreshTokenService.issue(
+      user.id,
+      dto.deviceName,
+      dto.deviceType,
     );
-  }
 
-  private async updateUserWithAccount(
-    existingUser: UserWithAccounts,
-    authUser: AuthProfile,
-  ): Promise<void> {
-    if (
-      !this.hasAccount(existingUser, authUser.provider, authUser.providerId)
-    ) {
-      await this.userRepository.linkAccount(
-        existingUser.id,
-        authUser.provider,
-        authUser.providerId,
-      );
-    }
-  }
+    this.logger.log(`User logged in: ${user.email}`);
 
-  /**
-   * Generate access and refresh tokens
-   */
-  private async generateTokens(user: UserWithAccounts): Promise<Tokens> {
-    const payload: JwtPayload = {
-      sub: user.id,
-      email: user.email,
-      name: user.username,
-      role: user.role,
-    };
-
-    const [accessToken, refreshToken] = await Promise.all([
-      this.jwt.signAsync(payload, {
-        expiresIn: this.ACCESS_TOKEN_EXPIRY,
-        secret: this.jwtSecret,
-      }),
-
-      this.jwt.signAsync(payload, {
-        expiresIn: this.REFRESH_TOKEN_EXPIRY,
-        secret: this.jwtRefreshSecret,
-      }),
-    ]);
-
-    await this.storeRefreshToken(user.id, refreshToken);
-
-    return { accessToken, refreshToken };
-  }
-
-  private async storeRefreshToken(
-    userId: string,
-    refreshToken: string,
-  ): Promise<void> {
-    const hashedToken = await bcrypt.hash(refreshToken, 10);
-
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + this.REFRESH_TOKEN_EXPIRY_DAYS);
-
-    await this.tokenRepository.createRefreshToken({
-      userId,
-      hashedToken,
-      expiresAt,
-    });
-  }
-
-  private async rotateRefreshToken(
-    user: UserWithAccounts,
-    oldTokenId: string,
-  ): Promise<Tokens> {
-    const payload: JwtPayload = {
-      sub: user.id,
-      email: user.email,
-      name: user.username,
-      role: user.role,
-    };
-
-    const [accessToken, refreshToken] = await Promise.all([
-      this.jwt.signAsync(payload, {
-        expiresIn: this.ACCESS_TOKEN_EXPIRY,
-        secret: this.jwtSecret,
-      }),
-
-      this.jwt.signAsync(payload, {
-        expiresIn: this.REFRESH_TOKEN_EXPIRY,
-        secret: this.jwtRefreshSecret,
-      }),
-    ]);
-
-    const hashedToken = await bcrypt.hash(refreshToken, 10);
-
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + this.REFRESH_TOKEN_EXPIRY_DAYS);
-
-    await this.tokenRepository.rotateToken(oldTokenId, {
+    return {
       userId: user.id,
-      hashedToken,
-      expiresAt,
-    });
-
-    return { accessToken, refreshToken };
-  }
-
-  private async findMatchingToken(
-    refreshToken: string,
-    tokens: RefreshToken[],
-  ): Promise<RefreshToken | null> {
-    for (const storedToken of tokens) {
-      const matches = await bcrypt.compare(refreshToken, storedToken.tokenHash);
-      if (matches) {
-        return storedToken;
-      }
-    }
-    return null;
+      accessToken,
+      refreshToken,
+    };
   }
 }

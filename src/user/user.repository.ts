@@ -53,12 +53,11 @@ export class UserRepository {
    * Create a new user with an initial OAuth account
    */
   async createWithAccount(user: AuthProfile): Promise<UserWithAccounts> {
-    const { email, name, avatar, provider, providerId } = user;
+    const { email, avatar, provider, providerId } = user;
 
     const createdUser = await this.prisma.user.create({
       data: {
         email,
-        username: name,
         avatarUrl: avatar,
         accounts: {
           create: {

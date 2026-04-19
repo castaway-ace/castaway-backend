@@ -19,7 +19,7 @@ import { MusicService } from './music.service.js';
 import { RolesGuard } from '../auth/guards/roles.guard.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
 import { UserRole } from '../generated/prisma/enums.js';
-import { JwtAuthGuard } from '../auth/guards/jwt-oauth.guard.js';
+import { AuthGuard } from '../auth/guards/auth.guard.js';
 import {
   AlbumUploadResult,
   TrackFilter,
@@ -72,7 +72,7 @@ export class MusicController {
    * POST /music/upload
    */
   @Post('upload')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(AuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @UseInterceptors(FileInterceptor('file'))
   async uploadTrack(
@@ -87,7 +87,7 @@ export class MusicController {
    * POST /music/upload/album
    */
   @Post('upload/album')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(AuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @UseInterceptors(
     FilesInterceptor('album', 100, {
@@ -112,7 +112,7 @@ export class MusicController {
    * GET /music/tracks?artist=Beatles&album=Abbey%20Road
    */
   @Get('tracks')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(AuthGuard)
   async getTracks(
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
@@ -144,7 +144,7 @@ export class MusicController {
    * GET /music/tracks/:id
    */
   @Get('tracks/:id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(AuthGuard)
   async getTrack(@Param('id') id: string): Promise<TrackDetailDto> {
     const track = await this.musicService.getTrackById(id);
 
@@ -156,7 +156,7 @@ export class MusicController {
    * GET /music/tracks/:id/stream
    */
   @Get('tracks/:id/stream')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(AuthGuard)
   async streamTrack(
     @Param('id') id: string,
     @Req() req: Request,
@@ -193,7 +193,7 @@ export class MusicController {
    * GET /music/tracks/:id/stats
    */
   @Get('tracks/:id/stats')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(AuthGuard)
   async getTrackStats(@Param('id') id: string): Promise<{ data: TrackStats }> {
     const stats = await this.musicService.getTrackStats(id);
 
@@ -207,7 +207,7 @@ export class MusicController {
    * GET /music/artists
    */
   @Get('artists')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(AuthGuard)
   async getArtists(
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
@@ -235,7 +235,7 @@ export class MusicController {
    * GET /music/artists/:id
    */
   @Get('artists/:id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(AuthGuard)
   async getArtist(@Param('id') id: string): Promise<ArtistAlbumsDto> {
     return await this.musicService.getArtistById(id);
   }
@@ -247,7 +247,7 @@ export class MusicController {
    * GET /music/albums
    */
   @Get('albums')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(AuthGuard)
   async getAlbums(
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
@@ -275,7 +275,7 @@ export class MusicController {
    * GET /music/albums/:id
    */
   @Get('albums/:id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(AuthGuard)
   async getAlbum(@Param('id') id: string): Promise<AlbumDetailDto> {
     return await this.musicService.getAlbum(id);
   }
@@ -307,7 +307,7 @@ export class MusicController {
    * GET /music/search?q=query&type=all|track|artist|album
    */
   @Get('search')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(AuthGuard)
   async search(
     @Query('q') query: string,
     @Query('type') type?: 'all' | 'track' | 'artist' | 'album',

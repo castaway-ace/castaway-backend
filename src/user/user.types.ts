@@ -1,8 +1,15 @@
-import { Account, RefreshToken, User } from '../generated/prisma/client.js';
+import {
+  Account,
+  Prisma,
+  RefreshToken,
+  User,
+} from '../generated/prisma/client.js';
 
-export type UserWithAccounts = User & {
-  accounts: Account[];
-};
+export type UserWithAccounts = Prisma.UserGetPayload<{
+  include: {
+    accounts: true;
+  };
+}>;
 
 export type UserWithAccountsAndTokens = User & {
   accounts: Account[];

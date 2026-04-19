@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty } from 'class-validator';
+import { IsString, IsNotEmpty, IsEmail } from 'class-validator';
 
 export class RefreshTokenDto {
   @IsString()
@@ -13,11 +13,18 @@ export class ExchangeCodeDto {
 }
 
 export class LoginDto {
-  @IsString()
-  @IsNotEmpty()
-  username!: string;
+  @IsEmail()
+  email!: string;
 
   @IsString()
   @IsNotEmpty()
   password!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  deviceName!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  deviceType!: string;
 }

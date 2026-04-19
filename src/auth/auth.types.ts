@@ -1,4 +1,4 @@
-import { AuthProvider, Role } from '../generated/prisma/client.js';
+import { AuthProvider } from '../generated/prisma/client.js';
 
 export interface Tokens {
   accessToken: string;
@@ -7,9 +7,7 @@ export interface Tokens {
 
 export interface JwtPayload {
   sub: string;
-  email: string;
-  name: string | null;
-  role: Role;
+  role: string;
 }
 
 export interface JwtVerifiedPayload extends JwtPayload {

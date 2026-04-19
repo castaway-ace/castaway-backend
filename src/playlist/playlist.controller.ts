@@ -12,11 +12,11 @@ import {
 } from '@nestjs/common';
 import { CurrentUser } from '../user/user.decorator.js';
 import { PlaylistService } from './playlist.service.js';
-import { JwtAuthGuard } from '../auth/guards/jwt-oauth.guard.js';
+import { AuthGuard } from '../auth/guards/auth.guard.js';
 import type { JwtPayload } from '../auth/auth.types.js';
 
 @Controller('playlist')
-@UseGuards(JwtAuthGuard)
+@UseGuards(AuthGuard)
 export class PlaylistController {
   constructor(private readonly playlistService: PlaylistService) {}
 

@@ -3,8 +3,8 @@ import { ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { RolesGuard } from './roles.guard.js';
 import { ROLES_KEY } from '../decorators/roles.decorator.js';
-import { UserRole } from '../../generated/prisma/client.js';
 import { JwtPayload } from '../auth.types.js';
+import { Role } from 'src/generated/prisma/enums.js';
 
 describe('RolesGuard', () => {
   let guard: RolesGuard;
@@ -13,15 +13,13 @@ describe('RolesGuard', () => {
   const mockUser: JwtPayload = {
     sub: 'user-123',
     email: 'test@example.com',
-    name: 'Test User',
-    role: UserRole.USER,
+    role: Role.User,
   };
 
   const mockAdminUser: JwtPayload = {
     sub: 'admin-123',
     email: 'admin@example.com',
-    name: 'Admin User',
-    role: UserRole.ADMIN,
+    role: Role.Admin,
   };
 
   beforeEach(async () => {
@@ -64,27 +62,21 @@ describe('RolesGuard', () => {
 
   describe('when roles are required', () => {
     it('should allow access if user has required role', () => {
-      jest
-        .spyOn(reflector, 'getAllAndOverride')
-        .mockReturnValue([UserRole.USER]);
+      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue([Role.User]);
       const context = createMockExecutionContext(mockUser);
 
       expect(guard.canActivate(context)).toBe(true);
     });
 
     it('should allow access if user has admin role and admin is required', () => {
-      jest
-        .spyOn(reflector, 'getAllAndOverride')
-        .mockReturnValue([UserRole.ADMIN]);
+      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue([Role.Admin]);
       const context = createMockExecutionContext(mockAdminUser);
 
       expect(guard.canActivate(context)).toBe(true);
     });
 
     it('should deny access if user does not have required role', () => {
-      jest
-        .spyOn(reflector, 'getAllAndOverride')
-        .mockReturnValue([UserRole.ADMIN]);
+      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue([Role.Admin]);
       const context = createMockExecutionContext(mockUser); // Regular user
 
       expect(guard.canActivate(context)).toBe(false);
@@ -93,28 +85,24 @@ describe('RolesGuard', () => {
     it('should allow access if user has any of multiple required roles', () => {
       jest
         .spyOn(reflector, 'getAllAndOverride')
-        .mockReturnValue([UserRole.ADMIN, UserRole.USER]);
-      const context = createMockExecutionContext(mockUser); // Has USER role
+        .mockReturnValue([Role.Admin, Role.User]);
+      const context = createMockExecutionContext(mockUser); // Has User role
 
       expect(guard.canActivate(context)).toBe(true);
     });
 
     it('should deny access if user has none of the required roles', () => {
-      jest
-        .spyOn(reflector, 'getAllAndOverride')
-        .mockReturnValue([UserRole.ADMIN]);
+      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue([Role.Admin]);
       const context = createMockExecutionContext({
         ...mockUser,
-        role: UserRole.USER,
+        role: Role.User,
       });
 
       expect(guard.canActivate(context)).toBe(false);
     });
 
     it('should deny access if no user is present in request', () => {
-      jest
-        .spyOn(reflector, 'getAllAndOverride')
-        .mockReturnValue([UserRole.USER]);
+      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue([Role.User]);
       const context = createMockExecutionContext(null);
 
       expect(guard.canActivate(context)).toBe(false);
@@ -125,7 +113,7 @@ describe('RolesGuard', () => {
     it('should read roles metadata from handler and class', () => {
       const getAllAndOverrideSpy = jest
         .spyOn(reflector, 'getAllAndOverride')
-        .mockReturnValue([UserRole.USER]);
+        .mockReturnValue([Role.User]);
 
       const context = createMockExecutionContext(mockUser);
       guard.canActivate(context);

@@ -10,21 +10,3 @@ export interface StorageConfig {
   publicPort: number;
   publicUseSSL: boolean;
 }
-export interface AuthConfig {
-  jwt: {
-    secret: string;
-  };
-  jwtRefresh: {
-    secret: string;
-  };
-  google: {
-    clientID: string;
-    clientSecret: string;
-    callbackURL: string;
-  };
-  facebook: {
-    appId: string;
-    appSecret: string;
-    callbackURL: string;
-  };
-}
