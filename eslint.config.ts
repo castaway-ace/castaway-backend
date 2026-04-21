@@ -10,6 +10,7 @@ export default defineConfig([
       'eslint.config.ts',
       'src/generated/**',
       'dist/**',
+      'coverage/**'
     ],
   },
   {

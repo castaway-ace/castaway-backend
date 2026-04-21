@@ -6,12 +6,23 @@ src/generated/
 # Build output
 dist/
 build/
+*.tsbuildinfo
 
 # Environment
 .env
 .env.test
 .env.local
 
+# Testing
+coverage/
+
 # Logs
 *.log
-/generated/prisma
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Tool caches
+.eslintcache
+.prettiercache
