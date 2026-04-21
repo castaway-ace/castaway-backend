@@ -33,6 +33,7 @@ export default defineConfig([
   {
     rules: {
       'prettier/prettier': ['error', { endOfLine: 'auto' }],
+      '@typescript-eslint/no-extraneous-class': ['error', { allowWithDecorator: true }],
     },
   },
 ]);
