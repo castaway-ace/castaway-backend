@@ -32,7 +32,7 @@ export default defineConfig([
   eslintPluginPrettierRecommended,
   {
     rules: {
-      'prettier/prettier': ['error', { endOfLine: 'auto' }],
+      'prettier/prettier': 'error',
       '@typescript-eslint/no-extraneous-class': ['error', { allowWithDecorator: true }],
     },
   },
