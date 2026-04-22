@@ -1,22 +1,4 @@
-services:
-  db:
-    image: postgres:16.4-alpine
-    container_name: db
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: ${DB_NAME}
-    ports:
-      - "5432:5432"
-    volumes:
-      - db_volume:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
-      interval: 10s
-      timeout: 3s
-      retries: 3
-    
+services:    
   app:
     build:
       dockerfile: Dockerfile
@@ -41,12 +23,4 @@ services:
       - ./src:/app/src
       - ./prisma:/app/prisma
       - /app/node_modules
-      - ./views:/app/views
-      - ./public:/app/public
-    depends_on:
-      db:
-        condition: service_healthy
-    command: sh -c "npx prisma generate && npx prisma migrate deploy && npm run start:dev"
-
-volumes:
-  db_volume:
+    command: npm run start:dev

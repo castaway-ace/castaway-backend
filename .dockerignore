@@ -1,0 +1,48 @@
+# Dependencies
+node_modules
+npm-debug.log*
+
+# Build output
+dist
+build
+
+# Prisma generated client (regenerated inside container)
+src/generated
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Git and VCS
+.git
+.gitignore
+.gitattributes
+
+# IDE and editor
+.vscode
+.idea
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Testing and coverage
+coverage
+.nyc_output
+
+# Logs
+logs
+*.log
+
+# Docker itself
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# OS files
+.cache
+tmp
+
+# CI
+.github
