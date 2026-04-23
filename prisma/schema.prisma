@@ -1,14 +1,11 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider     = "prisma-client"
   output       = "../src/generated/prisma"
   moduleFormat = "cjs"
-} 
+}
 
 datasource db {
   provider = "postgresql"
@@ -17,13 +14,20 @@ datasource db {
 // ─── Enums ───────────────────────────────────────────────────────────────────
 
 enum Role {
-  Admin
-  User
+  ADMIN
+  USER
 }
 
 enum AuthProvider {
-  Google
-  Facebook
+  GOOGLE
+  FACEBOOK
+}
+
+enum ArtistRole {
+  PRIMARY
+  FEATURED
+  PRODUCER
+  COMPOSER
 }
 
 // ─── Users & Auth ────────────────────────────────────────────────────────────
@@ -34,16 +38,18 @@ model User {
   displayName String?  @unique @map("display_name")
   avatarUrl   String?  @map("avatar_url")
   password    String?
-  role        Role     @default(User)
+  role        Role     @default(USER)
   createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
-  accounts          Account[]
-  refreshTokens     RefreshToken[]
-  playlists         Playlist[]
-  trackAnnotations  TrackAnnotation[]
-  albumAnnotations  AlbumAnnotation[]
-  artistAnnotations ArtistAnnotation[]
+  accounts           Account[]
+  refreshTokens      RefreshToken[]
+  authorizationCodes AuthorizationCode[]
+  playlists          Playlist[]
+  playEvents         PlayEvent[]
+  trackAnnotations   TrackAnnotation[]
+  albumAnnotations   AlbumAnnotation[]
+  artistAnnotations  ArtistAnnotation[]
 
   @@map("users")
 }
@@ -63,18 +69,76 @@ model Account {
 }
 
 model RefreshToken {
-  id         String   @id @default(uuid()) @db.Uuid
-  userId     String   @map("user_id") @db.Uuid
-  tokenHash  String   @unique @map("token_hash")
-  deviceName String?  @map("device_name")
-  deviceType String?  @map("device_type")
-  expiresAt  DateTime @map("expires_at")
-  createdAt  DateTime @default(now()) @map("created_at")
+  id             String    @id @default(uuid()) @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  tokenHash      String    @unique @map("token_hash")
+  deviceName     String?   @map("device_name")
+  deviceType     String?   @map("device_type")
+  expiresAt      DateTime  @map("expires_at")
+  revokedAt      DateTime? @map("revoked_at")
+  replacedById   String?   @unique @map("replaced_by_id") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replacedBy RefreshToken?  @relation("TokenRotation", fields: [replacedById], references: [id])
+  replaces   RefreshToken?  @relation("TokenRotation")
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+model AuthorizationCode {
+  id          String    @id @default(uuid()) @db.Uuid
+  codeHash    String    @unique @map("code_hash")
+  userId      String    @map("user_id") @db.Uuid
+  expiresAt   DateTime  @map("expires_at")
+  consumedAt  DateTime? @map("consumed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
-  @@map("refresh_tokens")
+  @@index([expiresAt])
+  @@map("authorization_codes")
+}
+
+// ─── Genres ──────────────────────────────────────────────────────────────────
+
+model Genre {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+
+  albums AlbumGenre[]
+  tracks TrackGenre[]
+
+  @@map("genres")
+}
+
+model AlbumGenre {
+  albumId String @map("album_id") @db.Uuid
+  genreId String @map("genre_id") @db.Uuid
+
+  album Album @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  genre Genre @relation(fields: [genreId], references: [id], onDelete: Cascade)
+
+  @@id([albumId, genreId])
+  @@index([genreId])
+  @@map("album_genres")
+}
+
+model TrackGenre {
+  trackId String @map("track_id") @db.Uuid
+  genreId String @map("genre_id") @db.Uuid
+
+  track Track @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  genre Genre @relation(fields: [genreId], references: [id], onDelete: Cascade)
+
+  @@id([trackId, genreId])
+  @@index([genreId])
+  @@map("track_genres")
 }
 
 // ─── Music Entities ──────────────────────────────────────────────────────────
@@ -85,7 +149,7 @@ model Artist {
   bio       String?
   imageKey  String?  @map("image_key")
   createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   albumCredits      AlbumArtist[]
   trackCredits      TrackArtist[]
@@ -96,29 +160,28 @@ model Artist {
 }
 
 model Album {
-  id              String    @id @default(uuid()) @db.Uuid
-  name            String
-  releaseDate     DateTime? @map("release_date") @db.Date
-  compilation     Boolean   @default(false)
-  genres          String[]
-  imageKey        String?   @map("image_key")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at")
+  id          String    @id @default(uuid()) @db.Uuid
+  name        String
+  releaseDate DateTime? @map("release_date") @db.Date
+  compilation Boolean   @default(false)
+  imageKey    String?   @map("image_key")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
 
   albumArtists     AlbumArtist[]
   tracks           Track[]
+  albumGenres      AlbumGenre[]
   albumAnnotations AlbumAnnotation[]
 
   @@index([createdAt])
   @@index([name])
-  @@index([genres], type: Gin)
   @@map("albums")
 }
 
 model AlbumArtist {
-  albumId  String @map("album_id") @db.Uuid
-  artistId String @map("artist_id") @db.Uuid
-  role     String @default("")
+  albumId  String     @map("album_id") @db.Uuid
+  artistId String     @map("artist_id") @db.Uuid
+  role     ArtistRole @default(PRIMARY)
 
   album  Album  @relation(fields: [albumId], references: [id], onDelete: Cascade)
   artist Artist @relation(fields: [artistId], references: [id], onDelete: Cascade)
@@ -131,46 +194,47 @@ model AlbumArtist {
 // ─── Tracks ──────────────────────────────────────────────────────────────────
 
 model Track {
-  id              String    @id @default(uuid()) @db.Uuid
-  title           String
-  fileKey         String    @unique @map("file_key")
-  albumId         String    @map("album_id") @db.Uuid
-  trackNumber     Int       @map("track_number")
-  size            Int       @default(0)
-  suffix          String    @default("") @db.VarChar(255)
-  discNumber      Int       @default(0) @map("disc_number")
-  bitRate         Int       @default(0) @map("bit_rate")
-  releaseDate     DateTime? @map("release_date") @db.Date
-  sampleRate      Int       @default(0) @map("sample_rate")
-  genres          String[]
-  bitDepth        Int       @default(0) @map("bit_depth")
-  duration        Int
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at")
+  id          String    @id @default(uuid()) @db.Uuid
+  title       String
+  /// Object storage key for the audio file in MinIO / S3.
+  fileKey     String    @unique @map("file_key")
+  albumId     String    @map("album_id") @db.Uuid
+  trackNumber Int       @map("track_number")
+  discNumber  Int       @default(1) @map("disc_number")
+  duration    Int
+  size        Int?
+  suffix      String?   @db.VarChar(16)
+  bitRate     Int?      @map("bit_rate")
+  sampleRate  Int?      @map("sample_rate")
+  bitDepth    Int?      @map("bit_depth")
+  releaseDate DateTime? @map("release_date") @db.Date
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
 
-  album         Album  @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  album Album @relation(fields: [albumId], references: [id], onDelete: Cascade)
 
   trackArtists     TrackArtist[]
+  trackGenres      TrackGenre[]
   playlistTracks   PlaylistTrack[]
+  playEvents       PlayEvent[]
   trackAnnotations TrackAnnotation[]
 
   @@index([title])
   @@index([albumId])
   @@index([discNumber, trackNumber])
-  @@index([genres], type: Gin)
   @@map("tracks")
 }
 
 model TrackArtist {
-  trackId  String @map("track_id") @db.Uuid
-  artistId String @map("artist_id") @db.Uuid
-  role     String @default("")
-  subRole  String @default("") @map("sub_role")
+  trackId  String     @map("track_id") @db.Uuid
+  artistId String     @map("artist_id") @db.Uuid
+  role     ArtistRole @default(PRIMARY)
+  subRole  String?    @map("sub_role")
 
   track  Track  @relation(fields: [trackId], references: [id], onDelete: Cascade)
   artist Artist @relation(fields: [artistId], references: [id], onDelete: Cascade)
 
-  @@id([trackId, artistId])
+  @@id([trackId, artistId, role])
   @@index([role])
   @@map("track_artists")
 }
@@ -182,47 +246,66 @@ model Playlist {
   name        String
   description String?
   public      Boolean  @default(false)
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
   ownerId     String   @map("owner_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   owner  User            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   tracks PlaylistTrack[]
 
+  @@index([ownerId])
   @@index([createdAt])
   @@index([updatedAt])
-  @@unique([ownerId, name])
   @@map("playlists")
 }
 
 model PlaylistTrack {
-  id          String @id @default(uuid()) @db.Uuid
-  playlistId  String @map("playlist_id") @db.Uuid
-  trackId String @map("track_id") @db.Uuid
-  position    Int
+  id         String @id @default(uuid()) @db.Uuid
+  playlistId String @map("playlist_id") @db.Uuid
+  trackId    String @map("track_id") @db.Uuid
+  position   Int
 
-  playlist  Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
-  track Track    @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  playlist Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  track    Track    @relation(fields: [trackId], references: [id], onDelete: Cascade)
 
   @@unique([playlistId, position])
   @@index([trackId])
   @@map("playlist_tracks")
 }
 
+// ─── Listening History ───────────────────────────────────────────────────────
+
+model PlayEvent {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  trackId   String   @map("track_id") @db.Uuid
+  playedAt  DateTime @default(now()) @map("played_at")
+  playedMs  Int?     @map("played_ms")
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  track Track @relation(fields: [trackId], references: [id], onDelete: Cascade)
+
+  @@index([userId, playedAt(sort: Desc)])
+  @@index([trackId])
+  @@map("play_events")
+}
+
 // ─── Annotations ─────────────────────────────────────────────────────────────
 
 model TrackAnnotation {
-  userId      String    @map("user_id") @db.Uuid
-  trackId String    @map("track_id") @db.Uuid
-  playCount   Int       @default(0) @map("play_count")
-  playDate    DateTime? @map("play_date")
-  liked       Boolean   @default(false)
-  likedAt     DateTime? @map("liked_at")
+  userId       String    @map("user_id") @db.Uuid
+  trackId      String    @map("track_id") @db.Uuid
+  playCount    Int       @default(0) @map("play_count")
+  lastPlayedAt DateTime? @map("last_played_at")
+  liked        Boolean   @default(false)
+  likedAt      DateTime? @map("liked_at")
 
-  user      User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   track Track @relation(fields: [trackId], references: [id], onDelete: Cascade)
 
   @@id([userId, trackId])
+  @@index([userId, liked])
+  @@index([userId, lastPlayedAt(sort: Desc)])
   @@map("track_annotations")
 }
 
@@ -236,6 +319,7 @@ model AlbumAnnotation {
   album Album @relation(fields: [albumId], references: [id], onDelete: Cascade)
 
   @@id([userId, albumId])
+  @@index([userId, liked])
   @@map("album_annotations")
 }
 
@@ -249,5 +333,6 @@ model ArtistAnnotation {
   artist Artist @relation(fields: [artistId], references: [id], onDelete: Cascade)
 
   @@id([userId, artistId])
+  @@index([userId, liked])
   @@map("artist_annotations")
 }
