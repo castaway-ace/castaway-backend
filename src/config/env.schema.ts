@@ -22,11 +22,9 @@ export const envSchema = z.object({
 
   // Storage
   STORAGE_ENDPOINT: z.string(),
-  STORAGE_PORT: z.coerce.number().int().positive().optional(),
   STORAGE_ACCESS_KEY: z.string(),
   STORAGE_SECRET_KEY: z.string(),
   STORAGE_BUCKET: z.string(),
-  STORAGE_USE_SSL: z.coerce.boolean().default(false),
   STORAGE_REGION: z.string().optional(),
 
   // OAuth

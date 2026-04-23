@@ -3,6 +3,7 @@ import { AppModule } from './app.module.js';
 import { ValidationPipe } from '@nestjs/common';
 import cookieParser from 'cookie-parser';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import { ConfigService } from '@nestjs/config';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -19,7 +20,9 @@ async function bootstrap(): Promise<void> {
 
   app.enableShutdownHooks();
 
-  const port = Number(process.env.APP_PORT) || 3000;
+  const configService = app.get(ConfigService);
+  const port = configService.getOrThrow<number>('APP_PORT');
+
   await app.listen(port);
 
   console.log(`Castaway running on http://localhost:${port}`);

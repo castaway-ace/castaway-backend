@@ -4,6 +4,7 @@ import { ConfigModule as NestConfigModule } from '@nestjs/config';
 import { envSchema } from './env.schema.js';
 import { appConfig } from './app.config.js';
 import { authConfig } from './auth.config.js';
+import { databaseConfig } from './database.config.js';
 import z from 'zod';
 
 @Module({
@@ -11,7 +12,7 @@ import z from 'zod';
     NestConfigModule.forRoot({
       isGlobal: true,
       cache: true,
-      load: [appConfig, authConfig],
+      load: [appConfig, authConfig, databaseConfig],
       validate: (raw: Record<string, unknown>) => {
         const result = envSchema.safeParse(raw);
         if (!result.success) {
