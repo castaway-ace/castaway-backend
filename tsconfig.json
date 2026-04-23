@@ -19,6 +19,8 @@
     "baseUrl": "./",
     "incremental": true,
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-  }
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src/**/*", "prisma.config.ts"],
+  "exclude": ["node_modules", "dist", "test"]
 }

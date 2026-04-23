@@ -12,6 +12,7 @@ build/
 .env
 .env.test
 .env.local
+.env.prod
 
 # Testing
 coverage/

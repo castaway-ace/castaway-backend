@@ -4,7 +4,7 @@ import { ValidationPipe } from '@nestjs/common';
 import cookieParser from 'cookie-parser';
 import { NestExpressApplication } from '@nestjs/platform-express';
 
-async function bootstrap() {
+async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   app.useGlobalPipes(
@@ -17,7 +17,9 @@ async function bootstrap() {
 
   app.use(cookieParser());
 
-  const port = process.env.APP_PORT || 3000;
+  app.enableShutdownHooks();
+
+  const port = Number(process.env.APP_PORT) || 3000;
   await app.listen(port);
 
   console.log(`Castaway running on http://localhost:${port}`);
