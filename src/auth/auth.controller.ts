@@ -20,19 +20,19 @@ import { Public } from './decorators/public.decorator.js';
 export class AuthController {
   constructor(private auth: AuthService) {}
 
-  @Public()
-  @HttpCode(HttpStatus.OK)
-  @UseGuards(LocalAuthGuard)
-  @Post('login')
-  login(@Req() req: Request) {
-    return this.authService.login(req.user.id);
-  }
+  // @Public()
+  // @HttpCode(HttpStatus.OK)
+  // @UseGuards(LocalAuthGuard)
+  // @Post('login')
+  // login(@Req() req: Request) {
+  //   return this.authService.login(req.user.id);
+  // }
 
-  @UseGuards(RefreshAuthGuard)
-  @Post('refresh')
-  refreshToken(@Req() req: Request) {
-    return this.authService.refreshToken(req.user.id);
-  }
+  // @UseGuards(RefreshAuthGuard)
+  // @Post('refresh')
+  // refreshToken(@Req() req: Request) {
+  //   return this.authService.refreshToken(req.user.id);
+  // }
 
   /**
    * Initiate Google OAuth flow

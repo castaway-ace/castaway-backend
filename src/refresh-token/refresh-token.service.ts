@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { type ConfigType } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { JwtPayload } from 'src/auth/auth.types.js';
-import refreshJwtConfig from 'src/config/refresh-jwt.config.js';
+// import refreshJwtConfig from 'src/config/refresh-jwt.config.js';
 import { RefreshToken } from 'src/generated/prisma/client.js';
 import { PrismaService } from 'src/prisma/prisma.service.js';
 import * as bcrypt from 'bcrypt';
@@ -22,33 +22,33 @@ export class RefreshTokenService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
-    private readonly refreshTokenConfig: ConfigType<typeof refreshJwtConfig>,
+    // private readonly refreshTokenConfig: ConfigType<typeof refreshJwtConfig>,
   ) {}
 
-  async issue(
-    userId: string,
-    deviceName: string,
-    deviceType: string,
-  ): Promise<IssuedRefreshToken> {
-    const payload: JwtPayload = { sub: userId, role: 'User' };
-    const token = await this.jwt.signAsync(payload, this.refreshTokenConfig);
-    const tokenHash = await bcrypt.hash(token, BCRYPT_COST);
+  // async issue(
+  //   userId: string,
+  //   deviceName: string,
+  //   deviceType: string,
+  // ): Promise<IssuedRefreshToken> {
+  //   const payload: JwtPayload = { sub: userId, role: 'User' };
+  //   const token = await this.jwt.signAsync(payload, this.refreshTokenConfig);
+  //   const tokenHash = await bcrypt.hash(token, BCRYPT_COST);
 
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + REFRESH_TOKEN_TTL_DAYS);
+  //   const expiresAt = new Date();
+  //   expiresAt.setDate(expiresAt.getDate() + REFRESH_TOKEN_TTL_DAYS);
 
-    const record = await this.prisma.refreshToken.create({
-      data: {
-        userId,
-        tokenHash,
-        deviceName,
-        deviceType,
-        expiresAt,
-      },
-    });
+  //   const record = await this.prisma.refreshToken.create({
+  //     data: {
+  //       userId,
+  //       tokenHash,
+  //       deviceName,
+  //       deviceType,
+  //       expiresAt,
+  //     },
+  //   });
 
-    return { token, record };
-  }
+  //   return { token, record };
+  // }
 
   async findMatching(
     userId: string,
@@ -68,35 +68,35 @@ export class RefreshTokenService {
     return null;
   }
 
-  async rotate(
-    oldRecordId: string,
-    userId: string,
-    deviceName: string,
-    deviceType: string,
-  ): Promise<IssuedRefreshToken> {
-    return this.prisma.$transaction(async (tx) => {
-      await tx.refreshToken.delete({ where: { id: oldRecordId } });
+  // async rotate(
+  //   oldRecordId: string,
+  //   userId: string,
+  //   deviceName: string,
+  //   deviceType: string,
+  // ): Promise<IssuedRefreshToken> {
+  //   return this.prisma.$transaction(async (tx) => {
+  //     await tx.refreshToken.delete({ where: { id: oldRecordId } });
 
-      const payload: JwtPayload = { sub: userId, role: 'User' };
-      const token = await this.jwt.signAsync(payload, this.refreshTokenConfig);
-      const tokenHash = await bcrypt.hash(token, BCRYPT_COST);
+  //     const payload: JwtPayload = { sub: userId, role: 'User' };
+  //     const token = await this.jwt.signAsync(payload, this.refreshTokenConfig);
+  //     const tokenHash = await bcrypt.hash(token, BCRYPT_COST);
 
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + REFRESH_TOKEN_TTL_DAYS);
+  //     const expiresAt = new Date();
+  //     expiresAt.setDate(expiresAt.getDate() + REFRESH_TOKEN_TTL_DAYS);
 
-      const record = await tx.refreshToken.create({
-        data: {
-          userId,
-          tokenHash,
-          deviceName,
-          deviceType,
-          expiresAt,
-        },
-      });
+  //     const record = await tx.refreshToken.create({
+  //       data: {
+  //         userId,
+  //         tokenHash,
+  //         deviceName,
+  //         deviceType,
+  //         expiresAt,
+  //       },
+  //     });
 
-      return { token, record };
-    });
-  }
+  //     return { token, record };
+  //   });
+  // }
 
   async revokeAll(userId: string): Promise<void> {
     await this.prisma.refreshToken.deleteMany({ where: { userId } });

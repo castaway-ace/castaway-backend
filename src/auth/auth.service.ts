@@ -51,69 +51,69 @@ export class AuthService {
    * Issue a fresh access and refresh token pair for the given user and device.
    * Used by login, registration, and OAuth callback flows.
    */
-  async issueTokenPair(
-    user: UserWithAccounts,
-    deviceName: string,
-    deviceType: string,
-  ): Promise<AuthResult> {
-    const accessToken = await this.signAccessToken(user);
-    const { token: refreshToken } = await this.refreshTokenService.issue(
-      user.id,
-      deviceName,
-      deviceType,
-    );
+  // async issueTokenPair(
+  //   user: UserWithAccounts,
+  //   deviceName: string,
+  //   deviceType: string,
+  // ): Promise<AuthResult> {
+  //   const accessToken = await this.signAccessToken(user);
+  //   const { token: refreshToken } = await this.refreshTokenService.issue(
+  //     user.id,
+  //     deviceName,
+  //     deviceType,
+  //   );
 
-    return {
-      userId: user.id,
-      accessToken,
-      refreshToken,
-    };
-  }
+  //   return {
+  //     userId: user.id,
+  //     accessToken,
+  //     refreshToken,
+  //   };
+  // }
 
   /**
    * Validate a refresh token, rotate it, and return a new token pair.
    * The caller is responsible for having verified the JWT signature
    * and expiry before invoking this method.
    */
-  async refreshTokens(
-    userId: string,
-    rawRefreshToken: string,
-    deviceName: string,
-    deviceType: string,
-  ): Promise<AuthResult> {
-    const user = await this.userService.findById(userId);
-    if (!user) {
-      throw new UnauthorizedException('Invalid refresh token');
-    }
+  // async refreshTokens(
+  //   userId: string,
+  //   rawRefreshToken: string,
+  //   deviceName: string,
+  //   deviceType: string,
+  // ): Promise<AuthResult> {
+  //   const user = await this.userService.findById(userId);
+  //   if (!user) {
+  //     throw new UnauthorizedException('Invalid refresh token');
+  //   }
 
-    const matchingRecord = await this.refreshTokenService.findMatching(
-      userId,
-      rawRefreshToken,
-    );
+  //   const matchingRecord = await this.refreshTokenService.findMatching(
+  //     userId,
+  //     rawRefreshToken,
+  //   );
 
-    if (!matchingRecord) {
-      // The token was signed by us but is not in the database.
-      // Either it was already rotated (possible replay) or revoked.
-      this.logger.warn(
-        `Refresh token not found in database for userId=${userId}. Possible replay attempt.`,
-      );
-      throw new UnauthorizedException('Invalid refresh token');
-    }
+  //   if (!matchingRecord) {
+  //     // The token was signed by us but is not in the database.
+  //     // Either it was already rotated (possible replay) or revoked.
+  //     this.logger.warn(
+  //       `Refresh token not found in database for userId=${userId}. Possible replay attempt.`,
+  //     );
+  //     throw new UnauthorizedException('Invalid refresh token');
+  //   }
 
-    const { token: newRefreshToken } = await this.refreshTokenService.rotate(
-      matchingRecord.id,
-      userId,
-      deviceName,
-      deviceType,
-    );
-    const accessToken = await this.signAccessToken(user);
+  //   const { token: newRefreshToken } = await this.refreshTokenService.rotate(
+  //     matchingRecord.id,
+  //     userId,
+  //     deviceName,
+  //     deviceType,
+  //   );
+  //   const accessToken = await this.signAccessToken(user);
 
-    return {
-      userId: user.id,
-      accessToken,
-      refreshToken: newRefreshToken,
-    };
-  }
+  //   return {
+  //     userId: user.id,
+  //     accessToken,
+  //     refreshToken: newRefreshToken,
+  //   };
+  // }
 
   /**
    * Logout a user by deleting all of their refresh tokens.
@@ -154,39 +154,39 @@ export class AuthService {
     }
   }
 
-  async login(dto: LoginDto): Promise<{
-    userId: string;
-    accessToken: string;
-    refreshToken: string;
-  }> {
-    const user = await this.userService.findByEmail(dto.email);
+  // async login(dto: LoginDto): Promise<{
+  //   userId: string;
+  //   accessToken: string;
+  //   refreshToken: string;
+  // }> {
+  //   const user = await this.userService.findByEmail(dto.email);
 
-    if (!user || !user.password) {
-      // Same error whether the user does not exist or has no password set,
-      // to avoid leaking which emails are registered or OAuth-only.
-      throw new UnauthorizedException('Invalid credentials');
-    }
+  //   if (!user || !user.password) {
+  //     // Same error whether the user does not exist or has no password set,
+  //     // to avoid leaking which emails are registered or OAuth-only.
+  //     throw new UnauthorizedException('Invalid credentials');
+  //   }
 
-    const passwordMatches = await bcrypt.compare(dto.password, user.password);
-    if (!passwordMatches) {
-      throw new UnauthorizedException('Invalid credentials');
-    }
+  //   const passwordMatches = await bcrypt.compare(dto.password, user.password);
+  //   if (!passwordMatches) {
+  //     throw new UnauthorizedException('Invalid credentials');
+  //   }
 
-    const payload: JwtPayload = { sub: user.id, role: user.role };
-    const accessToken = await this.jwt.signAsync(payload);
+  //   const payload: JwtPayload = { sub: user.id, role: user.role };
+  //   const accessToken = await this.jwt.signAsync(payload);
 
-    const { token: refreshToken } = await this.refreshTokenService.issue(
-      user.id,
-      dto.deviceName,
-      dto.deviceType,
-    );
+  //   const { token: refreshToken } = await this.refreshTokenService.issue(
+  //     user.id,
+  //     dto.deviceName,
+  //     dto.deviceType,
+  //   );
 
-    this.logger.log(`User logged in: ${user.email}`);
+  //   this.logger.log(`User logged in: ${user.email}`);
 
-    return {
-      userId: user.id,
-      accessToken,
-      refreshToken,
-    };
-  }
+  //   return {
+  //     userId: user.id,
+  //     accessToken,
+  //     refreshToken,
+  //   };
+  // }
 }
