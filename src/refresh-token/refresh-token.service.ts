@@ -1,14 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { type ConfigType } from '@nestjs/config';
-import { JwtService } from '@nestjs/jwt';
-import { JwtPayload } from 'src/auth/auth.types.js';
-// import refreshJwtConfig from 'src/config/refresh-jwt.config.js';
-import { RefreshToken } from 'src/generated/prisma/client.js';
+import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from 'src/prisma/prisma.service.js';
-import * as bcrypt from 'bcrypt';
+import { RefreshToken } from 'src/generated/prisma/client.js';
 
-const BCRYPT_COST = 12;
 const REFRESH_TOKEN_TTL_DAYS = 30;
+const REFRESH_TOKEN_BYTES = 32;
 
 export interface IssuedRefreshToken {
   token: string;
@@ -21,94 +17,118 @@ export class RefreshTokenService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly jwt: JwtService,
-    // private readonly refreshTokenConfig: ConfigType<typeof refreshJwtConfig>,
   ) {}
 
-  // async issue(
-  //   userId: string,
-  //   deviceName: string,
-  //   deviceType: string,
-  // ): Promise<IssuedRefreshToken> {
-  //   const payload: JwtPayload = { sub: userId, role: 'User' };
-  //   const token = await this.jwt.signAsync(payload, this.refreshTokenConfig);
-  //   const tokenHash = await bcrypt.hash(token, BCRYPT_COST);
-
-  //   const expiresAt = new Date();
-  //   expiresAt.setDate(expiresAt.getDate() + REFRESH_TOKEN_TTL_DAYS);
-
-  //   const record = await this.prisma.refreshToken.create({
-  //     data: {
-  //       userId,
-  //       tokenHash,
-  //       deviceName,
-  //       deviceType,
-  //       expiresAt,
-  //     },
-  //   });
-
-  //   return { token, record };
-  // }
-
-  async findMatching(
+  async issue(
     userId: string,
-    rawToken: string,
-  ): Promise<RefreshToken | null> {
-    const tokens = await this.prisma.refreshToken.findMany({
-      where: { userId },
+    deviceName: string | null,
+    deviceType: string | null,
+  ): Promise<IssuedRefreshToken> {
+    const token = this.generateToken();
+    const tokenHash = this.hashToken(token);
+
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + REFRESH_TOKEN_TTL_DAYS);
+
+    const record = await this.prisma.refreshToken.create({
+      data: {
+        userId,
+        tokenHash,
+        deviceName,
+        deviceType,
+        expiresAt,
+      },
     });
 
-    for (const record of tokens) {
-      const matches = await bcrypt.compare(rawToken, record.tokenHash);
-      if (matches) {
-        return record;
-      }
-    }
+    this.logger.log(
+      `Issued refresh token: userId=${userId} tokenId=${record.id} device=${deviceName ?? 'unknown'}`,
+    );
 
-    return null;
+    return { token, record };
   }
 
-  // async rotate(
-  //   oldRecordId: string,
-  //   userId: string,
-  //   deviceName: string,
-  //   deviceType: string,
-  // ): Promise<IssuedRefreshToken> {
-  //   return this.prisma.$transaction(async (tx) => {
-  //     await tx.refreshToken.delete({ where: { id: oldRecordId } });
+  async findByToken(rawToken: string): Promise<RefreshToken | null> {
+    const tokenHash = this.hashToken(rawToken);
+    return await this.prisma.refreshToken.findUnique({
+      where: { tokenHash },
+    });
+  }
 
-  //     const payload: JwtPayload = { sub: userId, role: 'User' };
-  //     const token = await this.jwt.signAsync(payload, this.refreshTokenConfig);
-  //     const tokenHash = await bcrypt.hash(token, BCRYPT_COST);
+  async rotate(
+    oldRecord: RefreshToken,
+    deviceName: string | null,
+    deviceType: string | null,
+  ): Promise<IssuedRefreshToken> {
+    const newToken = this.generateToken();
+    const newTokenHash = this.hashToken(newToken);
 
-  //     const expiresAt = new Date();
-  //     expiresAt.setDate(expiresAt.getDate() + REFRESH_TOKEN_TTL_DAYS);
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + REFRESH_TOKEN_TTL_DAYS);
 
-  //     const record = await tx.refreshToken.create({
-  //       data: {
-  //         userId,
-  //         tokenHash,
-  //         deviceName,
-  //         deviceType,
-  //         expiresAt,
-  //       },
-  //     });
+    const newRecord = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.refreshToken.create({
+        data: {
+          userId: oldRecord.userId,
+          tokenHash: newTokenHash,
+          deviceName,
+          deviceType,
+          expiresAt,
+        },
+      });
 
-  //     return { token, record };
-  //   });
-  // }
+      await tx.refreshToken.update({
+        where: { id: oldRecord.id },
+        data: {
+          replacedById: created.id,
+          revokedAt: new Date(),
+        },
+      });
+
+      return created;
+    });
+
+    this.logger.log(
+      `Rotated refresh token: userId=${oldRecord.userId} oldId=${oldRecord.id} newId=${newRecord.id}`,
+    );
+
+    return { token: newToken, record: newRecord };
+  }
+
+
+  async revokeFamilyOnReuse(userId: string, reusedTokenId: string): Promise<void> {
+    this.logger.warn(
+      `Refresh token reuse detected: userId=${userId} reusedTokenId=${reusedTokenId}. Revoking all user sessions.`,
+    );
+
+    await this.prisma.refreshToken.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+  }
 
   async revokeAll(userId: string): Promise<void> {
-    await this.prisma.refreshToken.deleteMany({ where: { userId } });
+    await this.prisma.refreshToken.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
     this.logger.log(`Revoked all refresh tokens for userId=${userId}`);
   }
 
   async revokeByDevice(userId: string, deviceName: string): Promise<void> {
-    await this.prisma.refreshToken.deleteMany({
-      where: { userId, deviceName },
+    await this.prisma.refreshToken.updateMany({
+      where: { userId, deviceName, revokedAt: null },
+      data: { revokedAt: new Date() },
     });
     this.logger.log(
       `Revoked refresh tokens for userId=${userId} device=${deviceName}`,
     );
+  }
+
+  private generateToken(): string {
+    return randomBytes(REFRESH_TOKEN_BYTES).toString('base64url');
+  }
+
+  private hashToken(rawToken: string): string {
+    return createHash('sha256').update(rawToken).digest('hex');
   }
 }

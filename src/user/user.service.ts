@@ -82,29 +82,4 @@ export class UserService {
     }
     return refreshed;
   }
-
-  // TODO: Move to token.service.ts
-  // async updateHashedRefreshToken(
-  //   refreshTokenId: string,
-  //   hashedRefreshToken: string,
-  // ): Promise<RefreshToken> {
-  //   return await this.prisma.refreshToken.update({
-  //     where: { id: refreshTokenId },
-  //     data: {
-  //       tokenHash: hashedRefreshToken,
-  //     },
-  //   });
-  // }
-
-  // async findRefreshTokens(userId: string): Promise<RefreshToken[]> {
-  //   return await this.prisma.refreshToken.findMany({
-  //     where: { userId },
-  //   });
-  // }
-
-  // async deleteAllUserTokens(userId: string, deviceName: string): Promise<void> {
-  //   await this.prisma.refreshToken.deleteMany({
-  //     where: { userId, deviceName },
-  //   });
-  // }
 }
