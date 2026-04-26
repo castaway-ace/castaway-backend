@@ -1,9 +1,4 @@
-import {
-  Account,
-  Prisma,
-  RefreshToken,
-  User,
-} from '../generated/prisma/client.js';
+import { Prisma } from '../generated/prisma/client.js';
 
 export type UserWithAccounts = Prisma.UserGetPayload<{
   include: {
@@ -11,12 +6,20 @@ export type UserWithAccounts = Prisma.UserGetPayload<{
   };
 }>;
 
-export type UserWithAccountsAndTokens = User & {
-  accounts: Account[];
-  refreshTokens: RefreshToken[];
-};
+export type UserWithAccountsAndTokens = Prisma.UserGetPayload<{
+  include: {
+    accounts: true;
+    refreshTokens: true;
+  };
+}>;
 
-export interface UpdateUserData {
-  name?: string;
-  avatar?: string;
+export interface SyncOAuthProfileData {
+  displayName?: string;
+  avatarUrl?: string | null;
+}
+
+export interface UpdateUserProfileData {
+  email?: string;
+  displayName?: string;
+  avatarUrl?: string | null;
 }
