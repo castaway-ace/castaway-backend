@@ -197,7 +197,6 @@ model AlbumArtist {
 model Track {
   id          String    @id @default(uuid()) @db.Uuid
   title       String
-  /// Object storage key for the audio file in MinIO / S3.
   fileKey     String    @unique @map("file_key")
   albumId     String    @map("album_id") @db.Uuid
   trackNumber Int       @map("track_number")
