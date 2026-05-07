@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { AuthProfile } from 'src/auth/auth.types.js';
 import { UserWithAccounts } from './user.types.js';
-import { AuthProvider, Role } from 'src/generated/prisma/client.js';
+import { AuthProvider } from 'src/generated/prisma/client.js';
 import { UserRepository } from './user.repository.js';
 
 @Injectable()
