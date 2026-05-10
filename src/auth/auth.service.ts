@@ -1,192 +1,91 @@
-import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
-import * as bcrypt from 'bcrypt';
-import { JwtPayload, AuthProfile } from './auth.types.js';
-import { UserWithAccounts } from '../user/user.types.js';
-import { UserService } from 'src/user/user.service.js';
-import { type Response } from 'express';
-import { LoginDto } from './dto/auth.dto.js';
-import { RefreshTokenService } from 'src/refresh-token/refresh-token.service.js';
-
-export interface TokenPair {
-  accessToken: string;
-  refreshToken: string;
-}
-
-export interface AuthResult extends TokenPair {
-  userId: string;
-}
+import {
+  BadRequestException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { UserService } from '../user/user.service.js';
+import * as argon2 from 'argon2';
+import { SignUpDto } from '../dto/sign-up.dto.js';
+import { RefreshTokenService } from '../refresh-token/refresh-token.service.js';
+import { LoginDto } from '../dto/login.dto.js';
+import { AuthTokens } from '../types/auth.js';
+import { DeviceInfoDto } from '../dto/device-info.dto.js';
+import { DeviceService } from '../device/device.service.js';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class AuthService {
-  private readonly logger = new Logger(AuthService.name);
-
   constructor(
-    private jwt: JwtService,
     private readonly userService: UserService,
     private readonly refreshTokenService: RefreshTokenService,
+    private readonly deviceService: DeviceService,
   ) {}
 
-  /**
-   * Resolve an OAuth profile into a user record.
-   * Creates the user if they do not exist, or updates the existing user
-   * with any new provider links or profile information.
-   */
-  async resolveOAuthUser(authUser: AuthProfile): Promise<UserWithAccounts> {
-    // Confirm email is provided by the OAuth provider
-    if (!authUser.email) {
-      throw new UnauthorizedException('Email not provided by OAuth provider');
+  async login(loginDto: LoginDto): Promise<AuthTokens> {
+    const { email, password, deviceInfo } = loginDto;
+
+    const user = await this.userService.findByEmail(email);
+    if (!user || !(await argon2.verify(user.password, password))) {
+      throw new UnauthorizedException('Invalid Credentials');
     }
 
-    const existingUser = await this.userService.findByEmail(authUser.email);
+    return this.issueTokensForDevice(user.id, deviceInfo);
+  }
 
-    if (!existingUser) {
-      return this.userService.createNewOAuthUser(authUser);
+  async signUp(signUpDto: SignUpDto): Promise<AuthTokens> {
+    const { email, password, deviceInfo } = signUpDto;
+
+    const existingUser = await this.userService.findByEmail(email);
+    if (existingUser) {
+      throw new BadRequestException('User already exists');
     }
 
-    return this.userService.linkProviderToExistingUser(existingUser, authUser);
+    const hash = await this.hashPassword(password);
+    const newUser = await this.userService.create({
+      ...signUpDto,
+      password: hash,
+    });
+
+    return this.issueTokensForDevice(newUser.id, deviceInfo);
   }
 
-  /**
-   * Issue a fresh access and refresh token pair for the given user and device.
-   * Used by login, registration, and OAuth callback flows.
-   */
-  // async issueTokenPair(
-  //   user: UserWithAccounts,
-  //   deviceName: string,
-  //   deviceType: string,
-  // ): Promise<AuthResult> {
-  //   const accessToken = await this.signAccessToken(user);
-  //   const { token: refreshToken } = await this.refreshTokenService.issue(
-  //     user.id,
-  //     deviceName,
-  //     deviceType,
-  //   );
-
-  //   return {
-  //     userId: user.id,
-  //     accessToken,
-  //     refreshToken,
-  //   };
-  // }
-
-  /**
-   * Validate a refresh token, rotate it, and return a new token pair.
-   * The caller is responsible for having verified the JWT signature
-   * and expiry before invoking this method.
-   */
-  // async refreshTokens(
-  //   userId: string,
-  //   rawRefreshToken: string,
-  //   deviceName: string,
-  //   deviceType: string,
-  // ): Promise<AuthResult> {
-  //   const user = await this.userService.findById(userId);
-  //   if (!user) {
-  //     throw new UnauthorizedException('Invalid refresh token');
-  //   }
-
-  //   const matchingRecord = await this.refreshTokenService.findMatching(
-  //     userId,
-  //     rawRefreshToken,
-  //   );
-
-  //   if (!matchingRecord) {
-  //     // The token was signed by us but is not in the database.
-  //     // Either it was already rotated (possible replay) or revoked.
-  //     this.logger.warn(
-  //       `Refresh token not found in database for userId=${userId}. Possible replay attempt.`,
-  //     );
-  //     throw new UnauthorizedException('Invalid refresh token');
-  //   }
-
-  //   const { token: newRefreshToken } = await this.refreshTokenService.rotate(
-  //     matchingRecord.id,
-  //     userId,
-  //     deviceName,
-  //     deviceType,
-  //   );
-  //   const accessToken = await this.signAccessToken(user);
-
-  //   return {
-  //     userId: user.id,
-  //     accessToken,
-  //     refreshToken: newRefreshToken,
-  //   };
-  // }
-
-  /**
-   * Logout a user by deleting all of their refresh tokens.
-   */
-  async logout(userId: string, deviceName?: string): Promise<void> {
-    if (deviceName) {
-      await this.refreshTokenService.revokeByDevice(userId, deviceName);
-    } else {
-      await this.refreshTokenService.revokeAll(userId);
-    }
-    this.logger.log(`User logged out: ${userId}`);
+  async refresh(refreshToken: string) {
+    return await this.refreshTokenService.rotate(refreshToken);
   }
 
-  /**
-   * Sign an access token for a given user.
-   * Uses the default JWT config from the module registration.
-   */
-  private async signAccessToken(user: UserWithAccounts): Promise<string> {
-    const payload: JwtPayload = {
-      sub: user.id,
-      role: user.role,
-    };
-    return this.jwt.signAsync(payload);
+  async logout(refreshToken: string): Promise<void> {
+    await this.refreshTokenService.revokeByToken(refreshToken);
   }
 
-  async handleOAuthCallback(
-    user: AuthProfile,
-    res: Response,
-    provider: string,
-  ): Promise<void> {
-    try {
-      await this.resolveOAuthUser(user);
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error';
-
-      this.logger.error(`${provider} auth failed: ${errorMessage}`);
-    }
+  private async hashPassword(data: string): Promise<string> {
+    return await argon2.hash(data);
   }
 
-  // async login(dto: LoginDto): Promise<{
-  //   userId: string;
-  //   accessToken: string;
-  //   refreshToken: string;
-  // }> {
-  //   const user = await this.userService.findByEmail(dto.email);
+  private async issueTokensForDevice(
+    userId: string,
+    deviceInfo: DeviceInfoDto,
+  ): Promise<AuthTokens> {
+    const existingDevice = await this.deviceService.findById(deviceInfo.id);
+    const device =
+      existingDevice && existingDevice.userId === userId
+        ? existingDevice
+        : await this.deviceService.create(userId, deviceInfo);
 
-  //   if (!user || !user.password) {
-  //     // Same error whether the user does not exist or has no password set,
-  //     // to avoid leaking which emails are registered or OAuth-only.
-  //     throw new UnauthorizedException('Invalid credentials');
-  //   }
+    const familyId = randomUUID();
 
-  //   const passwordMatches = await bcrypt.compare(dto.password, user.password);
-  //   if (!passwordMatches) {
-  //     throw new UnauthorizedException('Invalid credentials');
-  //   }
+    const { accessToken, refreshToken, refreshExpiresAt } =
+      await this.refreshTokenService.generateTokens({
+        sub: userId,
+        deviceId: device.id,
+      });
 
-  //   const payload: JwtPayload = { sub: user.id, role: user.role };
-  //   const accessToken = await this.jwt.signAsync(payload);
+    await this.refreshTokenService.issue({
+      deviceId: device.id,
+      familyId,
+      tokenHash: this.refreshTokenService.hashToken(refreshToken),
+      expiresAt: refreshExpiresAt,
+    });
 
-  //   const { token: refreshToken } = await this.refreshTokenService.issue(
-  //     user.id,
-  //     dto.deviceName,
-  //     dto.deviceType,
-  //   );
-
-  //   this.logger.log(`User logged in: ${user.email}`);
-
-  //   return {
-  //     userId: user.id,
-  //     accessToken,
-  //     refreshToken,
-  //   };
-  // }
+    return { accessToken, refreshToken };
+  }
 }

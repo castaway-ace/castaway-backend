@@ -1,85 +1,33 @@
-import {
-  Injectable,
-  InternalServerErrorException,
-  Logger,
-} from '@nestjs/common';
-import { AuthProfile } from 'src/auth/auth.types.js';
-import { UserWithAccounts } from './user.types.js';
-import { AuthProvider } from 'src/generated/prisma/client.js';
-import { UserRepository } from './user.repository.js';
+import { Injectable } from '@nestjs/common';
+import { User } from 'generated/prisma/client.js';
+import { PrismaService } from '../prisma/prisma.service.js';
+import { SignUpDto } from 'src/dto/sign-up.dto.js';
 
 @Injectable()
 export class UserService {
-  private readonly logger = new Logger(UserService.name);
-  constructor(
-    private readonly userRepository: UserRepository
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-  async findById(id: string): Promise<UserWithAccounts | null> {
-    return await this.userRepository.findByIdWithAccounts(id);
+  async findByEmail(email: string): Promise<User | null> {
+    return this.prisma.user.findUnique({
+      where: {
+        email,
+      },
+    });
   }
 
-  async findByEmail(email: string): Promise<UserWithAccounts | null> {
-    return await this.userRepository.findByEmail(email);
+  async findById(id: string): Promise<User | null> {
+    return this.prisma.user.findUnique({
+      where: { id },
+    });
   }
 
-  async findByProvider(
-    provider: AuthProvider,
-    providerId: string,
-  ): Promise<UserWithAccounts | null> {
-    return await this.userRepository.findByProvider(provider, providerId);
-  }
-
-  async createWithAccount(authUser: AuthProfile): Promise<UserWithAccounts> {
-    try {
-      return await this.userRepository.createWithAccount(authUser);
-    } catch (error) {
-      this.logger.error(
-        `Failed to create OAuth user: email=${authUser.email} provider=${authUser.provider}`,
-        error instanceof Error ? error.stack : String(error),
-      );
-      throw new InternalServerErrorException(
-        'Unable to complete sign in. Please try again.',
-      );
-    }
-  }
-
-  async linkAccount(
-    user: UserWithAccounts,
-    authUser: AuthProfile,
-  ): Promise<UserWithAccounts> {
-    const { provider, providerId, email } = authUser;
-
-    const alreadyLinked = user.accounts.some(
-      (account) =>
-        account.provider === provider && account.providerId === providerId,
-    );
-
-    if (alreadyLinked) {
-      return user;
-    }
-
-    try {
-      await this.userRepository.linkAccount(user.id, provider, providerId);
-    } catch (error) {
-      this.logger.error(
-        `Failed to link OAuth provider: userId=${user.id} email=${email} provider=${provider}`,
-        error instanceof Error ? error.stack : String(error),
-      );
-      throw new InternalServerErrorException(
-        'Unable to complete sign in. Please try again.',
-      );
-    }
-
-    const refreshed = await this.userRepository.findByIdWithAccounts(user.id);
-    if (refreshed === null) {
-      this.logger.error(
-        `User vanished after linking provider: userId=${user.id}`,
-      );
-      throw new InternalServerErrorException(
-        'Unable to complete sign in. Please try again.',
-      );
-    }
-    return refreshed;
+  async create(user: SignUpDto): Promise<User> {
+    return this.prisma.user.create({
+      data: {
+        userName: user.userName,
+        email: user.email,
+        password: user.password,
+      },
+    });
   }
 }

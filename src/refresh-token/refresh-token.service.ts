@@ -1,134 +1,165 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { createHash, randomBytes } from 'crypto';
-import { PrismaService } from 'src/prisma/prisma.service.js';
-import { RefreshToken } from 'src/generated/prisma/client.js';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service.js';
+import { AuthTokens, RefreshTokenInput, TokenPayload } from '../types/auth.js';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+import { type StringValue } from 'ms';
+import ms from 'ms';
+import { createHash } from 'crypto';
 
-const REFRESH_TOKEN_TTL_DAYS = 30;
-const REFRESH_TOKEN_BYTES = 32;
-
-export interface IssuedRefreshToken {
-  token: string;
-  record: RefreshToken;
+interface JwtConfig {
+  accessSecret: string;
+  accessExpiresIn: StringValue;
+  refreshSecret: string;
+  refreshExpiresIn: StringValue;
 }
 
 @Injectable()
 export class RefreshTokenService {
-  private readonly logger = new Logger(RefreshTokenService.name);
+  private readonly jwtConfig: JwtConfig;
 
   constructor(
+    private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
-  ) {}
+    private readonly configService: ConfigService,
+  ) {
+    this.jwtConfig = this.loadJwtConfig(configService);
+  }
 
-  async issue(
-    userId: string,
-    deviceName: string | null,
-    deviceType: string | null,
-  ): Promise<IssuedRefreshToken> {
-    const token = this.generateToken();
-    const tokenHash = this.hashToken(token);
+  async issue(input: RefreshTokenInput): Promise<void> {
+    await this.prisma.refreshToken.create({ data: input });
+  }
 
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + REFRESH_TOKEN_TTL_DAYS);
+  async rotate(rawRefreshToken: string): Promise<AuthTokens> {
+    const tokenHash = this.hashToken(rawRefreshToken);
 
-    const record = await this.prisma.refreshToken.create({
+    const existing = await this.prisma.refreshToken.findUnique({
+      where: { tokenHash },
+      include: { device: true },
+    });
+
+    if (!existing) throw new UnauthorizedException('Invalid refresh token');
+    if (existing.expiresAt < new Date()) {
+      throw new UnauthorizedException('Refresh token expired');
+    }
+    if (existing.invalidatedAt !== null) {
+      throw new UnauthorizedException('Refresh token invalidated');
+    }
+    if (existing.usedAt !== null) {
+      await this.revokeFamily(existing.familyId);
+      throw new UnauthorizedException('Refresh token reuse detected');
+    }
+
+    const {
+      accessToken,
+      refreshToken: newRawRefreshToken,
+      refreshExpiresAt,
+    } = await this.generateTokens({
+      sub: existing.device.userId,
+      deviceId: existing.deviceId,
+    });
+
+    const newTokenHash = this.hashToken(newRawRefreshToken);
+
+    const newToken = await this.prisma.refreshToken.create({
       data: {
-        userId,
-        tokenHash,
-        deviceName,
-        deviceType,
-        expiresAt,
+        deviceId: existing.deviceId,
+        familyId: existing.familyId,
+        tokenHash: newTokenHash,
+        expiresAt: refreshExpiresAt,
       },
     });
 
-    this.logger.log(
-      `Issued refresh token: userId=${userId} tokenId=${record.id} device=${deviceName ?? 'unknown'}`,
-    );
+    const updateResult = await this.prisma.refreshToken.updateMany({
+      where: { id: existing.id, usedAt: null },
+      data: {
+        usedAt: new Date(),
+        replacedById: newToken.id,
+      },
+    });
 
-    return { token, record };
+    if (updateResult.count === 0) {
+      await this.revokeFamily(existing.familyId);
+      throw new UnauthorizedException('Concurrent rotation detected');
+    }
+
+    await this.prisma.device.update({
+      where: { id: existing.deviceId },
+      data: { lastSeenAt: new Date() },
+    });
+
+    return { accessToken, refreshToken: newRawRefreshToken };
   }
 
-  async findByToken(rawToken: string): Promise<RefreshToken | null> {
-    const tokenHash = this.hashToken(rawToken);
-    return await this.prisma.refreshToken.findUnique({
+  async generateTokens(
+    payload: TokenPayload,
+  ): Promise<AuthTokens & { refreshExpiresAt: Date }> {
+    const [accessToken, refreshToken] = await Promise.all([
+      this.jwtService.signAsync(payload, {
+        secret: this.jwtConfig.accessSecret,
+        expiresIn: this.jwtConfig.accessExpiresIn,
+      }),
+      this.jwtService.signAsync(payload, {
+        secret: this.jwtConfig.refreshSecret,
+        expiresIn: this.jwtConfig.refreshExpiresIn,
+      }),
+    ]);
+
+    const refreshExpiresAt = new Date(
+      Date.now() + ms(this.jwtConfig.refreshExpiresIn),
+    );
+
+    return { accessToken, refreshToken, refreshExpiresAt };
+  }
+
+  async revokeByToken(rawRefreshToken: string): Promise<void> {
+    const tokenHash = this.hashToken(rawRefreshToken);
+
+    const token = await this.prisma.refreshToken.findUnique({
       where: { tokenHash },
+      select: { familyId: true },
+    });
+
+    if (!token) {
+      return;
+    }
+
+    await this.revokeFamily(token.familyId);
+  }
+
+  private async revokeFamily(familyId: string): Promise<void> {
+    await this.prisma.refreshToken.updateMany({
+      where: { familyId, invalidatedAt: null },
+      data: { invalidatedAt: new Date() },
     });
   }
 
-  async rotate(
-    oldRecord: RefreshToken,
-    deviceName: string | null,
-    deviceType: string | null,
-  ): Promise<IssuedRefreshToken> {
-    const newToken = this.generateToken();
-    const newTokenHash = this.hashToken(newToken);
+  hashToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
+  }
 
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + REFRESH_TOKEN_TTL_DAYS);
-
-    const newRecord = await this.prisma.$transaction(async (tx) => {
-      const created = await tx.refreshToken.create({
-        data: {
-          userId: oldRecord.userId,
-          tokenHash: newTokenHash,
-          deviceName,
-          deviceType,
-          expiresAt,
-        },
-      });
-
-      await tx.refreshToken.update({
-        where: { id: oldRecord.id },
-        data: {
-          replacedById: created.id,
-          revokedAt: new Date(),
-        },
-      });
-
-      return created;
-    });
-
-    this.logger.log(
-      `Rotated refresh token: userId=${oldRecord.userId} oldId=${oldRecord.id} newId=${newRecord.id}`,
+  private loadJwtConfig(configService: ConfigService): JwtConfig {
+    const accessSecret = configService.get<string>('JWT_ACCESS_SECRET');
+    const accessExpiresIn = configService.get<string>('JWT_ACCESS_EXPIRATION');
+    const refreshSecret = configService.get<string>('JWT_REFRESH_SECRET');
+    const refreshExpiresIn = configService.get<string>(
+      'JWT_REFRESH_EXPIRATION',
     );
 
-    return { token: newToken, record: newRecord };
-  }
+    if (
+      !accessSecret ||
+      !accessExpiresIn ||
+      !refreshSecret ||
+      !refreshExpiresIn
+    ) {
+      throw new Error('JWT configuration is incomplete');
+    }
 
-
-  async revokeFamilyOnReuse(userId: string, reusedTokenId: string): Promise<void> {
-    this.logger.warn(
-      `Refresh token reuse detected: userId=${userId} reusedTokenId=${reusedTokenId}. Revoking all user sessions.`,
-    );
-
-    await this.prisma.refreshToken.updateMany({
-      where: { userId, revokedAt: null },
-      data: { revokedAt: new Date() },
-    });
-  }
-
-  async revokeAll(userId: string): Promise<void> {
-    await this.prisma.refreshToken.updateMany({
-      where: { userId, revokedAt: null },
-      data: { revokedAt: new Date() },
-    });
-    this.logger.log(`Revoked all refresh tokens for userId=${userId}`);
-  }
-
-  async revokeByDevice(userId: string, deviceName: string): Promise<void> {
-    await this.prisma.refreshToken.updateMany({
-      where: { userId, deviceName, revokedAt: null },
-      data: { revokedAt: new Date() },
-    });
-    this.logger.log(
-      `Revoked refresh tokens for userId=${userId} device=${deviceName}`,
-    );
-  }
-
-  private generateToken(): string {
-    return randomBytes(REFRESH_TOKEN_BYTES).toString('base64url');
-  }
-
-  private hashToken(rawToken: string): string {
-    return createHash('sha256').update(rawToken).digest('hex');
+    return {
+      accessSecret,
+      accessExpiresIn: accessExpiresIn as StringValue,
+      refreshSecret,
+      refreshExpiresIn: refreshExpiresIn as StringValue,
+    };
   }
 }
