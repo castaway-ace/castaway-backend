@@ -7,7 +7,6 @@ import {
 import { StorageHealthIndicator } from './storage.health.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
-
 @Controller('health')
 export class HealthController {
   constructor(
