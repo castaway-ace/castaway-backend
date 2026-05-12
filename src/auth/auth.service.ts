@@ -65,7 +65,10 @@ export class AuthService {
     userId: string,
     deviceInfo: DeviceInfoDto,
   ): Promise<AuthTokens> {
-    const existingDevice = await this.deviceService.findById(deviceInfo.id);
+    const existingDevice = await this.deviceService.findByUserAndInfo(
+      userId,
+      deviceInfo,
+    );
     const device =
       existingDevice && existingDevice.userId === userId
         ? existingDevice

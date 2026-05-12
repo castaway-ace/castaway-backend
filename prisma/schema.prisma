@@ -46,6 +46,7 @@ model Device {
   refreshTokens RefreshToken[]
 
   @@index([userId])
+  @@unique([name, model])
   @@map("devices")
 }
 

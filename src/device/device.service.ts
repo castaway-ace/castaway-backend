@@ -7,9 +7,12 @@ import { DeviceInfoDto } from '../dto/device-info.dto.js';
 export class DeviceService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findById(id: string): Promise<Device | null> {
-    return this.prisma.device.findUnique({
-      where: { id },
+  async findByUserAndInfo(
+    userId: string,
+    deviceInfo: DeviceInfoDto,
+  ): Promise<Device | null> {
+    return this.prisma.device.findFirst({
+      where: { name: deviceInfo.name, model: deviceInfo.model, userId },
     });
   }
 

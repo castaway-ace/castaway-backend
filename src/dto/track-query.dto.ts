@@ -10,8 +10,8 @@ import {
 } from 'class-validator';
 
 export interface SortOptions {
-  field: 'title' | 'album' | 'year' | 'added';
-  direction: 'asc' | 'desc';
+  sort: 'title' | 'album' | 'year' | 'added';
+  sortBy: 'asc' | 'desc';
 }
 
 export class TrackQueryDto {
@@ -42,11 +42,11 @@ export class TrackQueryDto {
 
   @IsOptional()
   @IsIn(['title', 'album', 'year', 'added'])
-  sortField?: SortOptions['field'];
+  sort?: SortOptions['sort'];
 
   @IsOptional()
   @IsIn(['asc', 'desc'])
-  sortDirection?: SortOptions['direction'];
+  sortBy?: SortOptions['sortBy'];
 
   @IsOptional()
   @IsInt()

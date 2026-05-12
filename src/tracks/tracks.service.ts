@@ -27,8 +27,11 @@ export class TracksService {
 
   async findTrack(id: string): Promise<Track | null> {
     return this.prisma.track.findUnique({
-      where: {
-        id,
+      where: { id },
+      include: {
+        trackArtists: {
+          select: { artistId: true },
+        },
       },
     });
   }
@@ -39,7 +42,7 @@ export class TracksService {
   ): Promise<Track[]> {
     const where = this.buildWhere(options.filters, userId);
     const orderBy = this.buildOrderBy(
-      options.sort ?? { field: 'title', direction: 'asc' },
+      options.sort ?? { sort: 'title', sortBy: 'asc' },
     );
 
     const requestedLimit = options.pagination?.limit ?? 100;
@@ -125,7 +128,7 @@ export class TracksService {
   }
 
   private static readonly SORT_FIELD_MAP: Record<
-    SortOptions['field'],
+    SortOptions['sort'],
     (direction: Prisma.SortOrder) => Prisma.TrackOrderByWithRelationInput
   > = {
     title: (direction) => ({ title: direction }),
@@ -137,7 +140,7 @@ export class TracksService {
   private buildOrderBy(
     sortOptions: SortOptions,
   ): Prisma.TrackOrderByWithRelationInput {
-    const orderBy = TracksService.SORT_FIELD_MAP[sortOptions.field];
-    return orderBy(sortOptions.direction);
+    const orderBy = TracksService.SORT_FIELD_MAP[sortOptions.sort];
+    return orderBy(sortOptions.sortBy);
   }
 }

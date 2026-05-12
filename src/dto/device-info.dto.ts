@@ -1,15 +1,11 @@
-import { IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsNotEmpty, IsString } from 'class-validator';
 
 export class DeviceInfoDto {
-  @IsOptional()
+  @IsNotEmpty()
   @IsString()
   readonly name!: string;
 
-  @IsOptional()
+  @IsNotEmpty()
   @IsString()
   readonly model!: string;
-
-  @IsUUID()
-  @IsNotEmpty()
-  readonly id!: string;
 }

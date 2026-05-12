@@ -48,8 +48,8 @@ export class TracksController {
         genres: query.genres,
         starred: query.starred,
       },
-      sort: query.sortField
-        ? { field: query.sortField, direction: query.sortDirection ?? 'asc' }
+      sort: query.sort
+        ? { sort: query.sort, sortBy: query.sortBy ?? 'asc' }
         : undefined,
       pagination: { limit: query.limit, offset: query.offset },
     });

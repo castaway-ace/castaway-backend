@@ -10,9 +10,9 @@ import { ConfigService } from '@nestjs/config';
 import { Readable } from 'stream';
 
 export enum StorageBucket {
-  Tracks = 'TRACKS',
-  AlbumArt = 'ALBUM_ART',
-  ArtistArt = 'ARTIST_ART',
+  Tracks = 'tracks',
+  AlbumArt = 'album-art',
+  ArtistArt = 'artist-image',
 }
 
 interface StorageConfig {
