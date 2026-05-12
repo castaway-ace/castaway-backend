@@ -92,7 +92,7 @@ model Artist {
 
 model Album {
   id          String   @id @default(uuid()) @db.Uuid
-  name        String
+  title        String
   releaseDate DateTime @map("release_date") @db.Date
   compilation Boolean  @default(false)
   imageKey    String?  @map("image_key")
@@ -105,7 +105,7 @@ model Album {
   albumAnnotations AlbumAnnotation[]
 
   @@index([createdAt])
-  @@index([name])
+  @@index([title])
   @@map("albums")
 }
 
