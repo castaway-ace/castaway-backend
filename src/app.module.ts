@@ -6,9 +6,20 @@ import { UserModule } from './user/user.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { ConfigModule } from '@nestjs/config';
 import { StorageService } from './storage/storage.service.js';
+import { TracksModule } from './tracks/tracks.module.js';
+import { AlbumsModule } from './albums/albums.module.js';
+import { ArtistsModule } from './artists/artists.module.js';
 
 @Module({
-  imports: [ConfigModule.forRoot(), HealthModule, UserModule, AuthModule],
+  imports: [
+    ConfigModule.forRoot(),
+    HealthModule,
+    UserModule,
+    AuthModule,
+    TracksModule,
+    AlbumsModule,
+    ArtistsModule,
+  ],
   controllers: [AppController],
   providers: [AppService, StorageService],
 })
