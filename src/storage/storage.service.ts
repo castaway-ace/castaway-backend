@@ -28,10 +28,6 @@ export interface PutObjectOptions {
   metadata?: Record<string, string>;
 }
 
-export interface GetStreamOptions {
-  range?: string;
-}
-
 export interface ObjectMetadata {
   size: number;
   contentType: string;
@@ -78,13 +74,13 @@ export class StorageService {
   async getObjectStream(
     bucket: StorageBucket,
     key: string,
-    options?: GetStreamOptions,
+    range?: string,
   ): Promise<Readable> {
     const response = await this.client.send(
       new GetObjectCommand({
         Bucket: bucket,
         Key: key,
-        Range: options?.range,
+        Range: range,
       }),
     );
 
@@ -142,8 +138,6 @@ export class StorageService {
       }),
     );
   }
-
-  objectExists() {}
 
   private loadStorageConfig(configService: ConfigService): StorageConfig {
     const endpoint = configService.get<string>('STORAGE_ENDPOINT');

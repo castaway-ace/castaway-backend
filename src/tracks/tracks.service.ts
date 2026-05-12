@@ -1,6 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { Prisma, Track } from '../../generated/prisma/client.js';
+import { StorageBucket, StorageService } from '../storage/storage.service.js';
+import { Readable } from 'stream';
+import { SortOptions } from '../dto/track-query.dto.js';
 
 interface TrackFilters {
   artistIds?: string[];
@@ -9,37 +12,85 @@ interface TrackFilters {
   starred?: boolean;
 }
 
-interface SortOptions {
-  field: 'title' | 'album' | 'year' | 'added';
-  direction: 'asc' | 'desc';
-}
-
 interface TrackQueryOptions {
   filters?: TrackFilters;
   sort?: SortOptions;
-  pagination?: { limit: number; offset: number };
+  pagination?: { limit?: number; offset?: number };
 }
 
 @Injectable()
 export class TracksService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storageService: StorageService,
+  ) {}
+
+  async findTrack(id: string): Promise<Track | null> {
+    return this.prisma.track.findUnique({
+      where: {
+        id,
+      },
+    });
+  }
 
   async findTracks(
     userId: string,
     options: TrackQueryOptions,
   ): Promise<Track[]> {
     const where = this.buildWhere(options.filters, userId);
-    const sort = options.sort ?? { field: 'title', direction: 'asc' };
+    const orderBy = this.buildOrderBy(
+      options.sort ?? { field: 'title', direction: 'asc' },
+    );
 
-    const orderBy = this.buildOrderBy(sort);
-    const take = options.pagination?.limit ?? 100;
-    const skip = options.pagination?.offset ?? 0;
+    const requestedLimit = options.pagination?.limit ?? 100;
+    const take = Math.min(Math.max(requestedLimit, 1), 200);
+    const skip = Math.max(options.pagination?.offset ?? 0, 0);
 
     return this.prisma.track.findMany({
       orderBy,
       take,
       skip,
       where,
+    });
+  }
+
+  async findTrackStream(id: string, range?: string): Promise<Readable> {
+    const track = await this.findTrack(id);
+
+    if (!track) {
+      throw new NotFoundException('Track not found');
+    }
+
+    try {
+      return this.storageService.getObjectStream(
+        StorageBucket.Tracks,
+        track.fileKey,
+        range,
+      );
+    } catch {
+      throw new NotFoundException('Track file not found in storage');
+    }
+  }
+
+  async updateTrackStar(
+    trackId: string,
+    userId: string,
+    starred: boolean,
+  ): Promise<void> {
+    await this.prisma.trackAnnotation.upsert({
+      where: {
+        userId_trackId: { userId, trackId },
+      },
+      create: {
+        userId,
+        trackId,
+        starred,
+        starredAt: starred ? new Date() : null,
+      },
+      update: {
+        starred,
+        starredAt: starred ? new Date() : null,
+      },
     });
   }
 
@@ -64,10 +115,10 @@ export class TracksService {
       where.genres = { hasSome: filters.genres };
     }
 
-    if (filters.starred !== undefined) {
-      where.trackAnnotations = {
-        some: { userId, starred: filters.starred },
-      };
+    if (filters.starred === true) {
+      where.trackAnnotations = { some: { userId, starred: true } };
+    } else if (filters.starred === false) {
+      where.trackAnnotations = { none: { userId, starred: true } };
     }
 
     return where;
