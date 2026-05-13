@@ -25,17 +25,6 @@ import { TrackQueryDto } from '../dto/track-query.dto.js';
 export class TracksController {
   constructor(private readonly trackService: TracksService) {}
 
-  @Get(':id')
-  async getTrack(@Param('id') id: string): Promise<Track> {
-    const track = await this.trackService.findTrack(id);
-
-    if (!track) {
-      throw new NotFoundException('Track not found');
-    }
-
-    return track;
-  }
-
   @Get()
   async getTracks(
     @CurrentUser() user: AuthenticatedUser,
@@ -53,6 +42,17 @@ export class TracksController {
         : undefined,
       pagination: { limit: query.limit, offset: query.offset },
     });
+  }
+
+  @Get(':id')
+  async getTrack(@Param('id') id: string): Promise<Track> {
+    const track = await this.trackService.findTrack(id);
+
+    if (!track) {
+      throw new NotFoundException('Track not found');
+    }
+
+    return track;
   }
 
   @Get(':id/stream')
