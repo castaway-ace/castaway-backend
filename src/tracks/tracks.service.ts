@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { Prisma, Track } from '../../generated/prisma/client.js';
 import { StorageBucket, StorageService } from '../storage/storage.service.js';
 import { Readable } from 'stream';
-import { SortOptions } from '../dto/track-query.dto.js';
+import { TrackSortOptions } from '../dto/track-query.dto.js';
 
 interface TrackFilters {
   artistIds?: string[];
@@ -14,7 +14,7 @@ interface TrackFilters {
 
 interface TrackQueryOptions {
   filters?: TrackFilters;
-  sort?: SortOptions;
+  sort?: TrackSortOptions;
   pagination?: { limit?: number; offset?: number };
 }
 
@@ -128,7 +128,7 @@ export class TracksService {
   }
 
   private static readonly SORT_FIELD_MAP: Record<
-    SortOptions['sort'],
+    TrackSortOptions['sort'],
     (direction: Prisma.SortOrder) => Prisma.TrackOrderByWithRelationInput
   > = {
     title: (direction) => ({ title: direction }),
@@ -138,7 +138,7 @@ export class TracksService {
   };
 
   private buildOrderBy(
-    sortOptions: SortOptions,
+    sortOptions: TrackSortOptions,
   ): Prisma.TrackOrderByWithRelationInput {
     const orderBy = TracksService.SORT_FIELD_MAP[sortOptions.sort];
     return orderBy(sortOptions.sortBy);

@@ -9,25 +9,18 @@ import {
   Max,
 } from 'class-validator';
 
-export interface TrackSortOptions {
-  sort: 'title' | 'album' | 'year' | 'added';
+export interface AlbumSortOptions {
+  sort: 'title' | 'year' | 'added';
   sortBy: 'asc' | 'desc';
 }
 
-export class TrackQueryDto {
+export class AlbumQueryDto {
   @IsOptional()
   @IsString({ each: true })
   @Transform(({ value }): string[] => {
     return Array.isArray(value) ? value : [value];
   })
   artistIds?: string[];
-
-  @IsOptional()
-  @IsString({ each: true })
-  @Transform(({ value }): string[] => {
-    return Array.isArray(value) ? value : [value];
-  })
-  albumIds?: string[];
 
   @IsOptional()
   @IsString({ each: true })
@@ -41,12 +34,12 @@ export class TrackQueryDto {
   starred?: boolean;
 
   @IsOptional()
-  @IsIn(['title', 'album', 'year', 'added'])
-  sort?: TrackSortOptions['sort'];
+  @IsIn(['title', 'year', 'added'])
+  sort?: AlbumSortOptions['sort'];
 
   @IsOptional()
   @IsIn(['asc', 'desc'])
-  sortBy?: TrackSortOptions['sortBy'];
+  sortBy?: AlbumSortOptions['sortBy'];
 
   @IsOptional()
   @IsInt()
