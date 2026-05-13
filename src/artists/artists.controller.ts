@@ -32,9 +32,10 @@ export class ArtistsController {
     return this.artistService.findArtists(user.sub, {
       filters: {
         starred: query.starred,
+        search: query.search,
       },
-      sort: query.sort
-        ? { sort: query.sort, sortBy: query.sortBy ?? 'asc' }
+      orderOptions: query.order
+        ? { order: query.order, orderBy: query.orderBy ?? 'asc' }
         : undefined,
       pagination: { limit: query.limit, offset: query.offset },
     });

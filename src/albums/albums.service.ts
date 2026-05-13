@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { AlbumSortOptions } from '../dto/album-query.dto.js';
+import { AlbumSortOptions as AlbumOrderOptions } from '../dto/album-query.dto.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { StorageBucket, StorageService } from '../storage/storage.service.js';
 import { Album, Prisma } from '../../generated/prisma/client.js';
@@ -9,11 +9,12 @@ interface AlbumFilters {
   artistIds?: string[];
   genres?: string[];
   starred?: boolean;
+  search?: string;
 }
 
 interface AlbumQueryOptions {
   filters?: AlbumFilters;
-  sort?: AlbumSortOptions;
+  orderOptions?: AlbumOrderOptions;
   pagination?: { limit?: number; offset?: number };
 }
 
@@ -35,9 +36,7 @@ export class AlbumsService {
     options: AlbumQueryOptions,
   ): Promise<Album[]> {
     const where = this.buildWhere(options.filters, userId);
-    const orderBy = this.buildOrderBy(
-      options.sort ?? { sort: 'title', sortBy: 'asc' },
-    );
+    const orderBy = this.buildOrderBy(options?.orderOptions);
 
     const requestedLimit = options.pagination?.limit ?? 100;
     const take = Math.min(Math.max(requestedLimit, 1), 200);
@@ -103,6 +102,21 @@ export class AlbumsService {
       where.genres = { hasSome: filters.genres };
     }
 
+    if (filters.search) {
+      where.OR = [
+        { title: { contains: filters.search, mode: 'insensitive' } },
+        {
+          albumArtists: {
+            some: {
+              artist: {
+                name: { contains: filters.search, mode: 'insensitive' },
+              },
+            },
+          },
+        },
+      ];
+    }
+
     if (filters.starred === true) {
       where.albumAnnotations = { some: { userId } };
     }
@@ -111,7 +125,7 @@ export class AlbumsService {
   }
 
   private static readonly SORT_FIELD_MAP: Record<
-    AlbumSortOptions['sort'],
+    AlbumOrderOptions['order'],
     (direction: Prisma.SortOrder) => Prisma.AlbumOrderByWithRelationInput
   > = {
     title: (direction) => ({ title: direction }),
@@ -120,9 +134,10 @@ export class AlbumsService {
   };
 
   private buildOrderBy(
-    sortOptions: AlbumSortOptions,
+    orderOptions?: AlbumOrderOptions,
   ): Prisma.AlbumOrderByWithRelationInput {
-    const orderBy = AlbumsService.SORT_FIELD_MAP[sortOptions.sort];
-    return orderBy(sortOptions.sortBy);
+    const ordering = orderOptions ?? { order: 'title', orderBy: 'asc' };
+    const orderBy = AlbumsService.SORT_FIELD_MAP[ordering.order];
+    return orderBy(ordering.orderBy);
   }
 }

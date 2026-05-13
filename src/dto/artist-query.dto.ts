@@ -1,9 +1,19 @@
-import { IsOptional, IsBoolean, IsIn, IsInt, Min, Max } from 'class-validator';
+import {
+  IsOptional,
+  IsBoolean,
+  IsIn,
+  IsInt,
+  Min,
+  Max,
+  MinLength,
+  MaxLength,
+  IsString,
+} from 'class-validator';
 import { ToBoolean, ToInt } from '../utils/dto-transforms.js';
 
-export interface ArtistSortOptions {
-  sort: 'name';
-  sortBy: 'asc' | 'desc';
+export interface ArtistOrderOptions {
+  order: 'name';
+  orderBy: 'asc' | 'desc';
 }
 
 export class ArtistQueryDto {
@@ -13,12 +23,18 @@ export class ArtistQueryDto {
   starred?: boolean;
 
   @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  search?: string;
+
+  @IsOptional()
   @IsIn(['name'])
-  sort?: ArtistSortOptions['sort'];
+  order?: ArtistOrderOptions['order'];
 
   @IsOptional()
   @IsIn(['asc', 'desc'])
-  sortBy?: ArtistSortOptions['sortBy'];
+  orderBy?: ArtistOrderOptions['orderBy'];
 
   @IsOptional()
   @IsInt()

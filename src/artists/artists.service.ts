@@ -2,17 +2,18 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { StorageBucket, StorageService } from '../storage/storage.service.js';
 import { Artist, Prisma } from '../../generated/prisma/client.js';
-import { ArtistSortOptions } from '../dto/artist-query.dto.js';
+import { ArtistOrderOptions } from '../dto/artist-query.dto.js';
 import { Readable } from 'stream';
 
 interface ArtistFilters {
   genres?: string[];
   starred?: boolean;
+  search?: string;
 }
 
 interface ArtistQueryOptions {
   filters?: ArtistFilters;
-  sort?: ArtistSortOptions;
+  orderOptions?: ArtistOrderOptions;
   pagination?: { limit?: number; offset?: number };
 }
 
@@ -34,9 +35,7 @@ export class ArtistsService {
     options: ArtistQueryOptions,
   ): Promise<Artist[]> {
     const where = this.buildWhere(options.filters, userId);
-    const orderBy = this.buildOrderBy(
-      options.sort ?? { sort: 'name', sortBy: 'asc' },
-    );
+    const orderBy = this.buildOrderBy(options?.orderOptions);
 
     const requestedLimit = options.pagination?.limit ?? 100;
     const take = Math.min(Math.max(requestedLimit, 1), 200);
@@ -96,20 +95,25 @@ export class ArtistsService {
       where.artistAnnotations = { some: { userId } };
     }
 
+    if (filters.search) {
+      where.name = { contains: filters.search, mode: 'insensitive' };
+    }
+
     return where;
   }
 
   private static readonly SORT_FIELD_MAP: Record<
-    ArtistSortOptions['sort'],
+    ArtistOrderOptions['order'],
     (direction: Prisma.SortOrder) => Prisma.ArtistOrderByWithRelationInput
   > = {
     name: (direction) => ({ name: direction }),
   };
 
   private buildOrderBy(
-    sortOptions: ArtistSortOptions,
+    orderOptions?: ArtistOrderOptions,
   ): Prisma.ArtistOrderByWithRelationInput {
-    const orderBy = ArtistsService.SORT_FIELD_MAP[sortOptions.sort];
-    return orderBy(sortOptions.sortBy);
+    const ordering = orderOptions ?? { order: 'name', orderBy: 'asc' };
+    const orderBy = ArtistsService.SORT_FIELD_MAP[ordering.order];
+    return orderBy(ordering.orderBy);
   }
 }

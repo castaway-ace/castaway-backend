@@ -3,18 +3,19 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { Prisma, Track } from '../../generated/prisma/client.js';
 import { StorageBucket, StorageService } from '../storage/storage.service.js';
 import { Readable } from 'stream';
-import { TrackSortOptions } from '../dto/track-query.dto.js';
+import { TrackSortOptions as TrackOrderOptions } from '../dto/track-query.dto.js';
 
 interface TrackFilters {
   artistIds?: string[];
   albumIds?: string[];
   genres?: string[];
   starred?: boolean;
+  search?: string;
 }
 
 interface TrackQueryOptions {
   filters?: TrackFilters;
-  sort?: TrackSortOptions;
+  orderOptions?: TrackOrderOptions;
   pagination?: { limit?: number; offset?: number };
 }
 
@@ -41,9 +42,7 @@ export class TracksService {
     options: TrackQueryOptions,
   ): Promise<Track[]> {
     const where = this.buildWhere(options.filters, userId);
-    const orderBy = this.buildOrderBy(
-      options.sort ?? { sort: 'title', sortBy: 'asc' },
-    );
+    const orderBy = this.buildOrderBy(options?.orderOptions);
 
     const requestedLimit = options.pagination?.limit ?? 100;
     const take = Math.min(Math.max(requestedLimit, 1), 200);
@@ -118,6 +117,26 @@ export class TracksService {
       where.genres = { hasSome: filters.genres };
     }
 
+    if (filters.search) {
+      where.OR = [
+        { title: { contains: filters.search, mode: 'insensitive' } },
+        {
+          trackArtists: {
+            some: {
+              artist: {
+                name: { contains: filters.search, mode: 'insensitive' },
+              },
+            },
+          },
+        },
+        {
+          album: {
+            title: { contains: filters.search, mode: 'insensitive' },
+          },
+        },
+      ];
+    }
+
     if (filters.starred === true) {
       where.trackAnnotations = { some: { userId, starred: true } };
     }
@@ -126,7 +145,7 @@ export class TracksService {
   }
 
   private static readonly SORT_FIELD_MAP: Record<
-    TrackSortOptions['sort'],
+    TrackOrderOptions['order'],
     (direction: Prisma.SortOrder) => Prisma.TrackOrderByWithRelationInput
   > = {
     title: (direction) => ({ title: direction }),
@@ -136,9 +155,10 @@ export class TracksService {
   };
 
   private buildOrderBy(
-    sortOptions: TrackSortOptions,
+    orderOptions?: TrackOrderOptions,
   ): Prisma.TrackOrderByWithRelationInput {
-    const orderBy = TracksService.SORT_FIELD_MAP[sortOptions.sort];
-    return orderBy(sortOptions.sortBy);
+    const ordering = orderOptions ?? { order: 'title', orderBy: 'asc' };
+    const orderBy = TracksService.SORT_FIELD_MAP[ordering.order];
+    return orderBy(ordering.orderBy);
   }
 }

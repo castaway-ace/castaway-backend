@@ -9,6 +9,7 @@ import { StorageService } from './storage/storage.service.js';
 import { TracksModule } from './tracks/tracks.module.js';
 import { AlbumsModule } from './albums/albums.module.js';
 import { ArtistsModule } from './artists/artists.module.js';
+import { SearchModule } from './search/search.module.js';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { ArtistsModule } from './artists/artists.module.js';
     TracksModule,
     AlbumsModule,
     ArtistsModule,
+    SearchModule,
   ],
   controllers: [AppController],
   providers: [AppService, StorageService],

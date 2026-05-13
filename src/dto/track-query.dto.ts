@@ -6,12 +6,14 @@ import {
   IsInt,
   Min,
   Max,
+  MaxLength,
+  MinLength,
 } from 'class-validator';
 import { ToBoolean, ToInt, ToStringArray } from '../utils/dto-transforms.js';
 
 export interface TrackSortOptions {
-  sort: 'title' | 'album' | 'year' | 'added';
-  sortBy: 'asc' | 'desc';
+  order: 'title' | 'album' | 'year' | 'added';
+  orderBy: 'asc' | 'desc';
 }
 
 export class TrackQueryDto {
@@ -31,17 +33,23 @@ export class TrackQueryDto {
   genres?: string[];
 
   @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  search?: string;
+
+  @IsOptional()
   @IsBoolean()
   @ToBoolean()
   starred?: boolean;
 
   @IsOptional()
   @IsIn(['title', 'album', 'year', 'added'])
-  sort?: TrackSortOptions['sort'];
+  order?: TrackSortOptions['order'];
 
   @IsOptional()
   @IsIn(['asc', 'desc'])
-  sortBy?: TrackSortOptions['sortBy'];
+  orderBy?: TrackSortOptions['orderBy'];
 
   @IsOptional()
   @IsInt()
