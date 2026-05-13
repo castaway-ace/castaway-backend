@@ -104,9 +104,7 @@ export class AlbumsService {
     }
 
     if (filters.starred === true) {
-      where.albumAnnotations = { some: { userId, starred: true } };
-    } else if (filters.starred === false) {
-      where.albumAnnotations = { none: { userId } };
+      where.albumAnnotations = { some: { userId } };
     }
 
     return where;

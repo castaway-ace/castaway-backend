@@ -1,4 +1,3 @@
-import { Transform } from 'class-transformer';
 import {
   IsOptional,
   IsString,
@@ -8,6 +7,7 @@ import {
   Min,
   Max,
 } from 'class-validator';
+import { ToBoolean, ToInt, ToStringArray } from '../utils/dto-transforms.js';
 
 export interface TrackSortOptions {
   sort: 'title' | 'album' | 'year' | 'added';
@@ -17,27 +17,22 @@ export interface TrackSortOptions {
 export class TrackQueryDto {
   @IsOptional()
   @IsString({ each: true })
-  @Transform(({ value }): string[] => {
-    return Array.isArray(value) ? value : [value];
-  })
+  @ToStringArray()
   artistIds?: string[];
 
   @IsOptional()
   @IsString({ each: true })
-  @Transform(({ value }): string[] => {
-    return Array.isArray(value) ? value : [value];
-  })
+  @ToStringArray()
   albumIds?: string[];
 
   @IsOptional()
   @IsString({ each: true })
-  @Transform(({ value }): string[] => {
-    return Array.isArray(value) ? value : [value];
-  })
+  @ToStringArray()
   genres?: string[];
 
   @IsOptional()
   @IsBoolean()
+  @ToBoolean()
   starred?: boolean;
 
   @IsOptional()
@@ -52,10 +47,12 @@ export class TrackQueryDto {
   @IsInt()
   @Min(1)
   @Max(200)
+  @ToInt()
   limit?: number;
 
   @IsOptional()
   @IsInt()
   @Min(0)
+  @ToInt()
   offset?: number;
 }

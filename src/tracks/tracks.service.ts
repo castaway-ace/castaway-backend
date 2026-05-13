@@ -120,8 +120,6 @@ export class TracksService {
 
     if (filters.starred === true) {
       where.trackAnnotations = { some: { userId, starred: true } };
-    } else if (filters.starred === false) {
-      where.trackAnnotations = { none: { userId, starred: true } };
     }
 
     return where;

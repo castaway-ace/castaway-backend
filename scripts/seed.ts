@@ -28,16 +28,16 @@ const s3Client = new S3Client({
 
 const BUCKET = 'tracks';
 
-async function clearAll() {
+const clearAll = async (): Promise<void> => {
   await prisma.trackAnnotation.deleteMany();
   await prisma.trackArtist.deleteMany();
   await prisma.albumArtist.deleteMany();
   await prisma.track.deleteMany();
   await prisma.album.deleteMany();
   await prisma.artist.deleteMany();
-}
+};
 
-async function clearStorage() {
+const clearStorage = async () => {
   const listObjectCommand = new ListObjectsV2Command({
     Bucket: BUCKET,
   });
@@ -56,9 +56,9 @@ async function clearStorage() {
       }),
     );
   }
-}
+};
 
-async function seed() {
+const seed = async () => {
   await clearAll();
   await clearStorage();
 
@@ -83,6 +83,18 @@ async function seed() {
     },
   });
 
+  const album2 = await prisma.album.create({
+    data: {
+      title: 'Album Two',
+      releaseDate: new Date('2024-01-01'),
+      compilation: true,
+      genres: ['Blues'],
+      albumArtists: {
+        create: [{ artistId: artist2.id }],
+      },
+    },
+  });
+
   const placeholderAudio = randomBytes(1024); // 1KB of garbage labeled as audio
   const tracks = [
     {
@@ -98,9 +110,9 @@ async function seed() {
       artistId: artist1.id,
     },
     {
-      title: 'Track Three',
-      albumId: album1.id,
-      trackNumber: 3,
+      title: 'Track One',
+      albumId: album2.id,
+      trackNumber: 1,
       artistId: artist2.id,
     },
   ];
@@ -138,7 +150,7 @@ async function seed() {
   }
 
   console.log('Seed complete');
-}
+};
 
 seed()
   .catch((e) => {
