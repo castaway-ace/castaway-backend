@@ -51,7 +51,7 @@ export class AlbumsService {
     });
   }
 
-  async findAlbumStream(id: string, range?: string): Promise<Readable> {
+  async findAlbumStream(id: string): Promise<Readable> {
     const album = await this.findAlbum(id);
 
     if (!album?.imageKey) {
@@ -62,7 +62,6 @@ export class AlbumsService {
       return this.storageService.getObjectStream(
         StorageBucket.AlbumArt,
         album.imageKey,
-        range,
       );
     } catch {
       throw new NotFoundException('Album art not found in storage');
@@ -74,21 +73,17 @@ export class AlbumsService {
     userId: string,
     starred: boolean,
   ): Promise<void> {
-    await this.prisma.albumAnnotation.upsert({
-      where: {
-        userId_albumId: { userId, albumId },
-      },
-      create: {
-        userId,
-        albumId,
-        starred,
-        starredAt: starred ? new Date() : null,
-      },
-      update: {
-        starred,
-        starredAt: starred ? new Date() : null,
-      },
-    });
+    if (starred) {
+      await this.prisma.albumAnnotation.upsert({
+        where: { userId_albumId: { userId, albumId } },
+        create: { userId, albumId, starred: true },
+        update: { starred: true },
+      });
+    } else {
+      await this.prisma.albumAnnotation.deleteMany({
+        where: { userId, albumId },
+      });
+    }
   }
 
   private buildWhere(
@@ -111,7 +106,7 @@ export class AlbumsService {
     if (filters.starred === true) {
       where.albumAnnotations = { some: { userId, starred: true } };
     } else if (filters.starred === false) {
-      where.albumAnnotations = { none: { userId, starred: true } };
+      where.albumAnnotations = { none: { userId } };
     }
 
     return where;
