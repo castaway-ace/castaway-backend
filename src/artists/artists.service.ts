@@ -1,4 +1,115 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service.js';
+import { StorageBucket, StorageService } from '../storage/storage.service.js';
+import { Artist, Prisma } from '../../generated/prisma/client.js';
+import { ArtistSortOptions } from '../dto/artist-query.dto.js';
+import { Readable } from 'stream';
+
+interface ArtistFilters {
+  genres?: string[];
+  starred?: boolean;
+}
+
+interface ArtistQueryOptions {
+  filters?: ArtistFilters;
+  sort?: ArtistSortOptions;
+  pagination?: { limit?: number; offset?: number };
+}
 
 @Injectable()
-export class ArtistsService {}
+export class ArtistsService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storageService: StorageService,
+  ) {}
+
+  async findArtist(id: string): Promise<Artist | null> {
+    return this.prisma.artist.findUnique({
+      where: { id },
+    });
+  }
+
+  async findArtists(
+    userId: string,
+    options: ArtistQueryOptions,
+  ): Promise<Artist[]> {
+    const where = this.buildWhere(options.filters, userId);
+    const orderBy = this.buildOrderBy(
+      options.sort ?? { sort: 'name', sortBy: 'asc' },
+    );
+
+    const requestedLimit = options.pagination?.limit ?? 100;
+    const take = Math.min(Math.max(requestedLimit, 1), 200);
+    const skip = Math.max(options.pagination?.offset ?? 0, 0);
+
+    return this.prisma.artist.findMany({
+      orderBy,
+      take,
+      skip,
+      where,
+    });
+  }
+
+  async findArtistStream(id: string): Promise<Readable> {
+    const artist = await this.findArtist(id);
+
+    if (!artist?.imageKey) {
+      throw new NotFoundException('Artist Art does not exist');
+    }
+
+    try {
+      return this.storageService.getObjectStream(
+        StorageBucket.ArtistArt,
+        artist.imageKey,
+      );
+    } catch {
+      throw new NotFoundException('Artist art not found in storage');
+    }
+  }
+
+  async updateArtistStar(
+    artistId: string,
+    userId: string,
+    starred: boolean,
+  ): Promise<void> {
+    if (starred) {
+      await this.prisma.artistAnnotation.upsert({
+        where: { userId_artistId: { userId, artistId } },
+        create: { userId, artistId, starred: true },
+        update: { starred: true },
+      });
+    } else {
+      await this.prisma.artistAnnotation.deleteMany({
+        where: { userId, artistId },
+      });
+    }
+  }
+
+  private buildWhere(
+    filters: ArtistFilters | undefined,
+    userId: string,
+  ): Prisma.ArtistWhereInput {
+    const where: Prisma.ArtistWhereInput = {};
+    if (!filters) return where;
+
+    if (filters.starred === true) {
+      where.artistAnnotations = { some: { userId } };
+    }
+
+    return where;
+  }
+
+  private static readonly SORT_FIELD_MAP: Record<
+    ArtistSortOptions['sort'],
+    (direction: Prisma.SortOrder) => Prisma.ArtistOrderByWithRelationInput
+  > = {
+    name: (direction) => ({ name: direction }),
+  };
+
+  private buildOrderBy(
+    sortOptions: ArtistSortOptions,
+  ): Prisma.ArtistOrderByWithRelationInput {
+    const orderBy = ArtistsService.SORT_FIELD_MAP[sortOptions.sort];
+    return orderBy(sortOptions.sortBy);
+  }
+}

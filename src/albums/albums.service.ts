@@ -112,7 +112,7 @@ export class AlbumsService {
 
   private static readonly SORT_FIELD_MAP: Record<
     AlbumSortOptions['sort'],
-    (direction: Prisma.SortOrder) => Prisma.TrackOrderByWithRelationInput
+    (direction: Prisma.SortOrder) => Prisma.AlbumOrderByWithRelationInput
   > = {
     title: (direction) => ({ title: direction }),
     year: (direction) => ({ releaseDate: direction }),
@@ -121,7 +121,7 @@ export class AlbumsService {
 
   private buildOrderBy(
     sortOptions: AlbumSortOptions,
-  ): Prisma.TrackOrderByWithRelationInput {
+  ): Prisma.AlbumOrderByWithRelationInput {
     const orderBy = AlbumsService.SORT_FIELD_MAP[sortOptions.sort];
     return orderBy(sortOptions.sortBy);
   }
