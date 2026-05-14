@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { UserService } from '../user/user.service.js';
@@ -12,6 +13,7 @@ import { AuthTokens } from '../types/auth.js';
 import { DeviceInfoDto } from '../dto/device.dto.js';
 import { DeviceService } from '../device/device.service.js';
 import { randomUUID } from 'crypto';
+import { User } from '../../generated/prisma/client.js';
 
 @Injectable()
 export class AuthService {
@@ -29,7 +31,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid Credentials');
     }
 
-    return this.issueTokensForDevice(user.id, deviceInfo);
+    return this.issueTokensForDevice(user, deviceInfo);
   }
 
   async signUp(signUpDto: SignUpDto): Promise<AuthTokens> {
@@ -46,7 +48,7 @@ export class AuthService {
       password: hash,
     });
 
-    return this.issueTokensForDevice(newUser.id, deviceInfo);
+    return this.issueTokensForDevice(newUser, deviceInfo);
   }
 
   async refresh(refreshToken: string) {
@@ -62,9 +64,10 @@ export class AuthService {
   }
 
   private async issueTokensForDevice(
-    userId: string,
+    user: User,
     deviceInfo: DeviceInfoDto,
   ): Promise<AuthTokens> {
+    const userId = user.id;
     const existingDevice = await this.deviceService.findByUserAndInfo(
       userId,
       deviceInfo,
@@ -76,10 +79,15 @@ export class AuthService {
 
     const familyId = randomUUID();
 
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
     const { accessToken, refreshToken, refreshExpiresAt } =
       await this.refreshTokenService.generateTokens({
         sub: userId,
         deviceId: device.id,
+        isAdmin: user.isAdmin,
       });
 
     await this.refreshTokenService.issue({

@@ -13,4 +13,5 @@ export interface RefreshTokenInput {
 export interface TokenPayload {
   sub: string;
   deviceId: string;
+  isAdmin: boolean;
 }

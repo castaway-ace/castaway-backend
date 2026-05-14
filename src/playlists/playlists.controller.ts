@@ -10,10 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '../auth/guards/auth.guard.js';
-import {
-  type AuthenticatedUser,
-  CurrentUser,
-} from '../auth/decorators/user.decorator.js';
+import { CurrentUser } from '../auth/decorators/user.decorator.js';
 import { PlaylistsService } from './playlists.service.js';
 import { Playlist, PlaylistTrack } from '../../generated/prisma/client.js';
 import { PlaylistDto } from '../dto/playlist.dto.js';
@@ -25,27 +22,25 @@ export class PlaylistsController {
 
   @Post('')
   async createPlaylist(
-    @CurrentUser() user: AuthenticatedUser,
+    @CurrentUser('sub') sub: string,
     @Body() playlistDto: PlaylistDto,
   ): Promise<void> {
-    await this.playlistService.createPlaylist(playlistDto.name, user.sub);
+    await this.playlistService.createPlaylist(playlistDto.name, sub);
   }
 
   @Get('')
-  async getPlaylists(
-    @CurrentUser() user: AuthenticatedUser,
-  ): Promise<Playlist[]> {
-    return await this.playlistService.findPlaylists(user.sub);
+  async getPlaylists(@CurrentUser('sub') sub: string): Promise<Playlist[]> {
+    return await this.playlistService.findPlaylists(sub);
   }
 
   @Get('/:id')
   async getPlaylist(
-    @CurrentUser() user: AuthenticatedUser,
+    @CurrentUser('sub') sub: string,
     @Param('id') id: string,
   ): Promise<Playlist> {
     const playlist = await this.playlistService.findPlaylist(id);
 
-    if (!playlist || (!playlist.public && playlist.ownerId !== user.sub)) {
+    if (!playlist || (!playlist.public && playlist.ownerId !== sub)) {
       throw new NotFoundException('Playlist not found');
     }
     return playlist;
@@ -53,47 +48,47 @@ export class PlaylistsController {
 
   @Patch('/:id')
   async updatePlaylist(
-    @CurrentUser() user: AuthenticatedUser,
+    @CurrentUser('sub') sub: string,
     @Param('id') id: string,
     @Body() playlistDto: PlaylistDto,
   ): Promise<void> {
-    await this.playlistService.updatePlaylist(id, user.sub, playlistDto.name);
+    await this.playlistService.updatePlaylist(id, sub, playlistDto.name);
   }
 
   @Delete('/:id')
   async deletePlaylist(
-    @CurrentUser() user: AuthenticatedUser,
+    @CurrentUser('sub') sub: string,
     @Param('id') id: string,
   ): Promise<void> {
-    await this.playlistService.deletePlaylist(id, user.sub);
+    await this.playlistService.deletePlaylist(id, sub);
   }
 
   @Get('/:id/tracks')
   async getPlaylistTracks(
-    @CurrentUser() user: AuthenticatedUser,
+    @CurrentUser('sub') sub: string,
     @Param('id') id: string,
   ): Promise<PlaylistTrack[]> {
-    return await this.playlistService.getPlaylistTracks(id, user.sub);
+    return await this.playlistService.getPlaylistTracks(id, sub);
   }
 
   @Post('/:id/tracks/:trackId')
   async addPlaylistTrack(
-    @CurrentUser() user: AuthenticatedUser,
+    @CurrentUser('sub') sub: string,
     @Param('id') id: string,
     @Param('trackId') trackId: string,
   ): Promise<void> {
-    await this.playlistService.addPlaylistTrack(id, user.sub, trackId);
+    await this.playlistService.addPlaylistTrack(id, sub, trackId);
   }
 
   @Get('/:id/tracks/:trackId')
   async getPlaylistTrack(
-    @CurrentUser() user: AuthenticatedUser,
+    @CurrentUser('sub') sub: string,
     @Param('id') id: string,
     @Param('trackId') trackId: string,
   ): Promise<PlaylistTrack | null> {
     const playlistTrack = await this.playlistService.getPlaylistTrack(
       id,
-      user.sub,
+      sub,
       trackId,
     );
 
@@ -105,10 +100,10 @@ export class PlaylistsController {
 
   @Delete('/:id/tracks/:trackId')
   async deletePlaylistTrack(
-    @CurrentUser() user: AuthenticatedUser,
+    @CurrentUser('sub') sub: string,
     @Param('id') id: string,
     @Param('trackId') trackId: string,
   ): Promise<void> {
-    await this.playlistService.deletePlaylistTrack(id, user.sub, trackId);
+    await this.playlistService.deletePlaylistTrack(id, sub, trackId);
   }
 }

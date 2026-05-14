@@ -1,4 +1,8 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AuthTokens, RefreshTokenInput, TokenPayload } from '../types/auth.js';
 import { JwtService } from '@nestjs/jwt';
@@ -6,6 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import { type StringValue } from 'ms';
 import ms from 'ms';
 import { createHash } from 'crypto';
+import { UserService } from '../user/user.service.js';
 
 interface JwtConfig {
   accessSecret: string;
@@ -21,6 +26,7 @@ export class RefreshTokenService {
   constructor(
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
+    private readonly userService: UserService,
     private readonly configService: ConfigService,
   ) {
     this.jwtConfig = this.loadJwtConfig(configService);
@@ -33,21 +39,30 @@ export class RefreshTokenService {
   async rotate(rawRefreshToken: string): Promise<AuthTokens> {
     const tokenHash = this.hashToken(rawRefreshToken);
 
-    const existing = await this.prisma.refreshToken.findUnique({
+    const existingRefreshToken = await this.prisma.refreshToken.findUnique({
       where: { tokenHash },
       include: { device: true },
     });
 
-    if (!existing) throw new UnauthorizedException('Invalid refresh token');
-    if (existing.expiresAt < new Date()) {
+    if (!existingRefreshToken)
+      throw new UnauthorizedException('Invalid refresh token');
+    if (existingRefreshToken.expiresAt < new Date()) {
       throw new UnauthorizedException('Refresh token expired');
     }
-    if (existing.invalidatedAt !== null) {
+    if (existingRefreshToken.invalidatedAt !== null) {
       throw new UnauthorizedException('Refresh token invalidated');
     }
-    if (existing.usedAt !== null) {
-      await this.revokeFamily(existing.familyId);
+    if (existingRefreshToken.usedAt !== null) {
+      await this.revokeFamily(existingRefreshToken.familyId);
       throw new UnauthorizedException('Refresh token reuse detected');
+    }
+
+    const user = await this.userService.findById(
+      existingRefreshToken.device.userId,
+    );
+
+    if (!user) {
+      throw new NotFoundException('User not found');
     }
 
     const {
@@ -55,23 +70,24 @@ export class RefreshTokenService {
       refreshToken: newRawRefreshToken,
       refreshExpiresAt,
     } = await this.generateTokens({
-      sub: existing.device.userId,
-      deviceId: existing.deviceId,
+      sub: user.id,
+      deviceId: existingRefreshToken.deviceId,
+      isAdmin: user.isAdmin,
     });
 
     const newTokenHash = this.hashToken(newRawRefreshToken);
 
     const newToken = await this.prisma.refreshToken.create({
       data: {
-        deviceId: existing.deviceId,
-        familyId: existing.familyId,
+        deviceId: existingRefreshToken.deviceId,
+        familyId: existingRefreshToken.familyId,
         tokenHash: newTokenHash,
         expiresAt: refreshExpiresAt,
       },
     });
 
     const updateResult = await this.prisma.refreshToken.updateMany({
-      where: { id: existing.id, usedAt: null },
+      where: { id: existingRefreshToken.id, usedAt: null },
       data: {
         usedAt: new Date(),
         replacedById: newToken.id,
@@ -79,12 +95,12 @@ export class RefreshTokenService {
     });
 
     if (updateResult.count === 0) {
-      await this.revokeFamily(existing.familyId);
+      await this.revokeFamily(existingRefreshToken.familyId);
       throw new UnauthorizedException('Concurrent rotation detected');
     }
 
     await this.prisma.device.update({
-      where: { id: existing.deviceId },
+      where: { id: existingRefreshToken.deviceId },
       data: { lastSeenAt: new Date() },
     });
 

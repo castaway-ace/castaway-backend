@@ -14,10 +14,7 @@ import {
 import { AuthGuard } from '../auth/guards/auth.guard.js';
 import { TracksService } from './tracks.service.js';
 import { Track } from '../../generated/prisma/client.js';
-import {
-  type AuthenticatedUser,
-  CurrentUser,
-} from '../auth/decorators/user.decorator.js';
+import { CurrentUser } from '../auth/decorators/user.decorator.js';
 import { TrackQueryDto } from '../dto/track.dto.js';
 
 @Controller('tracks')
@@ -27,10 +24,10 @@ export class TracksController {
 
   @Get()
   async getTracks(
-    @CurrentUser() user: AuthenticatedUser,
+    @CurrentUser('sub') sub: string,
     @Query() query: TrackQueryDto,
   ): Promise<Track[]> {
-    return this.trackService.findTracks(user.sub, {
+    return this.trackService.findTracks(sub, {
       filters: {
         artistIds: query.artistIds,
         albumIds: query.albumIds,
@@ -70,17 +67,17 @@ export class TracksController {
   @HttpCode(204)
   async starTrack(
     @Param('id') id: string,
-    @CurrentUser() user: AuthenticatedUser,
+    @CurrentUser('sub') sub: string,
   ): Promise<void> {
-    await this.trackService.updateTrackStar(id, user.sub, true);
+    await this.trackService.updateTrackStar(id, sub, true);
   }
 
   @Delete(':id/star')
   @HttpCode(204)
   async unStarTrack(
     @Param('id') id: string,
-    @CurrentUser() user: AuthenticatedUser,
+    @CurrentUser('sub') sub: string,
   ): Promise<void> {
-    await this.trackService.updateTrackStar(id, user.sub, false);
+    await this.trackService.updateTrackStar(id, sub, false);
   }
 }

@@ -12,10 +12,7 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '../auth/guards/auth.guard.js';
 import { AlbumsService } from './albums.service.js';
-import {
-  type AuthenticatedUser,
-  CurrentUser,
-} from '../auth/decorators/user.decorator.js';
+import { CurrentUser } from '../auth/decorators/user.decorator.js';
 import { AlbumQueryDto } from '../dto/album.dto.js';
 import { Album } from '../../generated/prisma/client.js';
 
@@ -26,10 +23,10 @@ export class AlbumsController {
 
   @Get()
   async getTracks(
-    @CurrentUser() user: AuthenticatedUser,
+    @CurrentUser('sub') sub: string,
     @Query() query: AlbumQueryDto,
   ): Promise<Album[]> {
-    return this.albumService.findAlbums(user.sub, {
+    return this.albumService.findAlbums(sub, {
       filters: {
         artistIds: query.artistIds,
         genres: query.genres,
@@ -65,17 +62,17 @@ export class AlbumsController {
   @HttpCode(204)
   async starAlbum(
     @Param('id') id: string,
-    @CurrentUser() user: AuthenticatedUser,
+    @CurrentUser('sub') sub: string,
   ): Promise<void> {
-    await this.albumService.updateAlbumStar(id, user.sub, true);
+    await this.albumService.updateAlbumStar(id, sub, true);
   }
 
   @Delete(':id/star')
   @HttpCode(204)
   async unStarAlbum(
     @Param('id') id: string,
-    @CurrentUser() user: AuthenticatedUser,
+    @CurrentUser('sub') sub: string,
   ): Promise<void> {
-    await this.albumService.updateAlbumStar(id, user.sub, false);
+    await this.albumService.updateAlbumStar(id, sub, false);
   }
 }

@@ -12,10 +12,7 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '../auth/guards/auth.guard.js';
 import { ArtistsService } from './artists.service.js';
-import {
-  type AuthenticatedUser,
-  CurrentUser,
-} from '../auth/decorators/user.decorator.js';
+import { CurrentUser } from '../auth/decorators/user.decorator.js';
 import { ArtistQueryDto } from '../dto/artist.dto.js';
 import { Artist } from '../../generated/prisma/client.js';
 
@@ -26,10 +23,10 @@ export class ArtistsController {
 
   @Get()
   async getArtists(
-    @CurrentUser() user: AuthenticatedUser,
+    @CurrentUser('sub') sub: string,
     @Query() query: ArtistQueryDto,
   ): Promise<Artist[]> {
-    return this.artistService.findArtists(user.sub, {
+    return this.artistService.findArtists(sub, {
       filters: {
         starred: query.starred,
         search: query.search,
@@ -63,17 +60,17 @@ export class ArtistsController {
   @HttpCode(204)
   async starArtist(
     @Param('id') id: string,
-    @CurrentUser() user: AuthenticatedUser,
+    @CurrentUser('sub') sub: string,
   ): Promise<void> {
-    await this.artistService.updateArtistStar(id, user.sub, true);
+    await this.artistService.updateArtistStar(id, sub, true);
   }
 
   @Delete(':id/star')
   @HttpCode(204)
   async unStarArtist(
     @Param('id') id: string,
-    @CurrentUser() user: AuthenticatedUser,
+    @CurrentUser('sub') sub: string,
   ): Promise<void> {
-    await this.artistService.updateArtistStar(id, user.sub, false);
+    await this.artistService.updateArtistStar(id, sub, false);
   }
 }

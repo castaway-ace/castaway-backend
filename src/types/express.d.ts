@@ -5,6 +5,7 @@ declare global {
       user: {
         sub: string;
         deviceId: string;
+        isAdmin: boolean;
       };
     }
   }

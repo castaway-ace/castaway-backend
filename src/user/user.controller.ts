@@ -9,10 +9,7 @@ import {
 } from '@nestjs/common';
 import { UserService } from './user.service.js';
 import { AuthGuard } from '../auth/guards/auth.guard.js';
-import {
-  type AuthenticatedUser,
-  CurrentUser,
-} from '../auth/decorators/user.decorator.js';
+import { CurrentUser } from '../auth/decorators/user.decorator.js';
 import { UserEntity } from '../dto/user.dto.js';
 
 @Controller('user')
@@ -22,10 +19,8 @@ export class UserController {
   constructor(private readonly userService: UserService) {}
 
   @Get('me')
-  async getCurrentUser(
-    @CurrentUser() user: AuthenticatedUser,
-  ): Promise<UserEntity> {
-    const foundUser = await this.userService.findById(user.sub);
+  async getCurrentUser(@CurrentUser('sub') sub: string): Promise<UserEntity> {
+    const foundUser = await this.userService.findById(sub);
     if (!foundUser) {
       throw new NotFoundException('User not found');
     }
@@ -33,9 +28,9 @@ export class UserController {
   }
 
   @Delete('me')
-  async deleteUser(@CurrentUser() user: AuthenticatedUser): Promise<void> {
+  async deleteUser(@CurrentUser('sub') sub: string): Promise<void> {
     try {
-      await this.userService.delete(user.sub);
+      await this.userService.delete(sub);
     } catch {
       throw new NotFoundException('User not found');
     }
