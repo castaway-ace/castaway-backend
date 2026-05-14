@@ -16,8 +16,7 @@ import {
 } from '../auth/decorators/user.decorator.js';
 import { PlaylistsService } from './playlists.service.js';
 import { Playlist, PlaylistTrack } from '../../generated/prisma/client.js';
-import { PlaylistCreateDto as PlaylistDto } from '../dto/playlist.dto.js';
-import { PlaylistTrackDto } from '../dto/playlist-track.dto.js';
+import { PlaylistDto } from '../dto/playlist.dto.js';
 
 @Controller('playlists')
 @UseGuards(AuthGuard)
@@ -69,25 +68,21 @@ export class PlaylistsController {
     await this.playlistService.deletePlaylist(id, user.sub);
   }
 
-  @Post('/:id/tracks')
-  async addPlaylistTrack(
-    @CurrentUser() user: AuthenticatedUser,
-    @Param('id') id: string,
-    @Body() playlistTrackDto: PlaylistTrackDto,
-  ): Promise<void> {
-    await this.playlistService.addPlaylistTrack(
-      id,
-      user.sub,
-      playlistTrackDto.id,
-    );
-  }
-
   @Get('/:id/tracks')
   async getPlaylistTracks(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
   ): Promise<PlaylistTrack[]> {
     return await this.playlistService.getPlaylistTracks(id, user.sub);
+  }
+
+  @Post('/:id/tracks/:trackId')
+  async addPlaylistTrack(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Param('trackId') trackId: string,
+  ): Promise<void> {
+    await this.playlistService.addPlaylistTrack(id, user.sub, trackId);
   }
 
   @Get('/:id/tracks/:trackId')
