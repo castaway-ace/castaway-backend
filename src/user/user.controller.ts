@@ -13,7 +13,7 @@ import {
   type AuthenticatedUser,
   CurrentUser,
 } from '../auth/decorators/user.decorator.js';
-import { UserEntity } from '../dto/user-entity.dto.js';
+import { UserEntity } from '../dto/user.dto.js';
 
 @Controller('user')
 @UseGuards(AuthGuard)

@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { Prisma, Track } from '../../generated/prisma/client.js';
 import { StorageBucket, StorageService } from '../storage/storage.service.js';
 import { Readable } from 'stream';
-import { TrackSortOptions as TrackOrderOptions } from '../dto/track-query.dto.js';
+import { TrackSortOptions as TrackOrderOptions } from '../dto/track.dto.js';
 
 interface TrackFilters {
   artistIds?: string[];

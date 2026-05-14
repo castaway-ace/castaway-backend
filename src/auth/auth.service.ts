@@ -9,7 +9,7 @@ import { SignUpDto } from '../dto/sign-up.dto.js';
 import { RefreshTokenService } from '../refresh-token/refresh-token.service.js';
 import { LoginDto } from '../dto/login.dto.js';
 import { AuthTokens } from '../types/auth.js';
-import { DeviceInfoDto } from '../dto/device-info.dto.js';
+import { DeviceInfoDto } from '../dto/device.dto.js';
 import { DeviceService } from '../device/device.service.js';
 import { randomUUID } from 'crypto';
 

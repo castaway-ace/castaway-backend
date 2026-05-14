@@ -16,7 +16,7 @@ import {
   type AuthenticatedUser,
   CurrentUser,
 } from '../auth/decorators/user.decorator.js';
-import { ArtistQueryDto } from '../dto/artist-query.dto.js';
+import { ArtistQueryDto } from '../dto/artist.dto.js';
 import { Artist } from '../../generated/prisma/client.js';
 
 @Controller('artists')

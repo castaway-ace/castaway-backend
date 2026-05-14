@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { AlbumSortOptions as AlbumOrderOptions } from '../dto/album-query.dto.js';
+import { AlbumSortOptions as AlbumOrderOptions } from '../dto/album.dto.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { StorageBucket, StorageService } from '../storage/storage.service.js';
 import { Album, Prisma } from '../../generated/prisma/client.js';

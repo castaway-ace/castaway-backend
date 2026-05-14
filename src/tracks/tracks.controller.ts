@@ -18,7 +18,7 @@ import {
   type AuthenticatedUser,
   CurrentUser,
 } from '../auth/decorators/user.decorator.js';
-import { TrackQueryDto } from '../dto/track-query.dto.js';
+import { TrackQueryDto } from '../dto/track.dto.js';
 
 @Controller('tracks')
 @UseGuards(AuthGuard)

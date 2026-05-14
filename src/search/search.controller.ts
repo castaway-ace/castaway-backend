@@ -5,7 +5,7 @@ import {
   type AuthenticatedUser,
   CurrentUser,
 } from '../auth/decorators/user.decorator.js';
-import { SearchQueryDto } from '../dto/search-query.dto.js';
+import { SearchQueryDto } from '../dto/search.dto.js';
 
 @Controller('search')
 @UseGuards(AuthGuard)

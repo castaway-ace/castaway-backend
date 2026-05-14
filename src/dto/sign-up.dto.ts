@@ -7,7 +7,7 @@ import {
   ValidateNested,
   Matches,
 } from 'class-validator';
-import { DeviceInfoDto } from './device-info.dto.js';
+import { DeviceInfoDto } from './device.dto.js';
 
 export class SignUpDto {
   @IsString()

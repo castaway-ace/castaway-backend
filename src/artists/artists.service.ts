@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { StorageBucket, StorageService } from '../storage/storage.service.js';
 import { Artist, Prisma } from '../../generated/prisma/client.js';
-import { ArtistOrderOptions } from '../dto/artist-query.dto.js';
+import { ArtistOrderOptions } from '../dto/artist.dto.js';
 import { Readable } from 'stream';
 
 interface ArtistFilters {
