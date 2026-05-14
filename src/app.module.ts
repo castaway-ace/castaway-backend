@@ -10,6 +10,7 @@ import { TracksModule } from './tracks/tracks.module.js';
 import { AlbumsModule } from './albums/albums.module.js';
 import { ArtistsModule } from './artists/artists.module.js';
 import { SearchModule } from './search/search.module.js';
+import { PlaylistsModule } from './playlists/playlists.module.js';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { SearchModule } from './search/search.module.js';
     AlbumsModule,
     ArtistsModule,
     SearchModule,
+    PlaylistsModule,
   ],
   controllers: [AppController],
   providers: [AppService, StorageService],
