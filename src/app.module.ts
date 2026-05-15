@@ -11,6 +11,7 @@ import { AlbumsModule } from './albums/albums.module.js';
 import { ArtistsModule } from './artists/artists.module.js';
 import { SearchModule } from './search/search.module.js';
 import { PlaylistsModule } from './playlists/playlists.module.js';
+import { AdminModule } from './admin/admin.module.js';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { PlaylistsModule } from './playlists/playlists.module.js';
     ArtistsModule,
     SearchModule,
     PlaylistsModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [AppService, StorageService],
