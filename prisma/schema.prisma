@@ -77,7 +77,7 @@ model RefreshToken {
 
 model Artist {
   id        String   @id @default(uuid()) @db.Uuid
-  name      String
+  name      String   @unique
   bio       String?
   imageKey  String?  @map("image_key")
   createdAt DateTime @default(now()) @map("created_at")

@@ -84,6 +84,14 @@ export class ArtistsService {
     }
   }
 
+  async findOrCreateArtist(name: string) {
+    return this.prisma.artist.upsert({
+      where: { name },
+      create: { name },
+      update: {},
+    });
+  }
+
   private buildWhere(
     filters: ArtistFilters | undefined,
     userId: string,

@@ -85,6 +85,26 @@ export class AlbumsService {
     }
   }
 
+  // async findOrCreateAlbum(
+  //   title: string,
+  //   primaryArtistIds: string[],
+  //   releaseDate: string,
+  // ) {
+  //   return this.prisma.album.upsert({
+  //     where: {
+  //       title_albumArtists: { title, primaryArtistIds },
+  //     },
+  //     create: {
+  //       title,
+  //       releaseDate,
+  //       albumArtists: {
+  //         create: { artistId: primaryArtistId },
+  //       },
+  //     },
+  //     update: {},
+  //   });
+  // }
+
   private buildWhere(
     filters: AlbumFilters | undefined,
     userId: string,
