@@ -85,25 +85,38 @@ export class AlbumsService {
     }
   }
 
-  // async findOrCreateAlbum(
-  //   title: string,
-  //   primaryArtistIds: string[],
-  //   releaseDate: string,
-  // ) {
-  //   return this.prisma.album.upsert({
-  //     where: {
-  //       title_albumArtists: { title, primaryArtistIds },
-  //     },
-  //     create: {
-  //       title,
-  //       releaseDate,
-  //       albumArtists: {
-  //         create: { artistId: primaryArtistId },
-  //       },
-  //     },
-  //     update: {},
-  //   });
-  // }
+  async findOrCreateAlbum(
+    title: string,
+    artistIds: string[],
+    releaseDate: string,
+  ) {
+    const existing = await this.prisma.album.findFirst({
+      where: {
+        title,
+        AND: artistIds.map((artistId) => ({
+          albumArtists: {
+            some: { artistId },
+          },
+        })),
+      },
+      include: { albumArtists: true },
+    });
+
+    if (existing) {
+      return existing;
+    }
+
+    return this.prisma.album.create({
+      data: {
+        title,
+        releaseDate,
+        albumArtists: {
+          create: artistIds.map((artistId) => ({ artistId })),
+        },
+      },
+      include: { albumArtists: true },
+    });
+  }
 
   private buildWhere(
     filters: AlbumFilters | undefined,

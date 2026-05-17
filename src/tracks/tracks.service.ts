@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { Prisma, Track } from '../../generated/prisma/client.js';
+import { Artist, Prisma, Track } from '../../generated/prisma/client.js';
 import { StorageBucket, StorageService } from '../storage/storage.service.js';
 import { Readable } from 'stream';
 import { TrackSortOptions as TrackOrderOptions } from '../dto/track.dto.js';
@@ -19,12 +19,70 @@ interface TrackQueryOptions {
   pagination?: { limit?: number; offset?: number };
 }
 
+interface CreateTrackItem {
+  title: string;
+  albumId: string;
+  fileKey: string;
+  trackNumber: number;
+  discNumber: number;
+  duration: number;
+  size: number;
+  codec: string;
+  suffix: string;
+  genres: string[];
+  bitRate: number;
+  sampleRate: number;
+  bitDepth: number;
+  releaseDate: string;
+  artists: Artist[];
+}
+
 @Injectable()
 export class TracksService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storageService: StorageService,
   ) {}
+
+  async createTrack({
+    title,
+    albumId,
+    fileKey,
+    trackNumber,
+    discNumber,
+    duration,
+    size,
+    codec,
+    suffix,
+    genres,
+    bitRate,
+    sampleRate,
+    bitDepth,
+    releaseDate,
+    artists,
+  }: CreateTrackItem): Promise<Track | null> {
+    return this.prisma.track.create({
+      data: {
+        title,
+        albumId,
+        fileKey,
+        trackNumber,
+        discNumber,
+        duration,
+        size,
+        codec,
+        suffix,
+        genres,
+        bitRate,
+        sampleRate,
+        bitDepth,
+        releaseDate,
+        trackArtists: {
+          create: artists.map((artist) => ({ artistId: artist.id })),
+        },
+      },
+    });
+  }
 
   async findTrack(id: string): Promise<Track | null> {
     return this.prisma.track.findUnique({

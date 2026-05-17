@@ -1,11 +1,13 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { StorageService } from '../storage/storage.service.js';
+import { StorageBucket, StorageService } from '../storage/storage.service.js';
 import 'multer';
 import { mimeToSuffix } from '../types/constants.js';
 import { IAudioMetadata, parseBuffer } from 'music-metadata';
 import { TracksService } from '../tracks/tracks.service.js';
 import { ArtistsService } from '../artists/artists.service.js';
 import { AlbumsService } from '../albums/albums.service.js';
+import 'fs';
+import { Track } from 'generated/prisma/client.js';
 
 interface MetadataTags {
   title: string;
@@ -14,10 +16,11 @@ interface MetadataTags {
   trackArtistNames: string[];
   trackNumber: number;
   discNumber: number;
-  date: string | undefined;
+  genres: string[];
+  date: string;
   duration: number;
   sampleRate: number;
-  bitDepth: number | undefined;
+  bitDepth: number;
   codec: string;
   bitRate: number;
 }
@@ -31,7 +34,7 @@ export class AdminService {
     private readonly albumService: AlbumsService,
   ) {}
 
-  async uploadTrack(file: Express.Multer.File): Promise<void> {
+  async uploadTrack(file: Express.Multer.File): Promise<Track | null> {
     const suffix = mimeToSuffix[file.mimetype];
     const metadata = await parseBuffer(file.buffer, file.mimetype);
     const tags = this.extractRequiredTags(metadata);
@@ -46,46 +49,46 @@ export class AdminService {
       ),
     );
 
-    // const newAlbum = await this.albumService.findOrCreateAlbum(
-    //   album,
-    //   123,
-    //   date,
-    // );
+    const newAlbum = await this.albumService.findOrCreateAlbum(
+      tags.albumTitle,
+      [albumArtist.id],
+      tags.date,
+    );
 
-    // const fileKey = `${album}/${title}.${suffix}`;
+    const fileKey = `${tags.albumTitle}/${tags.title}.${suffix}`;
 
-    // await this.storageService.putObject(
-    //   StorageBucket.Tracks,
-    //   fileKey,
-    //   file.buffer,
-    //   {
-    //     contentType: file.mimetype,
-    //     size: file.size,
-    //     metadata: {
-    //       originalName: file.originalname,
-    //     },
-    //   },
-    // );
+    await this.storageService.putObject(
+      StorageBucket.Tracks,
+      fileKey,
+      file.buffer,
+      {
+        contentType: file.mimetype,
+        size: file.size,
+        metadata: {
+          originalName: file.originalname,
+        },
+      },
+    );
 
-    // const trackData = {
-    //   title,
-    //   albumId: album.id,
-    //   fileKey,
-    //   trackNumber: metadata.common.track.no,
-    //   discNumber: metadata.common.disk.no ?? 1,
-    //   duration: Math.round(metadata.format.duration),
-    //   size: file.size,
-    //   codec: metadata.format.codec ?? '',
-    //   suffix: extractSuffix(file.originalname),
-    //   genres: metadata.common.genre ?? [],
-    //   bitRate: Math.round(metadata.format.bitrate / 1000),
-    //   sampleRate: metadata.format.sampleRate,
-    //   bitDepth: metadata.format.bitsPerSample,
-    //   releaseDate: parseReleaseDate(metadata.common),
-    //   artists: artists,
-    // };
+    const track = await this.trackService.createTrack({
+      title: tags.title,
+      albumId: newAlbum.id,
+      fileKey,
+      trackNumber: tags.trackNumber,
+      discNumber: tags.discNumber,
+      duration: tags.duration,
+      size: file.size,
+      codec: tags.codec,
+      suffix,
+      genres: tags.genres,
+      bitRate: tags.bitRate,
+      sampleRate: tags.sampleRate,
+      bitDepth: tags.bitDepth,
+      releaseDate: tags.date,
+      artists: trackArtists,
+    });
 
-    // const track = await this.trackService.createTrack();
+    return track;
   }
 
   async uploadAlbum(files: Express.Multer.File[]): Promise<void> {
@@ -93,24 +96,29 @@ export class AdminService {
   }
 
   private extractRequiredTags(metadata: IAudioMetadata): MetadataTags {
-    const { title, artists, albumartist, album, track, disk, date } =
+    const { title, artists, albumartist, album, track, disk, date, genre } =
       metadata.common;
     const { duration, sampleRate, bitsPerSample, codec, bitrate } =
       metadata.format;
 
+    console.log(metadata);
+
     if (!title) throw new BadRequestException('Missing track title');
     if (!album) throw new BadRequestException('Missing album title');
     if (!albumartist) throw new BadRequestException('Missing album artist');
-
-    const trackArtistNames = artists?.length ? artists : [albumartist];
+    if (!artists) throw new BadRequestException('Missing track artists');
+    if (!date) throw new BadRequestException('Missing date');
+    if (!bitsPerSample) throw new BadRequestException('Missing bit depth');
+    if (!genre) throw new BadRequestException('Missing genres');
 
     return {
       title,
       albumTitle: album,
       albumArtistName: albumartist,
-      trackArtistNames,
+      trackArtistNames: artists,
       trackNumber: track.no ?? 1,
       discNumber: disk.no ?? 1,
+      genres: genre,
       date,
       duration: Math.round(duration ?? 0),
       sampleRate: sampleRate ?? 0,
