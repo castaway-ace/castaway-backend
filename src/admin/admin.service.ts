@@ -1,12 +1,10 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { StorageBucket, StorageService } from '../storage/storage.service.js';
-import 'multer';
 import { mimeToSuffix } from '../types/constants.js';
 import { IAudioMetadata, parseBuffer } from 'music-metadata';
 import { TracksService } from '../tracks/tracks.service.js';
 import { ArtistsService } from '../artists/artists.service.js';
 import { AlbumsService } from '../albums/albums.service.js';
-import 'fs';
 import { Album, Artist, Track } from 'generated/prisma/client.js';
 
 interface MetadataTags {
@@ -39,12 +37,12 @@ export class AdminService {
     private readonly albumService: AlbumsService,
   ) {}
 
-  async uploadAlbum(files: Express.Multer.File[]): Promise<Track[]> {
+  async uploadAlbum(files: Express.Multer.File[]): Promise<void> {
     if (files.length === 0) {
       throw new BadRequestException('No files provided');
     }
 
-    const parsedFiles = await Promise.all(
+    const parsedFiles: ParsedFile[] = await Promise.all(
       files.map(async (file) => ({
         file,
         tags: this.extractRequiredTags(
@@ -85,12 +83,9 @@ export class AdminService {
     );
 
     const failures: { trackTitle: string; reason: string }[] = [];
-    const successes: Track[] = [];
 
     results.forEach((result, index) => {
-      if (result.status === 'fulfilled' && result.value) {
-        successes.push(result.value);
-      } else if (result.status === 'rejected') {
+      if (result.status === 'rejected') {
         failures.push({
           trackTitle: parsedFiles[index].tags.title,
           reason:
@@ -105,11 +100,8 @@ export class AdminService {
       throw new BadRequestException({
         message: `${failures.length} of ${parsedFiles.length} tracks failed to upload`,
         failures,
-        succeeded: successes.map((t) => t.title),
       });
     }
-
-    return successes;
   }
 
   private validateSingleAlbum(parsedFiles: ParsedFile[]): void {
