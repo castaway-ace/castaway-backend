@@ -88,34 +88,51 @@ export class AlbumsService {
   async findOrCreateAlbum(
     title: string,
     artistIds: string[],
-    releaseDate: string,
-  ) {
+    releaseDate: Date,
+  ): Promise<Album> {
     const existing = await this.prisma.album.findFirst({
       where: {
         title,
         AND: artistIds.map((artistId) => ({
-          albumArtists: {
-            some: { artistId },
-          },
+          albumArtists: { some: { artistId } },
         })),
       },
-      include: { albumArtists: true },
     });
 
-    if (existing) {
-      return existing;
-    }
+    if (existing) return existing;
 
-    return this.prisma.album.create({
-      data: {
-        title,
-        releaseDate,
-        albumArtists: {
-          create: artistIds.map((artistId) => ({ artistId })),
+    try {
+      return await this.prisma.album.create({
+        data: {
+          title,
+          releaseDate,
+          albumArtists: {
+            create: artistIds.map((artistId) => ({ artistId })),
+          },
         },
-      },
-      include: { albumArtists: true },
-    });
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        const album = await this.prisma.album.findFirst({
+          where: {
+            title,
+            AND: artistIds.map((artistId) => ({
+              albumArtists: { some: { artistId } },
+            })),
+          },
+        });
+        if (!album) {
+          throw new Error(
+            `Album "${title}" had unique conflict but could not be re-fetched`,
+          );
+        }
+        return album;
+      }
+      throw error;
+    }
   }
 
   private buildWhere(

@@ -133,7 +133,6 @@ model Track {
   discNumber  Int      @default(1) @map("disc_number")
   duration    Int
   size        Int
-  codec       String   @db.VarChar(16)
   suffix      String   @db.VarChar(16)
   genres      String[]
   bitRate     Int      @map("bit_rate")

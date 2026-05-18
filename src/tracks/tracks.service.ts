@@ -27,13 +27,12 @@ interface CreateTrackItem {
   discNumber: number;
   duration: number;
   size: number;
-  codec: string;
   suffix: string;
   genres: string[];
   bitRate: number;
   sampleRate: number;
   bitDepth: number;
-  releaseDate: string;
+  releaseDate: Date;
   artists: Artist[];
 }
 
@@ -52,7 +51,6 @@ export class TracksService {
     discNumber,
     duration,
     size,
-    codec,
     suffix,
     genres,
     bitRate,
@@ -70,7 +68,6 @@ export class TracksService {
         discNumber,
         duration,
         size,
-        codec,
         suffix,
         genres,
         bitRate,

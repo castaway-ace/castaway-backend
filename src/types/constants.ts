@@ -1,5 +1,6 @@
 export const mimeToSuffix: Record<string, string> = {
   'audio/flac': 'flac',
+  'audio/x-flac': 'flac',
   'audio/mpeg': 'mp3',
   'audio/wav': 'wav',
   'audio/x-wav': 'wav',

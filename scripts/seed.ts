@@ -136,7 +136,6 @@ const seed = async () => {
         discNumber: 1,
         duration: 180,
         size: placeholderAudio.length,
-        codec: 'flac',
         suffix: 'flac',
         genres: ['Jazz'],
         bitRate: 1000,

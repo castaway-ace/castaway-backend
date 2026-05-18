@@ -84,12 +84,22 @@ export class ArtistsService {
     }
   }
 
-  async findOrCreateArtist(name: string) {
-    return this.prisma.artist.upsert({
-      where: { name },
-      create: { name },
-      update: {},
-    });
+  async findOrCreateArtist(name: string): Promise<Artist> {
+    try {
+      return await this.prisma.artist.upsert({
+        where: { name },
+        create: { name },
+        update: {},
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        return this.prisma.artist.findUniqueOrThrow({ where: { name } });
+      }
+      throw error;
+    }
   }
 
   private buildWhere(
