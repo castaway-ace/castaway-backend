@@ -21,7 +21,6 @@ services:
       target: development
     ports:
       - "3000:3000"
-      - "5555:5555"
     environment:
       - NODE_ENV=development
       - DATABASE_URL=${DATABASE_URL}
@@ -64,6 +63,17 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+  prisma-studio: 
+    build:
+      context: .
+      target: development
+    command: npx prisma studio --port 5555 --browser none
+    ports:
+      - "5555:5555"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+    depends_on:
+      - db
 
 volumes:
   pgdata:

@@ -5,6 +5,7 @@ import {
   MinLength,
   ValidateNested,
   IsEmail,
+  Matches,
 } from 'class-validator';
 import { DeviceInfoDto } from './device.dto.js';
 
@@ -14,7 +15,9 @@ export class LoginDto {
   readonly email!: string;
 
   @IsString()
-  @MinLength(8)
+  @MinLength(12)
+  @Matches(/[A-Z]/, { message: 'Password must contain an uppercase letter' })
+  @Matches(/[0-9]/, { message: 'Password must contain a number' })
   readonly password!: string;
 
   @ValidateNested()
