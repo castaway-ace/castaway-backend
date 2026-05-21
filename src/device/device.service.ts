@@ -7,19 +7,16 @@ import { DeviceInfoDto } from '../dto/device.dto.js';
 export class DeviceService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findByUserAndInfo(
+  async findOrCreate(
     userId: string,
     deviceInfo: DeviceInfoDto,
   ): Promise<Device | null> {
-    return this.prisma.device.findFirst({
-      where: { name: deviceInfo.name, model: deviceInfo.model, userId },
-    });
-  }
-
-  async create(userId: string, deviceInfo: DeviceInfoDto): Promise<Device> {
-    return this.prisma.device.create({
-      data: {
+    return this.prisma.device.upsert({
+      where: { userId_clientId: { userId, clientId: deviceInfo.clientId } },
+      update: { lastSeenAt: new Date() },
+      create: {
         userId,
+        clientId: deviceInfo.clientId,
         name: deviceInfo.name,
         model: deviceInfo.model,
       },

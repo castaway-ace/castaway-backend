@@ -35,9 +35,10 @@ model User {
 model Device {
   id     String @id @default(uuid()) @db.Uuid
   userId String @map("user_id") @db.Uuid
+  clientId String @map("client_id") @db.Uuid
 
-  name  String
-  model String
+  name  String?
+  model String?
 
   activatedAt DateTime @default(now()) @map("activated_at")
   lastSeenAt  DateTime @default(now()) @map("last_used_at")
@@ -45,7 +46,7 @@ model Device {
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   refreshTokens RefreshToken[]
 
-  @@unique([name, model])
+  @@unique([userId, clientId])
   @@index([userId])
   @@map("devices")
 }

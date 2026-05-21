@@ -68,20 +68,13 @@ export class AuthService {
     deviceInfo: DeviceInfoDto,
   ): Promise<AuthTokens> {
     const userId = user.id;
-    const existingDevice = await this.deviceService.findByUserAndInfo(
-      userId,
-      deviceInfo,
-    );
-    const device =
-      existingDevice && existingDevice.userId === userId
-        ? existingDevice
-        : await this.deviceService.create(userId, deviceInfo);
+    const device = await this.deviceService.findOrCreate(userId, deviceInfo);
+
+    if (!device) {
+      throw new NotFoundException('Device not found');
+    }
 
     const familyId = randomUUID();
-
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
 
     const { accessToken, refreshToken, refreshExpiresAt } =
       await this.refreshTokenService.generateTokens({
