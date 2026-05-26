@@ -116,8 +116,9 @@ export class TracksService {
         genres: true,
         duration: true,
         releaseDate: true,
+        albumId: true,
         album: {
-          select: { title: true, imageKey: true },
+          select: { title: true },
         },
         trackArtists: {
           select: {
@@ -133,7 +134,6 @@ export class TracksService {
       ...track,
       artists: trackArtists.map((ta) => ta.artist.name),
       album: album.title,
-      coverArt: album.imageKey,
     }));
   }
 

@@ -67,16 +67,10 @@ export class AlbumsService {
       },
     });
 
-    return Promise.all(
-      albums.map(async ({ albumArtists, imageKey, ...album }) => ({
-        ...album,
-        artists: albumArtists.map((ta) => ta.artist.name),
-        imageUrl: await this.storageService.getObjectStream(
-          StorageBucket.AlbumArt,
-          imageKey,
-        ),
-      })),
-    );
+    return albums.map(({ albumArtists, ...album }) => ({
+      ...album,
+      artists: albumArtists.map((ta) => ta.artist.name),
+    }));
   }
 
   async findAlbumStream(id: string): Promise<Readable> {
