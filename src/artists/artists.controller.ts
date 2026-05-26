@@ -15,6 +15,7 @@ import { ArtistsService } from './artists.service.js';
 import { CurrentUser } from '../auth/decorators/user.decorator.js';
 import { ArtistQueryDto } from '../dto/artist.dto.js';
 import { Artist } from '../../generated/prisma/client.js';
+import { Artists } from '../types/artists.js';
 
 @Controller('artists')
 @UseGuards(AuthGuard)
@@ -25,7 +26,7 @@ export class ArtistsController {
   async getArtists(
     @CurrentUser('sub') sub: string,
     @Query() query: ArtistQueryDto,
-  ): Promise<Artist[]> {
+  ): Promise<Artists> {
     return this.artistService.findArtists(sub, {
       filters: {
         starred: query.starred,

@@ -2,12 +2,13 @@ import { Injectable } from '@nestjs/common';
 import { ArtistsService } from '../artists/artists.service.js';
 import { AlbumsService } from '../albums/albums.service.js';
 import { TracksService } from '../tracks/tracks.service.js';
-import { Album, Artist } from '../../generated/prisma/client.js';
-import { Tracks } from 'src/types/tracks.js';
+import { Tracks } from '../types/tracks.js';
+import { Albums } from '../types/albums.js';
+import { Artists } from '../types/artists.js';
 
 export interface SearchResults {
-  artists: Artist[];
-  albums: Album[];
+  artists: Artists;
+  albums: Albums;
   tracks: Tracks;
 }
 

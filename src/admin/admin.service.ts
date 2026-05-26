@@ -1,11 +1,12 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { StorageBucket, StorageService } from '../storage/storage.service.js';
+import { StorageService } from '../storage/storage.service.js';
 import { mimeToSuffix } from '../types/constants.js';
 import { IAudioMetadata, parseBuffer } from 'music-metadata';
 import { TracksService } from '../tracks/tracks.service.js';
 import { ArtistsService } from '../artists/artists.service.js';
 import { AlbumsService } from '../albums/albums.service.js';
 import { Album, Artist, Track } from 'generated/prisma/client.js';
+import { StorageBucket } from '../types/storage.js';
 
 interface MetadataTags {
   title: string;

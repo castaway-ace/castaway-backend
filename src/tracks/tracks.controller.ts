@@ -16,7 +16,7 @@ import { TracksService } from './tracks.service.js';
 import { Track } from '../../generated/prisma/client.js';
 import { CurrentUser } from '../auth/decorators/user.decorator.js';
 import { TrackQueryDto } from '../dto/track.dto.js';
-import { Tracks } from 'src/types/tracks.js';
+import { Tracks } from '../types/tracks.js';
 
 @Controller('tracks')
 @UseGuards(AuthGuard)

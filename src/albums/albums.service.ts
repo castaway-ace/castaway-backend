@@ -1,10 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { AlbumSortOptions as AlbumOrderOptions } from '../dto/album.dto.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { StorageBucket, StorageService } from '../storage/storage.service.js';
+import { StorageService } from '../storage/storage.service.js';
 import { Album, Prisma } from '../../generated/prisma/client.js';
 import { Readable } from 'stream';
-import { Albums } from 'src/types/albums.js';
+import { Albums } from '../types/albums.js';
+import { StorageBucket } from '../types/storage.js';
 
 interface AlbumFilters {
   artistIds?: string[];
@@ -66,10 +67,16 @@ export class AlbumsService {
       },
     });
 
-    return albums.map(({ albumArtists, ...album }) => ({
-      ...album,
-      artists: albumArtists.map((ta) => ta.artist.name),
-    }));
+    return Promise.all(
+      albums.map(async ({ albumArtists, imageKey, ...album }) => ({
+        ...album,
+        artists: albumArtists.map((ta) => ta.artist.name),
+        imageUrl: await this.storageService.getObjectStream(
+          StorageBucket.AlbumArt,
+          imageKey,
+        ),
+      })),
+    );
   }
 
   async findAlbumStream(id: string): Promise<Readable> {

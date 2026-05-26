@@ -7,13 +7,8 @@ import {
 } from '@aws-sdk/client-s3';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { StorageBucket } from '../types/storage.js';
 import { Readable } from 'stream';
-
-export enum StorageBucket {
-  Tracks = 'tracks',
-  AlbumArt = 'album-art',
-  ArtistArt = 'artist-image',
-}
 
 interface StorageConfig {
   endpoint: string;
@@ -73,9 +68,12 @@ export class StorageService {
 
   async getObjectStream(
     bucket: StorageBucket,
-    key: string,
+    key: string | null,
     range?: string,
   ): Promise<Readable> {
+    if (!key) {
+      throw new Error(`Key is not provided`);
+    }
     const response = await this.client.send(
       new GetObjectCommand({
         Bucket: bucket,

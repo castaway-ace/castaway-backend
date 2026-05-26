@@ -1,10 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { Artist, Prisma, Track } from '../../generated/prisma/client.js';
-import { StorageBucket, StorageService } from '../storage/storage.service.js';
+import { StorageService } from '../storage/storage.service.js';
 import { Readable } from 'stream';
 import { TrackSortOptions as TrackOrderOptions } from '../dto/track.dto.js';
-import { Tracks } from 'src/types/tracks.js';
+import { Tracks } from '../types/tracks.js';
+import { StorageBucket } from '../types/storage.js';
 
 interface TrackFilters {
   artistIds?: string[];

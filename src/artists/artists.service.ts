@@ -1,9 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { StorageBucket, StorageService } from '../storage/storage.service.js';
+import { StorageService } from '../storage/storage.service.js';
 import { Artist, Prisma } from '../../generated/prisma/client.js';
 import { ArtistOrderOptions } from '../dto/artist.dto.js';
 import { Readable } from 'stream';
+import { Artists } from '../types/artists.js';
+import { StorageBucket } from '../types/storage.js';
 
 interface ArtistFilters {
   genres?: string[];
@@ -33,7 +35,7 @@ export class ArtistsService {
   async findArtists(
     userId: string,
     options: ArtistQueryOptions,
-  ): Promise<Artist[]> {
+  ): Promise<Artists> {
     const where = this.buildWhere(options.filters, userId);
     const orderBy = this.buildOrderBy(options?.orderOptions);
 
@@ -46,6 +48,11 @@ export class ArtistsService {
       take,
       skip,
       where,
+      select: {
+        id: true,
+        name: true,
+        imageKey: true,
+      },
     });
   }
 
