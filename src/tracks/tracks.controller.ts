@@ -16,6 +16,7 @@ import { TracksService } from './tracks.service.js';
 import { Track } from '../../generated/prisma/client.js';
 import { CurrentUser } from '../auth/decorators/user.decorator.js';
 import { TrackQueryDto } from '../dto/track.dto.js';
+import { Tracks } from 'src/types/tracks.js';
 
 @Controller('tracks')
 @UseGuards(AuthGuard)
@@ -26,7 +27,7 @@ export class TracksController {
   async getTracks(
     @CurrentUser('sub') sub: string,
     @Query() query: TrackQueryDto,
-  ): Promise<Track[]> {
+  ): Promise<Tracks> {
     return this.trackService.findTracks(sub, {
       filters: {
         artistIds: query.artistIds,

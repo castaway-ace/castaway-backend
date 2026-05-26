@@ -4,6 +4,7 @@ import { Artist, Prisma, Track } from '../../generated/prisma/client.js';
 import { StorageBucket, StorageService } from '../storage/storage.service.js';
 import { Readable } from 'stream';
 import { TrackSortOptions as TrackOrderOptions } from '../dto/track.dto.js';
+import { Tracks } from 'src/types/tracks.js';
 
 interface TrackFilters {
   artistIds?: string[];
@@ -95,7 +96,7 @@ export class TracksService {
   async findTracks(
     userId: string,
     options: TrackQueryOptions,
-  ): Promise<Track[]> {
+  ): Promise<Tracks> {
     const where = this.buildWhere(options.filters, userId);
     const orderBy = this.buildOrderBy(options?.orderOptions);
 
@@ -103,12 +104,43 @@ export class TracksService {
     const take = Math.min(Math.max(requestedLimit, 1), 200);
     const skip = Math.max(options.pagination?.offset ?? 0, 0);
 
-    return this.prisma.track.findMany({
+    const tracks = await this.prisma.track.findMany({
       orderBy,
       take,
       skip,
       where,
+      omit: {
+        fileKey: true,
+        trackNumber: true,
+        size: true,
+        suffix: true,
+        bitRate: true,
+        sampleRate: true,
+        bitDepth: true,
+      },
+      include: {
+        trackArtists: {
+          include: {
+            artist: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
+        album: {
+          select: {
+            title: true,
+          },
+        },
+      },
     });
+
+    return tracks.map(({ trackArtists, album, ...track }) => ({
+      ...track,
+      artists: trackArtists.map((ta) => ta.artist.name),
+      album: album.title,
+    }));
   }
 
   async findTrackStream(id: string, range?: string): Promise<Readable> {
