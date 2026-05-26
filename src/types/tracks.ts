@@ -9,6 +9,10 @@ export type Track_ = Omit<
   | 'bitRate'
   | 'sampleRate'
   | 'bitDepth'
+  | 'albumId'
+  | 'createdAt'
+  | 'discNumber'
+  | 'updatedAt'
 > & { album: string; artists: string[] };
 
 export type Tracks = Track_[];

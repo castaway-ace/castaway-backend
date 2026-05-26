@@ -109,28 +109,20 @@ export class TracksService {
       take,
       skip,
       where,
-      omit: {
-        fileKey: true,
-        trackNumber: true,
-        size: true,
-        suffix: true,
-        bitRate: true,
-        sampleRate: true,
-        bitDepth: true,
-      },
-      include: {
-        trackArtists: {
-          include: {
-            artist: {
-              select: {
-                name: true,
-              },
-            },
-          },
-        },
+      select: {
+        id: true,
+        title: true,
+        genres: true,
+        duration: true,
+        releaseDate: true,
         album: {
+          select: { title: true, imageKey: true },
+        },
+        trackArtists: {
           select: {
-            title: true,
+            artist: {
+              select: { name: true },
+            },
           },
         },
       },
@@ -140,6 +132,7 @@ export class TracksService {
       ...track,
       artists: trackArtists.map((ta) => ta.artist.name),
       album: album.title,
+      coverArt: album.imageKey,
     }));
   }
 

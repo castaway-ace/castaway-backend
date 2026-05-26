@@ -75,6 +75,7 @@ const seed = async () => {
     data: {
       title: 'Album One',
       releaseDate: new Date('2020-01-01'),
+      imageKey: 'https://picsum.photos/id/237/200/300',
       compilation: false,
       genres: ['Jazz'],
       albumArtists: {
@@ -87,6 +88,7 @@ const seed = async () => {
     data: {
       title: 'Album Two',
       releaseDate: new Date('2024-01-01'),
+      imageKey: 'https://picsum.photos/seed/picsum/200/300',
       compilation: true,
       genres: ['Blues'],
       albumArtists: {

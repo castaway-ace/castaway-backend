@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { StorageBucket, StorageService } from '../storage/storage.service.js';
 import { Album, Prisma } from '../../generated/prisma/client.js';
 import { Readable } from 'stream';
+import { Albums } from 'src/types/albums.js';
 
 interface AlbumFilters {
   artistIds?: string[];
@@ -34,7 +35,7 @@ export class AlbumsService {
   async findAlbums(
     userId: string,
     options: AlbumQueryOptions,
-  ): Promise<Album[]> {
+  ): Promise<Albums> {
     const where = this.buildWhere(options.filters, userId);
     const orderBy = this.buildOrderBy(options?.orderOptions);
 
@@ -42,12 +43,33 @@ export class AlbumsService {
     const take = Math.min(Math.max(requestedLimit, 1), 200);
     const skip = Math.max(options.pagination?.offset ?? 0, 0);
 
-    return this.prisma.album.findMany({
+    const albums = await this.prisma.album.findMany({
       orderBy,
       take,
       skip,
       where,
+      select: {
+        id: true,
+        title: true,
+        releaseDate: true,
+        imageKey: true,
+        genres: true,
+        albumArtists: {
+          include: {
+            artist: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
+      },
     });
+
+    return albums.map(({ albumArtists, ...album }) => ({
+      ...album,
+      artists: albumArtists.map((ta) => ta.artist.name),
+    }));
   }
 
   async findAlbumStream(id: string): Promise<Readable> {

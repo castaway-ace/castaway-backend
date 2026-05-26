@@ -15,6 +15,7 @@ import { AlbumsService } from './albums.service.js';
 import { CurrentUser } from '../auth/decorators/user.decorator.js';
 import { AlbumQueryDto } from '../dto/album.dto.js';
 import { Album } from '../../generated/prisma/client.js';
+import { Albums } from 'src/types/albums.js';
 
 @Controller('albums')
 @UseGuards(AuthGuard)
@@ -25,7 +26,7 @@ export class AlbumsController {
   async getTracks(
     @CurrentUser('sub') sub: string,
     @Query() query: AlbumQueryDto,
-  ): Promise<Album[]> {
+  ): Promise<Albums> {
     return this.albumService.findAlbums(sub, {
       filters: {
         artistIds: query.artistIds,
