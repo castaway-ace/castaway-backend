@@ -32,12 +32,17 @@ const PLACEHOLDER_AUDIO = randomBytes(1024);
 
 const MOCK_ARTISTS = [
   {
-    name: 'Test Artist One',
+    name: 'Artist One',
     image:
       'https://static.vecteezy.com/system/resources/thumbnails/003/337/584/small/default-avatar-photo-placeholder-profile-icon-vector.jpg',
   },
   {
-    name: 'Test Artist Two',
+    name: 'Artist Two',
+    image:
+      'https://static.vecteezy.com/system/resources/thumbnails/003/337/584/small/default-avatar-photo-placeholder-profile-icon-vector.jpg',
+  },
+  {
+    name: 'Artist Three',
     image:
       'https://static.vecteezy.com/system/resources/thumbnails/003/337/584/small/default-avatar-photo-placeholder-profile-icon-vector.jpg',
   },
@@ -58,14 +63,36 @@ const MOCK_ALBUMS = [
     image: 'https://picsum.photos/seed/picsum/200/300',
     compilation: true,
     genres: ['Blues'],
+    artistIndex: 0,
+  },
+  {
+    title: 'Album Three',
+    releaseDate: new Date('2023-01-01'),
+    image: 'https://picsum.photos/id/237/200/300',
+    compilation: true,
+    genres: ['Pop', 'Electronic'],
     artistIndex: 1,
+  },
+  {
+    title: 'Album Four',
+    releaseDate: new Date('2010-01-01'),
+    image: 'https://picsum.photos/seed/picsum/200/300',
+    compilation: true,
+    genres: ['Blues'],
+    artistIndex: 2,
   },
 ];
 
 const MOCK_TRACKS = [
   { title: 'Track One', albumIndex: 0, trackNumber: 1, artistIndex: 0 },
   { title: 'Track Two', albumIndex: 0, trackNumber: 2, artistIndex: 0 },
+  { title: 'Track Three', albumIndex: 0, trackNumber: 3, artistIndex: 0 },
   { title: 'Track One', albumIndex: 1, trackNumber: 1, artistIndex: 1 },
+  { title: 'Track Two', albumIndex: 1, trackNumber: 2, artistIndex: 1 },
+  { title: 'Track Three', albumIndex: 1, trackNumber: 3, artistIndex: 1 },
+  { title: 'Track One', albumIndex: 2, trackNumber: 1, artistIndex: 2 },
+  { title: 'Track Two', albumIndex: 2, trackNumber: 2, artistIndex: 2 },
+  { title: 'Track Three', albumIndex: 2, trackNumber: 3, artistIndex: 2 },
 ];
 
 const keyFor = {
