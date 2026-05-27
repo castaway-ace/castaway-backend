@@ -73,6 +73,13 @@ export class AlbumsService {
     }));
   }
 
+  async updateAlbum(id: string, imageKey: string): Promise<void> {
+    await this.prisma.album.update({
+      where: { id },
+      data: { imageKey },
+    });
+  }
+
   async findAlbumStream(id: string): Promise<Readable> {
     const album = await this.findAlbum(id);
 

@@ -4,6 +4,7 @@ import {
   HeadObjectCommand,
   PutObjectCommand,
   S3Client,
+  S3ServiceException,
 } from '@aws-sdk/client-s3';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -65,7 +66,6 @@ export class StorageService {
       }),
     );
   }
-
   async getObjectStream(
     bucket: StorageBucket,
     key: string | null,
@@ -96,36 +96,23 @@ export class StorageService {
     return response.Body;
   }
 
-  async getObjectMetadata(
-    bucket: StorageBucket,
-    key: string,
-  ): Promise<ObjectMetadata> {
-    const response = await this.client.send(
-      new HeadObjectCommand({
-        Bucket: bucket,
-        Key: key,
-      }),
-    );
-
-    if (response.ContentLength === undefined) {
-      throw new Error(`Object metadata missing ContentLength: ${key}`);
+  async objectExists(bucket: string, key: string): Promise<boolean> {
+    try {
+      await this.client.send(
+        new HeadObjectCommand({
+          Bucket: bucket,
+          Key: key,
+        }),
+      );
+      return true;
+    } catch (err) {
+      if (err instanceof S3ServiceException) {
+        if (err.name === 'NotFound' || err.$metadata?.httpStatusCode === 404) {
+          return false;
+        }
+      }
+      throw err;
     }
-    if (response.ContentType === undefined) {
-      throw new Error(`Object metadata missing ContentType: ${key}`);
-    }
-    if (response.ETag === undefined) {
-      throw new Error(`Object metadata missing ETag: ${key}`);
-    }
-    if (response.LastModified === undefined) {
-      throw new Error(`Object metadata missing LastModified: ${key}`);
-    }
-
-    return {
-      size: response.ContentLength,
-      contentType: response.ContentType,
-      etag: response.ETag,
-      lastModified: response.LastModified,
-    };
   }
 
   async deleteObject(bucket: StorageBucket, key: string): Promise<void> {

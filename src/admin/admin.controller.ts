@@ -9,7 +9,6 @@ import { AdminGuard } from '../auth/guards/admin.guard.js';
 import { AuthGuard } from '../auth/guards/auth.guard.js';
 import { AdminService } from './admin.service.js';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { type Express } from 'express';
 
 @Controller('admin')
 @UseGuards(AuthGuard, AdminGuard)

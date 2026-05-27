@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { StorageService } from '../storage/storage.service.js';
 import { mimeToSuffix } from '../types/constants.js';
-import { IAudioMetadata, parseBuffer } from 'music-metadata';
+import { IAudioMetadata, IPicture, parseBuffer } from 'music-metadata';
 import { TracksService } from '../tracks/tracks.service.js';
 import { ArtistsService } from '../artists/artists.service.js';
 import { AlbumsService } from '../albums/albums.service.js';
@@ -21,6 +21,7 @@ interface MetadataTags {
   sampleRate: number;
   bitDepth: number;
   bitRate: number;
+  picture: IPicture | undefined;
 }
 
 interface ParsedFile {
@@ -76,6 +77,30 @@ export class AdminService {
       [albumArtist.id],
       firstTags.date,
     );
+
+    const picture = firstTags.picture;
+
+    if (!album.imageKey && picture && picture.format.startsWith('image/')) {
+      const fileKey = `${album.id}/cover.jpg`;
+      const coverBuffer = Buffer.from(picture.data);
+
+      try {
+        await this.storageService.putObject(
+          StorageBucket.AlbumArt,
+          fileKey,
+          coverBuffer,
+          {
+            contentType: picture.format,
+            size: coverBuffer.length,
+            metadata: { source: 'embedded' },
+          },
+        );
+
+        await this.albumService.updateAlbum(album.id, fileKey);
+      } catch (err) {
+        console.error('Cover upload failed', err);
+      }
+    }
 
     const results = await Promise.allSettled(
       parsedFiles.map(({ file, tags, suffix }) =>
@@ -167,8 +192,18 @@ export class AdminService {
   }
 
   private extractRequiredTags(metadata: IAudioMetadata): MetadataTags {
-    const { title, artists, albumartist, album, track, disk, date, genre } =
-      metadata.common;
+    const {
+      title,
+      artists,
+      albumartist,
+      album,
+      track,
+      disk,
+      date,
+      genre,
+      picture,
+    } = metadata.common;
+
     const { duration, sampleRate, bitsPerSample, bitrate } = metadata.format;
 
     if (!title) throw new BadRequestException('Missing track title');
@@ -192,6 +227,7 @@ export class AdminService {
       sampleRate: sampleRate ?? 0,
       bitDepth: bitsPerSample ?? 0,
       bitRate: Math.round((bitrate ?? 0) / 1000),
+      picture: picture?.[0],
     };
   }
 }
