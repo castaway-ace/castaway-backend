@@ -31,6 +31,17 @@ export class UserService {
     });
   }
 
+  async upgradeAdmin(id: string): Promise<void> {
+    await this.prisma.user.update({
+      where: {
+        id,
+      },
+      data: {
+        isAdmin: true,
+      },
+    });
+  }
+
   async delete(id: string): Promise<void> {
     await this.prisma.user.delete({
       where: {

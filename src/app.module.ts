@@ -12,6 +12,7 @@ import { ArtistsModule } from './artists/artists.module.js';
 import { SearchModule } from './search/search.module.js';
 import { PlaylistsModule } from './playlists/playlists.module.js';
 import { AdminModule } from './admin/admin.module.js';
+import { SeedModule } from './seed/seed.module.js';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { AdminModule } from './admin/admin.module.js';
     SearchModule,
     PlaylistsModule,
     AdminModule,
+    SeedModule,
   ],
   controllers: [AppController],
   providers: [AppService, StorageService],

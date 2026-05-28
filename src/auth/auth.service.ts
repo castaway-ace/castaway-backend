@@ -59,7 +59,7 @@ export class AuthService {
     await this.refreshTokenService.revokeByToken(refreshToken);
   }
 
-  private async hashPassword(data: string): Promise<string> {
+  async hashPassword(data: string): Promise<string> {
     return await argon2.hash(data);
   }
 
