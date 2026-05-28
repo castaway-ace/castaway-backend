@@ -24,11 +24,12 @@ export interface PutObjectOptions {
   metadata?: Record<string, string>;
 }
 
-export interface ObjectMetadata {
-  size: number;
-  contentType: string;
-  etag: string;
-  lastModified: Date;
+export interface ObjectStreamResult {
+  stream: Readable;
+  contentType?: string;
+  contentLength?: number;
+  contentRange?: string;
+  acceptRanges?: string;
 }
 
 @Injectable()
@@ -66,14 +67,16 @@ export class StorageService {
       }),
     );
   }
+
   async getObjectStream(
     bucket: StorageBucket,
     key: string | null,
     range?: string,
-  ): Promise<Readable> {
+  ): Promise<ObjectStreamResult> {
     if (!key) {
       throw new Error(`Key is not provided`);
     }
+
     const response = await this.client.send(
       new GetObjectCommand({
         Bucket: bucket,
@@ -93,7 +96,13 @@ export class StorageService {
       );
     }
 
-    return response.Body;
+    return {
+      stream: response.Body,
+      contentType: response.ContentType,
+      contentLength: response.ContentLength,
+      contentRange: response.ContentRange,
+      acceptRanges: response.AcceptRanges,
+    };
   }
 
   async objectExists(bucket: string, key: string): Promise<boolean> {

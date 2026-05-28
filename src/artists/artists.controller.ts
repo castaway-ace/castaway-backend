@@ -52,9 +52,13 @@ export class ArtistsController {
 
   @Get(':id/stream')
   async getArtistStream(@Param('id') id: string): Promise<StreamableFile> {
-    const artistStream = await this.artistService.findArtistStream(id);
+    const { stream, contentType, contentLength } =
+      await this.artistService.findArtistStream(id);
 
-    return new StreamableFile(artistStream);
+    return new StreamableFile(stream, {
+      type: contentType,
+      length: contentLength,
+    });
   }
 
   @Post(':id/star')

@@ -54,10 +54,12 @@ export class AlbumsController {
 
   @Get(':id/stream')
   async getAlbumStream(@Param('id') id: string): Promise<StreamableFile> {
-    const albumStream = await this.albumService.findAlbumStream(id);
+    const { stream, contentType, contentLength } =
+      await this.albumService.findAlbumStream(id);
 
-    return new StreamableFile(albumStream, {
-      type: 'image/jpeg',
+    return new StreamableFile(stream, {
+      type: contentType,
+      length: contentLength,
     });
   }
 

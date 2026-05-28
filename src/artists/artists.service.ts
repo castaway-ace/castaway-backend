@@ -1,9 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { StorageService } from '../storage/storage.service.js';
+import {
+  ObjectStreamResult,
+  StorageService,
+} from '../storage/storage.service.js';
 import { Artist, Prisma } from '../../generated/prisma/client.js';
 import { ArtistOrderOptions } from '../dto/artist.dto.js';
-import { Readable } from 'stream';
 import { Artists } from '../types/artists.js';
 import { StorageBucket } from '../types/storage.js';
 
@@ -56,21 +58,25 @@ export class ArtistsService {
     });
   }
 
-  async findArtistStream(id: string): Promise<Readable> {
+  async findArtistStream(id: string): Promise<ObjectStreamResult> {
     const artist = await this.findArtist(id);
 
     if (!artist?.imageKey) {
       throw new NotFoundException('Artist Art does not exist');
     }
 
-    try {
-      return this.storageService.getObjectStream(
-        StorageBucket.ArtistArt,
+    const result = await this.storageService.getObjectStream(
+      StorageBucket.ArtistArt,
+      artist.imageKey,
+    );
+
+    return {
+      ...result,
+      contentType: this.resolveImageContentType(
         artist.imageKey,
-      );
-    } catch {
-      throw new NotFoundException('Artist art not found in storage');
-    }
+        result.contentType,
+      ),
+    };
   }
 
   async updateArtistStar(
@@ -125,6 +131,22 @@ export class ArtistsService {
     }
 
     return where;
+  }
+
+  private readonly imageMimeByExt: Record<string, string> = {
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    webp: 'image/webp',
+    gif: 'image/gif',
+  };
+
+  private resolveImageContentType(key: string, fromStorage?: string): string {
+    if (fromStorage && fromStorage !== 'application/octet-stream') {
+      return fromStorage;
+    }
+    const ext = key.split('.').pop()?.toLowerCase() ?? '';
+    return this.imageMimeByExt[ext] ?? 'application/octet-stream';
   }
 
   private static readonly SORT_FIELD_MAP: Record<

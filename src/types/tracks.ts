@@ -1,7 +1,12 @@
-import { Track } from 'generated/prisma/client.js';
+import { Track as PrismaTrack } from 'generated/prisma/client.js';
+
+export type Track = Omit<
+  PrismaTrack,
+  'trackArtists' | 'createdAt' | 'updatedAt' | 'fileKey'
+> & { artists: string[] };
 
 export type Track_ = Omit<
-  Track,
+  PrismaTrack,
   | 'fileKey'
   | 'trackNumber'
   | 'size'

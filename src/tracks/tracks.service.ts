@@ -1,10 +1,16 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { Artist, Prisma, Track } from '../../generated/prisma/client.js';
-import { StorageService } from '../storage/storage.service.js';
-import { Readable } from 'stream';
+import {
+  Artist,
+  Prisma,
+  Track as PrismaTrack,
+} from '../../generated/prisma/client.js';
+import {
+  ObjectStreamResult,
+  StorageService,
+} from '../storage/storage.service.js';
 import { TrackSortOptions as TrackOrderOptions } from '../dto/track.dto.js';
-import { Tracks } from '../types/tracks.js';
+import { Track, Tracks } from '../types/tracks.js';
 import { StorageBucket } from '../types/storage.js';
 
 interface TrackFilters {
@@ -60,7 +66,7 @@ export class TracksService {
     bitDepth,
     releaseDate,
     artists,
-  }: CreateTrackItem): Promise<Track | null> {
+  }: CreateTrackItem): Promise<PrismaTrack | null> {
     return this.prisma.track.create({
       data: {
         title,
@@ -84,14 +90,50 @@ export class TracksService {
   }
 
   async findTrack(id: string): Promise<Track | null> {
-    return this.prisma.track.findUnique({
+    const track = await this.prisma.track.findUnique({
       where: { id },
       include: {
         trackArtists: {
-          select: { artistId: true },
+          select: {
+            artist: {
+              select: { name: true },
+            },
+          },
         },
       },
     });
+
+    if (!track) return null;
+
+    return {
+      id: track.id,
+      title: track.title,
+      genres: track.genres,
+      duration: track.duration,
+      releaseDate: track.releaseDate,
+      suffix: track.id,
+      bitRate: track.bitRate,
+      albumId: track.id,
+      sampleRate: track.sampleRate,
+      bitDepth: track.bitDepth,
+      trackNumber: track.trackNumber,
+      discNumber: track.discNumber,
+      size: track.size,
+      artists: track.trackArtists.map((ta) => ta.artist.name),
+    };
+  }
+
+  async findTrackFileKey(id: string): Promise<string | null> {
+    const track = await this.prisma.track.findUnique({
+      where: { id },
+      select: {
+        fileKey: true,
+      },
+    });
+
+    if (!track) return null;
+
+    return track.fileKey;
   }
 
   async findTracks(
@@ -137,22 +179,26 @@ export class TracksService {
     }));
   }
 
-  async findTrackStream(id: string, range?: string): Promise<Readable> {
-    const track = await this.findTrack(id);
+  async findTrackStream(
+    id: string,
+    range?: string,
+  ): Promise<ObjectStreamResult> {
+    const fileKey = await this.findTrackFileKey(id);
 
-    if (!track) {
-      throw new NotFoundException('Track not found');
+    if (!fileKey) {
+      throw new NotFoundException('Track stream does not exist');
     }
 
-    try {
-      return this.storageService.getObjectStream(
-        StorageBucket.Tracks,
-        track.fileKey,
-        range,
-      );
-    } catch {
-      throw new NotFoundException('Track file not found in storage');
-    }
+    const result = await this.storageService.getObjectStream(
+      StorageBucket.Tracks,
+      fileKey,
+      range,
+    );
+
+    return {
+      ...result,
+      contentType: this.resolveContentType(fileKey, result.contentType),
+    };
   }
 
   async updateTrackStar(
@@ -234,6 +280,24 @@ export class TracksService {
     year: (direction) => ({ releaseDate: direction }),
     added: (direction) => ({ createdAt: direction }),
   };
+
+  private readonly mimeByExt: Record<string, string> = {
+    flac: 'audio/flac',
+    mp3: 'audio/mpeg',
+    m4a: 'audio/mp4',
+    aac: 'audio/aac',
+    ogg: 'audio/ogg',
+    opus: 'audio/opus',
+    wav: 'audio/wav',
+  };
+
+  private resolveContentType(key: string, fromStorage?: string): string {
+    if (fromStorage && fromStorage !== 'application/octet-stream') {
+      return fromStorage;
+    }
+    const ext = key.split('.').pop()?.toLowerCase() ?? '';
+    return this.mimeByExt[ext] ?? 'application/octet-stream';
+  }
 
   private buildOrderBy(
     orderOptions?: TrackOrderOptions,
