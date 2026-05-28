@@ -15,10 +15,9 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '../auth/guards/auth.guard.js';
 import { TracksService } from './tracks.service.js';
-import { Track } from '../../generated/prisma/client.js';
 import { CurrentUser } from '../auth/decorators/user.decorator.js';
 import { TrackQueryDto } from '../dto/track.dto.js';
-import { Tracks } from '../types/tracks.js';
+import { Track, Tracks } from '../types/tracks.js';
 import type { Response } from 'express';
 
 @Controller('tracks')
