@@ -3,9 +3,9 @@ import { Track as PrismaTrack } from 'generated/prisma/client.js';
 export type Track = Omit<
   PrismaTrack,
   'trackArtists' | 'createdAt' | 'updatedAt' | 'fileKey'
-> & { artists: string[] };
+> & { albumName: string; artistNames: string[] };
 
-export type Track_ = Omit<
+export type TrackSummary = Omit<
   PrismaTrack,
   | 'fileKey'
   | 'trackNumber'
@@ -17,6 +17,4 @@ export type Track_ = Omit<
   | 'createdAt'
   | 'discNumber'
   | 'updatedAt'
-> & { album: string; artists: string[] };
-
-export type Tracks = Track_[];
+> & { albumName: string; artistNames: string[] };

@@ -9,7 +9,7 @@ import {
   Artist as PrismaArtist,
 } from '../../generated/prisma/client.js';
 import { ArtistOrderOptions } from '../dto/artist.dto.js';
-import { Artist, Artists } from '../types/artists.js';
+import { Artist, ArtistSummary } from '../types/artists.js';
 import { StorageBucket } from '../types/storage.js';
 
 interface ArtistFilters {
@@ -48,7 +48,7 @@ export class ArtistsService {
   async findArtists(
     userId: string,
     options: ArtistQueryOptions,
-  ): Promise<Artists> {
+  ): Promise<ArtistSummary[]> {
     const where = this.buildWhere(options.filters, userId);
     const orderBy = this.buildOrderBy(options?.orderOptions);
 

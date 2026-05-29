@@ -2,9 +2,7 @@ import { Artist as PrismaArtist } from 'generated/prisma/client.js';
 
 export type Artist = Omit<PrismaArtist, 'createdAt' | 'updatedAt' | 'imageKey'>;
 
-export type Artist_ = Omit<
+export type ArtistSummary = Omit<
   PrismaArtist,
-  'createdAt' | 'updatedAt' | 'bio' | 'imageKey'
+  'createdAt' | 'updatedAt' | 'imageKey' | 'bio'
 >;
-
-export type Artists = Artist_[];

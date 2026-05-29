@@ -6,7 +6,7 @@ import {
   StorageService,
 } from '../storage/storage.service.js';
 import { Prisma, Album as PrismaAlbum } from '../../generated/prisma/client.js';
-import { Album, Albums } from '../types/albums.js';
+import { Album, AlbumSummary } from '../types/albums.js';
 import { StorageBucket } from '../types/storage.js';
 
 interface AlbumFilters {
@@ -59,7 +59,7 @@ export class AlbumsService {
   async findAlbums(
     userId: string,
     options: AlbumQueryOptions,
-  ): Promise<Albums> {
+  ): Promise<AlbumSummary[]> {
     const where = this.buildWhere(options.filters, userId);
     const orderBy = this.buildOrderBy(options?.orderOptions);
 

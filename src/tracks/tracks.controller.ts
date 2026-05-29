@@ -17,7 +17,7 @@ import { AuthGuard } from '../auth/guards/auth.guard.js';
 import { TracksService } from './tracks.service.js';
 import { CurrentUser } from '../auth/decorators/user.decorator.js';
 import { TrackQueryDto } from '../dto/track.dto.js';
-import { Track, Tracks } from '../types/tracks.js';
+import { Track, TrackSummary } from '../types/tracks.js';
 import type { Response } from 'express';
 
 @Controller('tracks')
@@ -29,7 +29,7 @@ export class TracksController {
   async getTracks(
     @CurrentUser('sub') sub: string,
     @Query() query: TrackQueryDto,
-  ): Promise<Tracks> {
+  ): Promise<TrackSummary[]> {
     return this.trackService.findTracks(sub, {
       filters: {
         artistIds: query.artistIds,

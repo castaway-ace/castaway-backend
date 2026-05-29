@@ -6,7 +6,7 @@ import {
   StorageService,
 } from '../storage/storage.service.js';
 import { TrackSortOptions as TrackOrderOptions } from '../dto/track.dto.js';
-import { Track, Tracks } from '../types/tracks.js';
+import { Track, TrackSummary } from '../types/tracks.js';
 import { StorageBucket } from '../types/storage.js';
 import { Artist } from '../types/artists.js';
 
@@ -97,6 +97,9 @@ export class TracksService {
             },
           },
         },
+        album: {
+          select: { title: true },
+        },
       },
     });
 
@@ -116,7 +119,8 @@ export class TracksService {
       trackNumber: track.trackNumber,
       discNumber: track.discNumber,
       size: track.size,
-      artists: track.trackArtists.map((ta) => ta.artist.name),
+      albumName: track.album.title,
+      artistNames: track.trackArtists.map((ta) => ta.artist.name),
     };
   }
 
@@ -136,7 +140,7 @@ export class TracksService {
   async findTracks(
     userId: string,
     options: TrackQueryOptions,
-  ): Promise<Tracks> {
+  ): Promise<TrackSummary[]> {
     const where = this.buildWhere(options.filters, userId);
     const orderBy = this.buildOrderBy(options?.orderOptions);
 
@@ -171,8 +175,8 @@ export class TracksService {
 
     return tracks.map(({ trackArtists, album, ...track }) => ({
       ...track,
-      artists: trackArtists.map((ta) => ta.artist.name),
-      album: album.title,
+      artistNames: trackArtists.map((ta) => ta.artist.name),
+      albumName: album.title,
     }));
   }
 

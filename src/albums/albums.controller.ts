@@ -14,7 +14,7 @@ import { AuthGuard } from '../auth/guards/auth.guard.js';
 import { AlbumsService } from './albums.service.js';
 import { CurrentUser } from '../auth/decorators/user.decorator.js';
 import { AlbumQueryDto } from '../dto/album.dto.js';
-import { Album, Albums } from '../types/albums.js';
+import { Album, AlbumSummary } from '../types/albums.js';
 
 @Controller('albums')
 @UseGuards(AuthGuard)
@@ -25,7 +25,7 @@ export class AlbumsController {
   async getTracks(
     @CurrentUser('sub') sub: string,
     @Query() query: AlbumQueryDto,
-  ): Promise<Albums> {
+  ): Promise<AlbumSummary[]> {
     return this.albumService.findAlbums(sub, {
       filters: {
         artistIds: query.artistIds,

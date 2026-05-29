@@ -4,11 +4,9 @@ export type Album = Omit<PrismaAlbum, 'createdAt' | 'updatedAt'> & {
   artists: string[];
 };
 
-export type Album_ = Omit<
+export type AlbumSummary = Omit<
   PrismaAlbum,
   'createdAt' | 'updatedAt' | 'compilation' | 'imageKey'
 > & {
   artists: string[];
 };
-
-export type Albums = Album_[];

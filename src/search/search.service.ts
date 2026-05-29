@@ -2,14 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { ArtistsService } from '../artists/artists.service.js';
 import { AlbumsService } from '../albums/albums.service.js';
 import { TracksService } from '../tracks/tracks.service.js';
-import { Tracks } from '../types/tracks.js';
-import { Albums } from '../types/albums.js';
-import { Artists } from '../types/artists.js';
+import { TrackSummary } from '../types/tracks.js';
+import { AlbumSummary } from '../types/albums.js';
+import { ArtistSummary } from '../types/artists.js';
 
 export interface SearchResults {
-  artists: Artists;
-  albums: Albums;
-  tracks: Tracks;
+  artists: ArtistSummary[];
+  albums: AlbumSummary[];
+  tracks: TrackSummary[];
 }
 
 @Injectable()
