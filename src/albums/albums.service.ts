@@ -47,7 +47,6 @@ export class AlbumsService {
 
     return {
       id: album.id,
-      imageKey: album.imageKey,
       title: album.title,
       releaseDate: album.releaseDate,
       compilation: album.compilation,
@@ -103,24 +102,34 @@ export class AlbumsService {
     });
   }
 
-  async findAlbumStream(id: string): Promise<ObjectStreamResult> {
-    const album = await this.findAlbum(id);
+  async findAlbumImageKey(id: string): Promise<string | null> {
+    const album = await this.prisma.album.findUnique({
+      where: { id },
+      select: {
+        imageKey: true,
+      },
+    });
 
-    if (!album?.imageKey) {
+    if (!album) return null;
+
+    return album.imageKey;
+  }
+
+  async findAlbumStream(id: string): Promise<ObjectStreamResult> {
+    const imageKey = await this.findAlbumImageKey(id);
+
+    if (!imageKey) {
       throw new NotFoundException('Album Art does not exist');
     }
 
     const result = await this.storageService.getObjectStream(
       StorageBucket.AlbumArt,
-      album.imageKey,
+      imageKey,
     );
 
     return {
       ...result,
-      contentType: this.resolveImageContentType(
-        album.imageKey,
-        result.contentType,
-      ),
+      contentType: this.resolveImageContentType(imageKey, result.contentType),
     };
   }
 
