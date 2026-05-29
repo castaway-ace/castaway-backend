@@ -4,9 +4,12 @@ import {
   ObjectStreamResult,
   StorageService,
 } from '../storage/storage.service.js';
-import { Artist, Prisma } from '../../generated/prisma/client.js';
+import {
+  Prisma,
+  Artist as PrismaArtist,
+} from '../../generated/prisma/client.js';
 import { ArtistOrderOptions } from '../dto/artist.dto.js';
-import { Artists } from '../types/artists.js';
+import { Artist, Artists } from '../types/artists.js';
 import { StorageBucket } from '../types/storage.js';
 
 interface ArtistFilters {
@@ -65,24 +68,34 @@ export class ArtistsService {
     });
   }
 
-  async findArtistStream(id: string): Promise<ObjectStreamResult> {
-    const artist = await this.findArtist(id);
+  async findArtistImageKey(id: string): Promise<string | null> {
+    const track = await this.prisma.artist.findUnique({
+      where: { id },
+      select: {
+        imageKey: true,
+      },
+    });
 
-    if (!artist?.imageKey) {
+    if (!track) return null;
+
+    return track.imageKey;
+  }
+
+  async findArtistStream(id: string): Promise<ObjectStreamResult> {
+    const imageKey = await this.findArtistImageKey(id);
+
+    if (!imageKey) {
       throw new NotFoundException('Artist Art does not exist');
     }
 
     const result = await this.storageService.getObjectStream(
       StorageBucket.ArtistArt,
-      artist.imageKey,
+      imageKey,
     );
 
     return {
       ...result,
-      contentType: this.resolveImageContentType(
-        artist.imageKey,
-        result.contentType,
-      ),
+      contentType: this.resolveImageContentType(imageKey, result.contentType),
     };
   }
 
@@ -104,7 +117,7 @@ export class ArtistsService {
     }
   }
 
-  async findOrCreateArtist(name: string): Promise<Artist> {
+  async findOrCreateArtist(name: string): Promise<PrismaArtist> {
     try {
       return await this.prisma.artist.upsert({
         where: { name },

@@ -14,8 +14,7 @@ import { AuthGuard } from '../auth/guards/auth.guard.js';
 import { ArtistsService } from './artists.service.js';
 import { CurrentUser } from '../auth/decorators/user.decorator.js';
 import { ArtistQueryDto } from '../dto/artist.dto.js';
-import { Artist } from '../../generated/prisma/client.js';
-import { Artists } from '../types/artists.js';
+import { Artist, Artists } from '../types/artists.js';
 
 @Controller('artists')
 @UseGuards(AuthGuard)
