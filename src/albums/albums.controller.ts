@@ -14,8 +14,7 @@ import { AuthGuard } from '../auth/guards/auth.guard.js';
 import { AlbumsService } from './albums.service.js';
 import { CurrentUser } from '../auth/decorators/user.decorator.js';
 import { AlbumQueryDto } from '../dto/album.dto.js';
-import { Album } from '../../generated/prisma/client.js';
-import { Albums } from '../types/albums.js';
+import { Album, Albums } from '../types/albums.js';
 
 @Controller('albums')
 @UseGuards(AuthGuard)

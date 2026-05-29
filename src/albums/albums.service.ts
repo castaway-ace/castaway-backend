@@ -5,8 +5,8 @@ import {
   ObjectStreamResult,
   StorageService,
 } from '../storage/storage.service.js';
-import { Album, Prisma } from '../../generated/prisma/client.js';
-import { Albums } from '../types/albums.js';
+import { Prisma, Album as PrismaAlbum } from '../../generated/prisma/client.js';
+import { Album, Albums } from '../types/albums.js';
 import { StorageBucket } from '../types/storage.js';
 
 interface AlbumFilters {
@@ -30,9 +30,30 @@ export class AlbumsService {
   ) {}
 
   async findAlbum(id: string): Promise<Album | null> {
-    return this.prisma.album.findUnique({
+    const album = await this.prisma.album.findUnique({
       where: { id },
+      include: {
+        albumArtists: {
+          select: {
+            artist: {
+              select: { name: true },
+            },
+          },
+        },
+      },
     });
+
+    if (!album) return null;
+
+    return {
+      id: album.id,
+      imageKey: album.imageKey,
+      title: album.title,
+      releaseDate: album.releaseDate,
+      compilation: album.compilation,
+      genres: album.genres,
+      artists: album.albumArtists.map((ta) => ta.artist.name),
+    };
   }
 
   async findAlbums(
@@ -125,7 +146,7 @@ export class AlbumsService {
     title: string,
     artistIds: string[],
     releaseDate: Date,
-  ): Promise<Album> {
+  ): Promise<PrismaAlbum> {
     const existing = await this.prisma.album.findFirst({
       where: {
         title,

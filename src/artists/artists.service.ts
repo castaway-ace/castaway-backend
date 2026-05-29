@@ -32,9 +32,17 @@ export class ArtistsService {
   ) {}
 
   async findArtist(id: string): Promise<Artist | null> {
-    return this.prisma.artist.findUnique({
+    const artist = await this.prisma.artist.findUnique({
       where: { id },
     });
+
+    if (!artist) return null;
+
+    return {
+      id: artist.id,
+      name: artist.name,
+      bio: artist.bio,
+    };
   }
 
   async findArtists(
