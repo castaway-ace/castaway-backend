@@ -1,6 +1,8 @@
 import {
   Controller,
+  Param,
   Post,
+  UploadedFile,
   UploadedFiles,
   UseGuards,
   UseInterceptors,
@@ -8,7 +10,7 @@ import {
 import { AdminGuard } from '../auth/guards/admin.guard.js';
 import { AuthGuard } from '../auth/guards/auth.guard.js';
 import { AdminService } from './admin.service.js';
-import { FilesInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 
 @Controller('admin')
 @UseGuards(AuthGuard, AdminGuard)
@@ -21,5 +23,14 @@ export class AdminController {
     @UploadedFiles() files: Express.Multer.File[],
   ): Promise<void> {
     await this.adminService.uploadAlbum(files);
+  }
+
+  @Post('upload/artist-art/:id')
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadArtistArt(
+    @UploadedFile() file: Express.Multer.File,
+    @Param('id') id: string,
+  ): Promise<void> {
+    await this.adminService.uploadArtistArt(id, file);
   }
 }

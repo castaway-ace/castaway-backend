@@ -58,6 +58,13 @@ export class ArtistsService {
     });
   }
 
+  async updateArtist(id: string, imageKey: string): Promise<void> {
+    await this.prisma.artist.update({
+      where: { id },
+      data: { imageKey },
+    });
+  }
+
   async findArtistStream(id: string): Promise<ObjectStreamResult> {
     const artist = await this.findArtist(id);
 

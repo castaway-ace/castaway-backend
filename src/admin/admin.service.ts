@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  NotFoundException,
+  Injectable,
+} from '@nestjs/common';
 import { StorageService } from '../storage/storage.service.js';
 import { mimeToSuffix } from '../types/constants.js';
 import { IAudioMetadata, IPicture, parseBuffer } from 'music-metadata';
@@ -38,6 +42,41 @@ export class AdminService {
     private readonly artistService: ArtistsService,
     private readonly albumService: AlbumsService,
   ) {}
+
+  async uploadArtistArt(
+    artistId: string,
+    file: Express.Multer.File,
+  ): Promise<void> {
+    if (!file) {
+      throw new BadRequestException('No file provided');
+    }
+
+    const artist = await this.artistService.findArtist(artistId);
+
+    if (!artist) {
+      throw new NotFoundException({
+        message: 'Upload must contain tracks from a single album',
+      });
+    }
+
+    const fileKey = `${artist.id}/cover.jpg`;
+
+    try {
+      await this.storageService.putObject(
+        StorageBucket.ArtistArt,
+        fileKey,
+        file.buffer,
+        {
+          contentType: file.mimetype,
+          size: file.size,
+          metadata: { originalName: file.originalname },
+        },
+      );
+      await this.artistService.updateArtist(artist.id, fileKey);
+    } catch (err) {
+      console.error('Cover upload failed', err);
+    }
+  }
 
   async uploadAlbum(files: Express.Multer.File[]): Promise<void> {
     if (files.length === 0) {
