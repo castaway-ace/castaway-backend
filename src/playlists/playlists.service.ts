@@ -1,7 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { Playlist, PlaylistTrack } from '../../generated/prisma/client.js';
+import { PlaylistTrack } from '../../generated/prisma/client.js';
 import { TracksService } from '../tracks/tracks.service.js';
+import { Playlist, PlaylistSummary } from '../types/playlists.js';
 
 @Injectable()
 export class PlaylistsService {
@@ -31,12 +32,28 @@ export class PlaylistsService {
   async findPlaylist(id: string): Promise<Playlist | null> {
     return this.prisma.playlist.findUnique({
       where: { id },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        public: true,
+        position: true,
+        ownerId: true,
+        tracks: true,
+      },
     });
   }
 
-  async findPlaylists(userId: string): Promise<Playlist[]> {
+  async findPlaylists(userId: string): Promise<PlaylistSummary[]> {
     return this.prisma.playlist.findMany({
       where: { ownerId: userId },
+      select: {
+        id: true,
+        name: true,
+        public: true,
+        position: true,
+        tracks: true,
+      },
     });
   }
 

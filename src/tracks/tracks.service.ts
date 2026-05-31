@@ -89,7 +89,20 @@ export class TracksService {
   async findTrack(id: string): Promise<Track | null> {
     const track = await this.prisma.track.findUnique({
       where: { id },
-      include: {
+      select: {
+        id: true,
+        title: true,
+        genres: true,
+        duration: true,
+        releaseDate: true,
+        suffix: true,
+        bitRate: true,
+        albumId: true,
+        sampleRate: true,
+        bitDepth: true,
+        trackNumber: true,
+        discNumber: true,
+        size: true,
         trackArtists: {
           select: {
             artist: {

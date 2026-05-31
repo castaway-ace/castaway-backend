@@ -32,11 +32,18 @@ export class AlbumsService {
   async findAlbum(id: string): Promise<Album | null> {
     const album = await this.prisma.album.findUnique({
       where: { id },
-      include: {
+      select: {
+        id: true,
+        title: true,
+        releaseDate: true,
+        compilation: true,
+        genres: true,
         albumArtists: {
           select: {
             artist: {
-              select: { name: true },
+              select: {
+                name: true,
+              },
             },
           },
         },
