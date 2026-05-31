@@ -12,8 +12,9 @@ import {
 import { AuthGuard } from '../auth/guards/auth.guard.js';
 import { CurrentUser } from '../auth/decorators/user.decorator.js';
 import { PlaylistsService } from './playlists.service.js';
-import { Playlist, PlaylistTrack } from '../../generated/prisma/client.js';
+import { PlaylistTrack } from '../../generated/prisma/client.js';
 import { PlaylistDto } from '../dto/playlist.dto.js';
+import { Playlist, PlaylistSummary } from '../types/playlists.js';
 
 @Controller('playlists')
 @UseGuards(AuthGuard)
@@ -29,7 +30,9 @@ export class PlaylistsController {
   }
 
   @Get('')
-  async getPlaylists(@CurrentUser('sub') sub: string): Promise<Playlist[]> {
+  async getPlaylists(
+    @CurrentUser('sub') sub: string,
+  ): Promise<PlaylistSummary[]> {
     return await this.playlistService.findPlaylists(sub);
   }
 
