@@ -7,9 +7,18 @@ import { ConfigService } from '@nestjs/config';
 import { DeviceService } from '../device/device.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RefreshTokenService } from '../refresh-token/refresh-token.service.js';
+import { AuthGuard } from './guards/auth.guard.js';
 
 @Module({
-  imports: [UserModule, JwtModule],
+  imports: [
+    UserModule,
+    JwtModule.registerAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        secret: config.get<string>('JWT_ACCESS_SECRET'),
+      }),
+    }),
+  ],
   controllers: [AuthController],
   providers: [
     AuthService,
@@ -17,6 +26,8 @@ import { RefreshTokenService } from '../refresh-token/refresh-token.service.js';
     DeviceService,
     PrismaService,
     RefreshTokenService,
+    AuthGuard,
   ],
+  exports: [AuthGuard, JwtModule, AuthService],
 })
 export class AuthModule {}

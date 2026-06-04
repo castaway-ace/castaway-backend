@@ -5,7 +5,6 @@ import { HealthModule } from './health/health.module.js';
 import { UserModule } from './user/user.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { ConfigModule } from '@nestjs/config';
-import { StorageService } from './storage/storage.service.js';
 import { TracksModule } from './tracks/tracks.module.js';
 import { AlbumsModule } from './albums/albums.module.js';
 import { ArtistsModule } from './artists/artists.module.js';
@@ -13,10 +12,11 @@ import { SearchModule } from './search/search.module.js';
 import { PlaylistsModule } from './playlists/playlists.module.js';
 import { AdminModule } from './admin/admin.module.js';
 import { SeedModule } from './seed/seed.module.js';
+import { StorageModule } from './storage/storage.module.js';
 
 @Module({
   imports: [
-    ConfigModule.forRoot(),
+    ConfigModule.forRoot({ isGlobal: true }),
     HealthModule,
     UserModule,
     AuthModule,
@@ -27,8 +27,9 @@ import { SeedModule } from './seed/seed.module.js';
     PlaylistsModule,
     AdminModule,
     SeedModule,
+    StorageModule,
   ],
   controllers: [AppController],
-  providers: [AppService, StorageService],
+  providers: [AppService],
 })
 export class AppModule {}
