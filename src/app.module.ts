@@ -13,6 +13,8 @@ import { PlaylistsModule } from './playlists/playlists.module.js';
 import { AdminModule } from './admin/admin.module.js';
 import { SeedModule } from './seed/seed.module.js';
 import { StorageModule } from './storage/storage.module.js';
+import { DeviceModule } from './device/device.module.js';
+import { RefreshTokenModule } from './refresh-token/refresh-token.module.js';
 
 @Module({
   imports: [
@@ -23,11 +25,13 @@ import { StorageModule } from './storage/storage.module.js';
     TracksModule,
     AlbumsModule,
     ArtistsModule,
+    DeviceModule,
     SearchModule,
     PlaylistsModule,
     AdminModule,
     SeedModule,
     StorageModule,
+    RefreshTokenModule,
   ],
   controllers: [AppController],
   providers: [AppService],
