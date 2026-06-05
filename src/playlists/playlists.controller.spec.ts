@@ -50,48 +50,54 @@ describe('PlaylistsController', () => {
     playlistsController = module.get(PlaylistsController);
   });
 
-  it('find', async () => {
-    const mockPlaylist: Playlist = {
-      id: '1',
-      name: 'test1',
-      description: '',
-      public: false,
-      position: 0,
-      ownerId: 'sub',
-    };
-    mockPlaylistsService.find.mockResolvedValue(mockPlaylist);
-    await expect(playlistsController.find('sub', 'playlist-1')).resolves.toBe(
-      mockPlaylist,
-    );
-  });
-
-  it('findAll', async () => {
-    const mockPlaylists: Playlist[] = [
-      {
+  describe('find', () => {
+    it('returns the playlist from the service', async () => {
+      const mockPlaylist: Playlist = {
         id: '1',
         name: 'test1',
         description: '',
         public: false,
         position: 0,
         ownerId: 'sub',
-      },
-      {
-        id: '2',
-        name: 'test2',
-        description: '',
-        public: false,
-        position: 1,
-        ownerId: 'sub',
-      },
-    ];
-    mockPlaylistsService.findAll.mockResolvedValue(mockPlaylists);
-    await expect(playlistsController.findAll('sub')).resolves.toBe(
-      mockPlaylists,
-    );
+      };
+      mockPlaylistsService.find.mockResolvedValue(mockPlaylist);
+      await expect(playlistsController.find('sub', 'playlist-1')).resolves.toBe(
+        mockPlaylist,
+      );
+      expect(mockPlaylistsService.find).toHaveBeenCalledWith('playlist-1');
+    });
+  });
+
+  describe('findAll', () => {
+    it('returns all playlists for the user', async () => {
+      const mockPlaylists: Playlist[] = [
+        {
+          id: '1',
+          name: 'test1',
+          description: '',
+          public: false,
+          position: 0,
+          ownerId: 'sub',
+        },
+        {
+          id: '2',
+          name: 'test2',
+          description: '',
+          public: false,
+          position: 1,
+          ownerId: 'sub',
+        },
+      ];
+      mockPlaylistsService.findAll.mockResolvedValue(mockPlaylists);
+      await expect(playlistsController.findAll('sub')).resolves.toBe(
+        mockPlaylists,
+      );
+      expect(mockPlaylistsService.findAll).toHaveBeenCalledWith('sub');
+    });
   });
 
   describe('create', () => {
-    it('should pass playlist create props to service', async () => {
+    it('forwards the create props to the service', async () => {
       await playlistsController.create('sub', {
         name: 'playlist-1',
       });
@@ -104,7 +110,7 @@ describe('PlaylistsController', () => {
   });
 
   describe('update', () => {
-    it('should pass playlist update props to service', async () => {
+    it('forwards the update props to the service', async () => {
       await playlistsController.update('sub', 'playlist-id', {
         name: 'playlist-2',
       });
@@ -118,7 +124,7 @@ describe('PlaylistsController', () => {
   });
 
   describe('delete', () => {
-    it('should pass playlist delete props to service', async () => {
+    it('forwards the playlist id to the service', async () => {
       await playlistsController.delete('sub', 'playlist-id');
 
       expect(mockPlaylistsService.delete).toHaveBeenCalledWith(
@@ -143,12 +149,16 @@ describe('PlaylistsController', () => {
         position: 1,
       },
     ];
-    it('should pass playlist g props to service', async () => {
+    it('returns the playlist tracks from the service', async () => {
       mockPlaylistsService.findTracks.mockResolvedValue(mockPlaylistTracks);
 
       await expect(
         playlistsController.findTracks('sub', 'playlist-1'),
       ).resolves.toBe(mockPlaylistTracks);
+      expect(mockPlaylistsService.findTracks).toHaveBeenCalledWith(
+        'sub',
+        'playlist-1',
+      );
     });
   });
 
@@ -159,16 +169,21 @@ describe('PlaylistsController', () => {
       trackId: '1',
       position: 0,
     };
-    it('should pass playlist g props to service', async () => {
+    it('returns the matching track from the service', async () => {
       mockPlaylistsService.findTrack.mockResolvedValue(mockPlaylistTrack);
       await expect(
         playlistsController.findTrack('sub', 'playlist-1', 'track-1'),
       ).resolves.toBe(mockPlaylistTrack);
+      expect(mockPlaylistsService.findTrack).toHaveBeenCalledWith(
+        'sub',
+        'playlist-1',
+        'track-1',
+      );
     });
   });
 
   describe('addTrack', () => {
-    it('should pass playlist g props to service', async () => {
+    it('forwards the track id to the service', async () => {
       await playlistsController.addTrack('sub', 'playlist-id', 'track-1');
 
       expect(mockPlaylistsService.addTrack).toHaveBeenCalledWith(
@@ -180,7 +195,7 @@ describe('PlaylistsController', () => {
   });
 
   describe('deleteTrack', () => {
-    it('should pass playlist g props to service', async () => {
+    it('forwards the track id to the service', async () => {
       await playlistsController.deleteTrack('sub', 'playlist-id', 'track-1');
 
       expect(mockPlaylistsService.deleteTrack).toHaveBeenCalledWith(

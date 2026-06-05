@@ -20,7 +20,7 @@ export class SearchService {
     private readonly trackService: TracksService,
   ) {}
 
-  async search(query: string, userId: string): Promise<SearchResults> {
+  async find(userId: string, query: string): Promise<SearchResults> {
     if (query.trim().length < 2) {
       return { artists: [], albums: [], tracks: [] };
     }

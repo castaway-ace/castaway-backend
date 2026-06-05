@@ -10,10 +10,10 @@ export class SearchController {
   constructor(private readonly searchService: SearchService) {}
 
   @Get()
-  async search(
-    @Query() dto: SearchQueryDto,
+  async find(
     @CurrentUser('sub') sub: string,
+    @Query() dto: SearchQueryDto,
   ): Promise<SearchResults> {
-    return this.searchService.search(dto.query, sub);
+    return this.searchService.find(sub, dto.query);
   }
 }
