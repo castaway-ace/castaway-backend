@@ -26,7 +26,7 @@ export class SearchService {
     }
 
     const [artists, albums, tracks] = await Promise.all([
-      this.artistService.findArtists(userId, {
+      this.artistService.findAll(userId, {
         filters: { search: query },
         pagination: { limit: 10 },
       }),

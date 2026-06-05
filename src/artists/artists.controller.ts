@@ -22,11 +22,11 @@ export class ArtistsController {
   constructor(private readonly artistService: ArtistsService) {}
 
   @Get()
-  async getArtists(
+  async findAll(
     @CurrentUser('sub') sub: string,
     @Query() query: ArtistQueryDto,
   ): Promise<ArtistSummary[]> {
-    return this.artistService.findArtists(sub, {
+    return this.artistService.findAll(sub, {
       filters: {
         starred: query.starred,
         search: query.search,
@@ -39,8 +39,8 @@ export class ArtistsController {
   }
 
   @Get(':id')
-  async getArtist(@Param('id') id: string): Promise<Artist> {
-    const artist = await this.artistService.findArtist(id);
+  async find(@Param('id') id: string): Promise<Artist> {
+    const artist = await this.artistService.find(id);
 
     if (!artist) {
       throw new NotFoundException('Artist not found');
@@ -50,9 +50,9 @@ export class ArtistsController {
   }
 
   @Get(':id/stream')
-  async getArtistStream(@Param('id') id: string): Promise<StreamableFile> {
+  async findArtistImage(@Param('id') id: string): Promise<StreamableFile> {
     const { stream, contentType, contentLength } =
-      await this.artistService.findArtistStream(id);
+      await this.artistService.findArtistImage(id);
 
     return new StreamableFile(stream, {
       type: contentType,
@@ -62,19 +62,19 @@ export class ArtistsController {
 
   @Post(':id/star')
   @HttpCode(204)
-  async starArtist(
+  async star(
     @Param('id') id: string,
     @CurrentUser('sub') sub: string,
   ): Promise<void> {
-    await this.artistService.updateArtistStar(id, sub, true);
+    await this.artistService.updateStar(id, sub, true);
   }
 
   @Delete(':id/star')
   @HttpCode(204)
-  async unStarArtist(
+  async unStar(
     @Param('id') id: string,
     @CurrentUser('sub') sub: string,
   ): Promise<void> {
-    await this.artistService.updateArtistStar(id, sub, false);
+    await this.artistService.updateStar(id, sub, false);
   }
 }

@@ -31,7 +31,7 @@ export class ArtistsService {
     private readonly storageService: StorageService,
   ) {}
 
-  async findArtist(id: string): Promise<Artist | null> {
+  async find(id: string): Promise<Artist | null> {
     return this.prisma.artist.findUnique({
       where: { id },
       select: {
@@ -42,7 +42,7 @@ export class ArtistsService {
     });
   }
 
-  async findArtists(
+  async findAll(
     userId: string,
     options: ArtistQueryOptions,
   ): Promise<ArtistSummary[]> {
@@ -86,7 +86,7 @@ export class ArtistsService {
     return track.imageKey;
   }
 
-  async findArtistStream(id: string): Promise<ObjectStreamResult> {
+  async findArtistImage(id: string): Promise<ObjectStreamResult> {
     const imageKey = await this.findArtistImageKey(id);
 
     if (!imageKey) {
@@ -104,7 +104,7 @@ export class ArtistsService {
     };
   }
 
-  async updateArtistStar(
+  async updateStar(
     artistId: string,
     userId: string,
     starred: boolean,

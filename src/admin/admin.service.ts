@@ -51,7 +51,7 @@ export class AdminService {
       throw new BadRequestException('No file provided');
     }
 
-    const artist = await this.artistService.findArtist(artistId);
+    const artist = await this.artistService.find(artistId);
 
     if (!artist) {
       throw new NotFoundException({

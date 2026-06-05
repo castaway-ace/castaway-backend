@@ -12,8 +12,6 @@ import { MockMetadata, ModuleMocker } from 'jest-mock';
 import { AuthController } from './auth.controller.js';
 import { AuthTokens } from '../types/auth.js';
 import { AuthService } from './auth.service.js';
-import { LoginDto } from '../dto/login.dto.js';
-import { SignUpDto } from '../dto/sign-up.dto.js';
 import { AuthGuard } from './guards/auth.guard.js';
 import { AuthenticatedUser } from './decorators/user.decorator.js';
 
@@ -21,10 +19,19 @@ const moduleMocker = new ModuleMocker(global);
 
 describe('AuthController', () => {
   let app: INestApplication<App>;
-  const login = jest.fn<(dto: LoginDto) => Promise<AuthTokens>>();
-  const signUp = jest.fn<(dto: SignUpDto) => Promise<AuthTokens>>();
-  const refresh = jest.fn<(token: string) => Promise<AuthTokens>>();
-  const logout = jest.fn<(token: string) => Promise<void>>();
+
+  const mockAuthService = {
+    login: jest.fn<AuthService['login']>(),
+    signUp: jest.fn<AuthService['signUp']>(),
+    refresh: jest.fn<AuthService['refresh']>(),
+    logout: jest.fn<AuthService['logout']>(),
+  };
+
+  const user = {
+    email: 'a@b.com',
+    password: 'pw',
+    deviceInfo: { name: 'phone' },
+  };
 
   const tokens: AuthTokens = { accessToken: 'access', refreshToken: 'refresh' };
 
@@ -32,7 +39,10 @@ describe('AuthController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AuthController],
       providers: [
-        { provide: AuthService, useValue: { login, signUp, refresh, logout } },
+        {
+          provide: AuthService,
+          useValue: mockAuthService,
+        },
       ],
     })
       .useMocker((token) => {
@@ -67,92 +77,66 @@ describe('AuthController', () => {
   });
 
   afterEach(async () => {
+    jest.clearAllMocks();
     await app.close();
   });
 
   describe('login', () => {
-    afterEach(() => {
-      login.mockReset();
-    });
-
     it('returns tokens when the user logs in successfully', async () => {
-      login.mockResolvedValue(tokens);
+      mockAuthService.login.mockResolvedValue(tokens);
 
       await request(app.getHttpServer())
         .post('/auth/login')
-        .send({
-          email: 'a@b.com',
-          password: 'pw',
-          deviceInfo: { name: 'phone' },
-        })
+        .send(user)
         .expect(200)
         .expect(tokens);
 
-      expect(login).toHaveBeenCalledWith({
-        email: 'a@b.com',
-        password: 'pw',
-        deviceInfo: { name: 'phone' },
-      });
+      expect(mockAuthService.login).toHaveBeenCalledWith(user);
     });
 
     it('returns an error when the user logs in with invalid credentials', async () => {
-      login.mockRejectedValue(new UnauthorizedException('Invalid Credentials'));
+      mockAuthService.login.mockRejectedValue(
+        new UnauthorizedException('Invalid Credentials'),
+      );
 
-      await request(app.getHttpServer())
-        .post('/auth/login')
-        .send({ email: 'a@b.com', password: 'wrong' })
-        .expect(401);
+      await request(app.getHttpServer()).post('/auth/login').send(user).expect({
+        message: 'Invalid Credentials',
+        error: 'Unauthorized',
+        statusCode: 401,
+      });
     });
   });
 
   describe('signup', () => {
-    afterEach(() => {
-      signUp.mockReset();
-    });
     it('returns tokens when the user signs up successfully', async () => {
-      signUp.mockResolvedValue(tokens);
+      mockAuthService.signUp.mockResolvedValue(tokens);
 
       await request(app.getHttpServer())
         .post('/auth/signup')
-        .send({
-          email: 'a@b.com',
-          password: 'pw',
-          deviceInfo: { name: 'phone' },
-        })
+        .send(user)
         .expect(201)
         .expect(tokens);
     });
 
     it('returns an error when the user signs up with invalid data', async () => {
-      signUp.mockRejectedValue(new BadRequestException('Invalid Signup Data'));
+      mockAuthService.signUp.mockRejectedValue(
+        new BadRequestException('Invalid Signup Data'),
+      );
 
       await request(app.getHttpServer())
         .post('/auth/signup')
-        .send({
-          email: 'a@b.com',
-          password: 'pw',
-          deviceInfo: { name: 'phone' },
-        })
-        .expect(400);
+        .send(user)
+        .expect({
+          message: 'Invalid Signup Data',
+          error: 'Bad Request',
+          statusCode: 400,
+        });
     });
   });
 
   describe('refresh', () => {
-    afterEach(() => {
-      refresh.mockReset();
-    });
     it('returns tokens when the user successfully refreshes their tokens', async () => {
-      refresh.mockResolvedValue(tokens);
-
-      await request(app.getHttpServer())
-        .post('/auth/refresh')
-        .send({ refreshToken: 'refresh' })
-        .expect(200)
-        .expect(tokens);
-    });
-
-    it('returns error when the user does not successfully refresh their tokens', async () => {
-      refresh.mockResolvedValue(tokens);
+      mockAuthService.refresh.mockResolvedValue(tokens);
 
       await request(app.getHttpServer())
         .post('/auth/refresh')
@@ -164,7 +148,7 @@ describe('AuthController', () => {
 
   describe('logout', () => {
     it('logs out the user successfully', async () => {
-      logout.mockResolvedValue(undefined);
+      mockAuthService.logout.mockResolvedValue(undefined);
 
       await request(app.getHttpServer())
         .post('/auth/logout')
