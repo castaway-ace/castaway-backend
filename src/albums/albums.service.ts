@@ -29,7 +29,7 @@ export class AlbumsService {
     private readonly storageService: StorageService,
   ) {}
 
-  async findAlbum(id: string): Promise<Album | null> {
+  async find(id: string): Promise<Album | null> {
     const album = await this.prisma.album.findUnique({
       where: { id },
       select: {
@@ -62,7 +62,7 @@ export class AlbumsService {
     };
   }
 
-  async findAlbums(
+  async findAll(
     userId: string,
     options: AlbumQueryOptions,
   ): Promise<AlbumSummary[]> {
@@ -122,7 +122,7 @@ export class AlbumsService {
     return album.imageKey;
   }
 
-  async findAlbumStream(id: string): Promise<ObjectStreamResult> {
+  async findAlbumCover(id: string): Promise<ObjectStreamResult> {
     const imageKey = await this.findAlbumImageKey(id);
 
     if (!imageKey) {
@@ -140,9 +140,9 @@ export class AlbumsService {
     };
   }
 
-  async updateAlbumStar(
-    albumId: string,
+  async updateStar(
     userId: string,
+    albumId: string,
     starred: boolean,
   ): Promise<void> {
     if (starred) {

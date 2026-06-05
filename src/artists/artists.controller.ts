@@ -66,7 +66,7 @@ export class ArtistsController {
     @Param('id') id: string,
     @CurrentUser('sub') sub: string,
   ): Promise<void> {
-    await this.artistService.updateStar(id, sub, true);
+    await this.artistService.updateStar(sub, id, true);
   }
 
   @Delete(':id/star')
@@ -75,6 +75,6 @@ export class ArtistsController {
     @Param('id') id: string,
     @CurrentUser('sub') sub: string,
   ): Promise<void> {
-    await this.artistService.updateStar(id, sub, false);
+    await this.artistService.updateStar(sub, id, false);
   }
 }

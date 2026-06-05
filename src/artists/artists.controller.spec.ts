@@ -101,8 +101,8 @@ describe('ArtistsController', () => {
       await artistsController.star('artist-1', 'sub');
 
       expect(mockArtistsService.updateStar).toHaveBeenCalledWith(
-        'artist-1',
         'sub',
+        'artist-1',
         true,
       );
     });
@@ -115,8 +115,8 @@ describe('ArtistsController', () => {
       await artistsController.unStar('artist-1', 'sub');
 
       expect(mockArtistsService.updateStar).toHaveBeenCalledWith(
-        'artist-1',
         'sub',
+        'artist-1',
         false,
       );
     });

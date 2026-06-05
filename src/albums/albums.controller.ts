@@ -22,11 +22,11 @@ export class AlbumsController {
   constructor(private readonly albumService: AlbumsService) {}
 
   @Get()
-  async getAlbums(
+  async findAll(
     @CurrentUser('sub') sub: string,
     @Query() query: AlbumQueryDto,
   ): Promise<AlbumSummary[]> {
-    return this.albumService.findAlbums(sub, {
+    return this.albumService.findAll(sub, {
       filters: {
         artistIds: query.artistIds,
         genres: query.genres,
@@ -41,8 +41,8 @@ export class AlbumsController {
   }
 
   @Get(':id')
-  async getAlbum(@Param('id') id: string): Promise<Album> {
-    const album = await this.albumService.findAlbum(id);
+  async find(@Param('id') id: string): Promise<Album> {
+    const album = await this.albumService.find(id);
 
     if (!album) {
       throw new NotFoundException('Album not found');
@@ -52,9 +52,9 @@ export class AlbumsController {
   }
 
   @Get(':id/stream')
-  async getAlbumStream(@Param('id') id: string): Promise<StreamableFile> {
+  async findAlbumCover(@Param('id') id: string): Promise<StreamableFile> {
     const { stream, contentType, contentLength } =
-      await this.albumService.findAlbumStream(id);
+      await this.albumService.findAlbumCover(id);
 
     return new StreamableFile(stream, {
       type: contentType,
@@ -64,19 +64,19 @@ export class AlbumsController {
 
   @Post(':id/star')
   @HttpCode(204)
-  async starAlbum(
-    @Param('id') id: string,
+  async star(
     @CurrentUser('sub') sub: string,
+    @Param('id') id: string,
   ): Promise<void> {
-    await this.albumService.updateAlbumStar(id, sub, true);
+    await this.albumService.updateStar(sub, id, true);
   }
 
   @Delete(':id/star')
   @HttpCode(204)
-  async unStarAlbum(
-    @Param('id') id: string,
+  async unStar(
     @CurrentUser('sub') sub: string,
+    @Param('id') id: string,
   ): Promise<void> {
-    await this.albumService.updateAlbumStar(id, sub, false);
+    await this.albumService.updateStar(sub, id, false);
   }
 }

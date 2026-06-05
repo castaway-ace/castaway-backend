@@ -105,8 +105,8 @@ export class ArtistsService {
   }
 
   async updateStar(
-    artistId: string,
     userId: string,
+    artistId: string,
     starred: boolean,
   ): Promise<void> {
     if (starred) {

@@ -30,7 +30,7 @@ export class SearchService {
         filters: { search: query },
         pagination: { limit: 10 },
       }),
-      this.albumService.findAlbums(userId, {
+      this.albumService.findAll(userId, {
         filters: { search: query },
         pagination: { limit: 10 },
       }),

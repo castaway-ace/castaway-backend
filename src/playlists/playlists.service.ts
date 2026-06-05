@@ -11,7 +11,7 @@ export class PlaylistsService {
     private readonly trackService: TracksService,
   ) {}
 
-  async createPlaylist(name: string, userId: string): Promise<Playlist> {
+  async create(userId: string, name: string): Promise<Playlist> {
     const lastPlaylist = await this.prisma.playlist.findFirst({
       where: { ownerId: userId },
       orderBy: { position: 'desc' },
@@ -29,7 +29,7 @@ export class PlaylistsService {
     });
   }
 
-  async findPlaylist(id: string): Promise<Playlist | null> {
+  async find(id: string): Promise<Playlist | null> {
     return this.prisma.playlist.findUnique({
       where: { id },
       select: {
@@ -44,7 +44,7 @@ export class PlaylistsService {
     });
   }
 
-  async findPlaylists(userId: string): Promise<PlaylistSummary[]> {
+  async findAll(userId: string): Promise<PlaylistSummary[]> {
     return this.prisma.playlist.findMany({
       where: { ownerId: userId },
       select: {
@@ -57,11 +57,7 @@ export class PlaylistsService {
     });
   }
 
-  async updatePlaylist(
-    id: string,
-    userId: string,
-    name: string,
-  ): Promise<void> {
+  async update(userId: string, id: string, name: string): Promise<void> {
     const result = await this.prisma.playlist.updateMany({
       where: { id, ownerId: userId },
       data: { name },
@@ -72,7 +68,7 @@ export class PlaylistsService {
     }
   }
 
-  async deletePlaylist(id: string, userId: string): Promise<void> {
+  async delete(userId: string, id: string): Promise<void> {
     const result = await this.prisma.playlist.deleteMany({
       where: { id, ownerId: userId },
     });
@@ -82,12 +78,8 @@ export class PlaylistsService {
     }
   }
 
-  async addPlaylistTrack(
-    id: string,
-    userId: string,
-    trackId: string,
-  ): Promise<void> {
-    const playlist = await this.findPlaylist(id);
+  async addTrack(userId: string, id: string, trackId: string): Promise<void> {
+    const playlist = await this.find(id);
     const track = await this.trackService.findTrack(trackId);
 
     if (!track) {
@@ -115,11 +107,11 @@ export class PlaylistsService {
     });
   }
 
-  async getPlaylistTracks(
-    playlistId: string,
+  async findTracks(
     userId: string,
+    playlistId: string,
   ): Promise<PlaylistTrack[]> {
-    const playlist = await this.findPlaylist(playlistId);
+    const playlist = await this.find(playlistId);
 
     if (!playlist || (!playlist.public && playlist.ownerId !== userId)) {
       throw new NotFoundException('Playlist not found');
@@ -131,12 +123,12 @@ export class PlaylistsService {
     });
   }
 
-  async getPlaylistTrack(
-    playlistId: string,
+  async findTrack(
     userId: string,
+    playlistId: string,
     trackId: string,
   ): Promise<PlaylistTrack | null> {
-    const playlist = await this.findPlaylist(playlistId);
+    const playlist = await this.find(playlistId);
 
     if (!playlist || (!playlist.public && playlist.ownerId !== userId)) {
       throw new NotFoundException('Playlist not found');
@@ -147,14 +139,14 @@ export class PlaylistsService {
     });
   }
 
-  async deletePlaylistTrack(
-    id: string,
+  async deleteTrack(
     userId: string,
+    id: string,
     trackId: string,
   ): Promise<void> {
-    const playlist = await this.findPlaylist(id);
+    const playlist = await this.find(id);
 
-    const playlistTrack = await this.getPlaylistTrack(id, userId, trackId);
+    const playlistTrack = await this.findTrack(id, userId, trackId);
 
     if (!playlist || playlist.ownerId !== userId) {
       throw new NotFoundException('Playlist not found');

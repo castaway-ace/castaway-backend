@@ -22,26 +22,24 @@ export class PlaylistsController {
   constructor(private readonly playlistService: PlaylistsService) {}
 
   @Post('')
-  async createPlaylist(
+  async create(
     @CurrentUser('sub') sub: string,
     @Body() playlistDto: PlaylistDto,
   ): Promise<void> {
-    await this.playlistService.createPlaylist(playlistDto.name, sub);
+    await this.playlistService.create(sub, playlistDto.name);
   }
 
   @Get('')
-  async getPlaylists(
-    @CurrentUser('sub') sub: string,
-  ): Promise<PlaylistSummary[]> {
-    return await this.playlistService.findPlaylists(sub);
+  async findAll(@CurrentUser('sub') sub: string): Promise<PlaylistSummary[]> {
+    return await this.playlistService.findAll(sub);
   }
 
   @Get('/:id')
-  async getPlaylist(
+  async find(
     @CurrentUser('sub') sub: string,
     @Param('id') id: string,
   ): Promise<Playlist> {
-    const playlist = await this.playlistService.findPlaylist(id);
+    const playlist = await this.playlistService.find(id);
 
     if (!playlist || (!playlist.public && playlist.ownerId !== sub)) {
       throw new NotFoundException('Playlist not found');
@@ -50,48 +48,48 @@ export class PlaylistsController {
   }
 
   @Patch('/:id')
-  async updatePlaylist(
+  async update(
     @CurrentUser('sub') sub: string,
     @Param('id') id: string,
     @Body() playlistDto: PlaylistDto,
   ): Promise<void> {
-    await this.playlistService.updatePlaylist(id, sub, playlistDto.name);
+    await this.playlistService.update(sub, id, playlistDto.name);
   }
 
   @Delete('/:id')
-  async deletePlaylist(
+  async delete(
     @CurrentUser('sub') sub: string,
     @Param('id') id: string,
   ): Promise<void> {
-    await this.playlistService.deletePlaylist(id, sub);
+    await this.playlistService.delete(sub, id);
   }
 
   @Get('/:id/tracks')
-  async getPlaylistTracks(
+  async findTracks(
     @CurrentUser('sub') sub: string,
     @Param('id') id: string,
   ): Promise<PlaylistTrack[]> {
-    return await this.playlistService.getPlaylistTracks(id, sub);
+    return await this.playlistService.findTracks(sub, id);
   }
 
   @Post('/:id/tracks/:trackId')
-  async addPlaylistTrack(
+  async addTrack(
     @CurrentUser('sub') sub: string,
     @Param('id') id: string,
     @Param('trackId') trackId: string,
   ): Promise<void> {
-    await this.playlistService.addPlaylistTrack(id, sub, trackId);
+    await this.playlistService.addTrack(sub, id, trackId);
   }
 
   @Get('/:id/tracks/:trackId')
-  async getPlaylistTrack(
+  async findTrack(
     @CurrentUser('sub') sub: string,
     @Param('id') id: string,
     @Param('trackId') trackId: string,
   ): Promise<PlaylistTrack | null> {
-    const playlistTrack = await this.playlistService.getPlaylistTrack(
-      id,
+    const playlistTrack = await this.playlistService.findTrack(
       sub,
+      id,
       trackId,
     );
 
@@ -102,11 +100,11 @@ export class PlaylistsController {
   }
 
   @Delete('/:id/tracks/:trackId')
-  async deletePlaylistTrack(
+  async deleteTrack(
     @CurrentUser('sub') sub: string,
     @Param('id') id: string,
     @Param('trackId') trackId: string,
   ): Promise<void> {
-    await this.playlistService.deletePlaylistTrack(id, sub, trackId);
+    await this.playlistService.deleteTrack(sub, id, trackId);
   }
 }
