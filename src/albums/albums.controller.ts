@@ -22,7 +22,7 @@ export class AlbumsController {
   constructor(private readonly albumService: AlbumsService) {}
 
   @Get()
-  async getTracks(
+  async getAlbums(
     @CurrentUser('sub') sub: string,
     @Query() query: AlbumQueryDto,
   ): Promise<AlbumSummary[]> {
