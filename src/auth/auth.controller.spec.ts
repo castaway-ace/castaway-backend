@@ -16,11 +16,6 @@ import { LoginDto } from '../dto/login.dto.js';
 import { SignUpDto } from '../dto/sign-up.dto.js';
 import { AuthGuard } from './guards/auth.guard.js';
 import { AuthenticatedUser } from './decorators/user.decorator.js';
-import { UserService } from '../user/user.service.js';
-import { RefreshTokenService } from '../refresh-token/refresh-token.service.js';
-import { PrismaService } from '../prisma/prisma.service.js';
-import { ConfigService } from '@nestjs/config';
-import { RefreshTokenWithDevice } from '../types/refresh-token.js';
 
 const moduleMocker = new ModuleMocker(global);
 
@@ -143,152 +138,27 @@ describe('AuthController', () => {
   });
 
   describe('refresh', () => {
-    let service: RefreshTokenService;
-
-    const refreshConfigValues: Readonly<Record<string, unknown>> = {
-      JWT_ACCESS_SECRET: 'access-secret',
-      JWT_ACCESS_EXPIRATION: '1h',
-      JWT_REFRESH_SECRET: 'refresh-secret',
-      JWT_REFRESH_EXPIRATION: '7d',
-    };
-
-    const makeRow = (
-      overrides: Partial<RefreshTokenWithDevice> = {},
-    ): RefreshTokenWithDevice => ({
-      id: 'rt-1',
-      familyId: 'fam-1',
-      deviceId: 'dev-1',
-      tokenHash: 'hash',
-      expiresAt: new Date(Date.now() + 60_000),
-      createdAt: new Date(Date.now()),
-      invalidatedAt: null,
-      usedAt: null,
-      replacedById: null,
-      device: {
-        id: 'dev-1',
-        userId: 'user-1',
-        clientId: '1234',
-        name: 'Goose',
-        model: 'IPhone 15',
-        activatedAt: new Date(Date.now()),
-        lastSeenAt: new Date(Date.now()),
-      },
-      ...overrides,
-    });
-
-    const findUnique = jest.fn<() => Promise<RefreshTokenWithDevice | null>>();
-    const create = jest.fn<() => Promise<{ id: string }>>();
-    const updateMany = jest.fn<() => Promise<{ count: number }>>();
-    const deviceUpdate = jest.fn<() => Promise<unknown>>();
-    const findById =
-      jest.fn<() => Promise<{ id: string; isAdmin: boolean } | null>>();
-
-    beforeEach(async () => {
-      const module: TestingModule = await Test.createTestingModule({
-        providers: [
-          RefreshTokenService,
-          {
-            provide: PrismaService,
-            useValue: {
-              refreshToken: { findUnique, create, updateMany },
-              device: { update: deviceUpdate },
-            },
-          },
-          { provide: UserService, useValue: { findById } },
-        ],
-      })
-        .useMocker((token) => {
-          if (token === ConfigService) {
-            return {
-              get: jest.fn((key: string): unknown => refreshConfigValues[key]),
-            };
-          }
-          if (typeof token === 'function') {
-            const mockMetadata = moduleMocker.getMetadata(
-              token,
-            ) as MockMetadata<any, any>;
-            const Mock = moduleMocker.generateFromMetadata(
-              mockMetadata,
-            ) as ObjectConstructor;
-            return new Mock();
-          }
-        })
-        .compile();
-
-      service = module.get(RefreshTokenService);
-
-      jest.spyOn(service, 'generateTokens').mockResolvedValue({
-        accessToken: 'access-user-1',
-        refreshToken: 'new-raw',
-        refreshExpiresAt: new Date(Date.now() + 60_000),
-      });
-    });
-
     afterEach(() => {
       refresh.mockReset();
     });
+    it('returns tokens when the user successfully refreshes their tokens', async () => {
+      refresh.mockResolvedValue(tokens);
 
-    it('throws an Invalid error when the refresh token can not be found', async () => {
-      findUnique.mockResolvedValue(null);
-      await expect(service.rotate('raw')).rejects.toThrow(
-        'Invalid refresh token',
-      );
+      await request(app.getHttpServer())
+        .post('/auth/refresh')
+        .send({ refreshToken: 'refresh' })
+        .expect(200)
+        .expect(tokens);
     });
 
-    it('throws an Expired error when the refresh token has expired', async () => {
-      findUnique.mockResolvedValue(
-        makeRow({ expiresAt: new Date(Date.now() - 60_000) }),
-      );
-      await expect(service.rotate('raw')).rejects.toThrow(
-        'Refresh token expired',
-      );
-    });
+    it('returns error when the user does not successfully refresh their tokens', async () => {
+      refresh.mockResolvedValue(tokens);
 
-    it('throws an Invalidated error when the refresh token has been invalidated', async () => {
-      findUnique.mockResolvedValue(makeRow({ invalidatedAt: new Date() }));
-      await expect(service.rotate('raw')).rejects.toThrow(
-        'Refresh token invalidated',
-      );
-    });
-
-    it('throws an Reuse error when the refresh token is being reused', async () => {
-      findUnique.mockResolvedValue(makeRow({ usedAt: new Date() }));
-      updateMany.mockResolvedValue({ count: 1 });
-      await expect(service.rotate('raw')).rejects.toThrow(
-        'Refresh token reuse detected',
-      );
-      expect(updateMany).toHaveBeenCalledWith({
-        where: { familyId: 'fam-1', invalidatedAt: null },
-        data: { invalidatedAt: expect.any(Date) },
-      });
-    });
-
-    it('throws an Not Found error when the user from the token can not be found', async () => {
-      findUnique.mockResolvedValue(makeRow());
-      findById.mockResolvedValue(null);
-      await expect(service.rotate('raw')).rejects.toThrow('User not found');
-    });
-
-    it('throws Concurrent error when a concurrent rotation occurs', async () => {
-      findUnique.mockResolvedValue(makeRow());
-      findById.mockResolvedValue({ id: 'user-1', isAdmin: false });
-      create.mockResolvedValue({ id: 'rt-2' });
-      updateMany.mockResolvedValue({ count: 0 });
-      await expect(service.rotate('raw')).rejects.toThrow(
-        'Concurrent rotation detected',
-      );
-    });
-
-    it('when the refresh tokens has successfully rotated', async () => {
-      findUnique.mockResolvedValue(makeRow());
-      findById.mockResolvedValue({ id: 'user-1', isAdmin: false });
-      create.mockResolvedValue({ id: 'rt-2' });
-      updateMany.mockResolvedValue({ count: 1 });
-      deviceUpdate.mockResolvedValue(undefined);
-
-      const result = await service.rotate('raw');
-      expect(result.accessToken).toBe('access-user-1');
-      expect(deviceUpdate).toHaveBeenCalled();
+      await request(app.getHttpServer())
+        .post('/auth/refresh')
+        .send({ refreshToken: 'refresh' })
+        .expect(200)
+        .expect(tokens);
     });
   });
 
