@@ -2,7 +2,6 @@ import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   BadRequestException,
-  ExecutionContext,
   INestApplication,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -13,7 +12,6 @@ import { AuthController } from './auth.controller.js';
 import { AuthTokens } from '../types/auth.js';
 import { AuthService } from './auth.service.js';
 import { AuthGuard } from './guards/auth.guard.js';
-import { AuthenticatedUser } from './decorators/user.decorator.js';
 
 const moduleMocker = new ModuleMocker(global);
 
@@ -59,15 +57,7 @@ describe('AuthController', () => {
       })
       .overrideGuard(AuthGuard)
       .useValue({
-        canActivate: (context: ExecutionContext): boolean => {
-          const req = context
-            .switchToHttp()
-            .getRequest<{ user: AuthenticatedUser }>();
-          req.user = {
-            sub: 'test-user',
-            deviceId: 'test-device-id',
-            isAdmin: false,
-          };
+        canActivate: (): boolean => {
           return true;
         },
       })
