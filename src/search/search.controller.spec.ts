@@ -9,7 +9,7 @@ const moduleMocker = new ModuleMocker(global);
 describe('SearchController', () => {
   let searchController: SearchController;
 
-  const mockPlaylistsService = {
+  const mockSearchService = {
     find: jest.fn<SearchService['find']>(),
   };
 
@@ -19,7 +19,7 @@ describe('SearchController', () => {
       providers: [
         {
           provide: SearchService,
-          useValue: mockPlaylistsService,
+          useValue: mockSearchService,
         },
       ],
     })
@@ -47,11 +47,11 @@ describe('SearchController', () => {
         albums: [],
         tracks: [],
       };
-      mockPlaylistsService.find.mockResolvedValue(mockSearchResults);
+      mockSearchService.find.mockResolvedValue(mockSearchResults);
       await expect(searchController.find('sub', { query: '12' })).resolves.toBe(
         mockSearchResults,
       );
-      expect(mockPlaylistsService.find).toHaveBeenCalledWith('sub', '12');
+      expect(mockSearchService.find).toHaveBeenCalledWith('sub', '12');
     });
   });
 });

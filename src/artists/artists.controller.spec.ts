@@ -1,108 +1,112 @@
 import { jest } from '@jest/globals';
 import { Test } from '@nestjs/testing';
-import { MockMetadata, ModuleMocker } from 'jest-mock';
 import { ArtistsController } from './artists.controller.js';
 import { ArtistsService } from './artists.service.js';
-import { Artist, ArtistSummary } from '../types/artists.js';
-import { ObjectStreamResult } from '../storage/storage.service.js';
 import { Readable } from 'node:stream';
-import { StreamableFile } from '@nestjs/common';
+import { ExecutionContext, INestApplication } from '@nestjs/common';
+import { App } from 'supertest/types.js';
+import { AuthGuard } from '../auth/guards/auth.guard.js';
+import type { Request } from 'express';
+import request from 'supertest';
 
-const moduleMocker = new ModuleMocker(global);
+const artist = {
+  id: 'artist-1',
+  name: 'Test Artist',
+};
+
+const artistSummaries = [
+  {
+    id: 'artist-1',
+    name: 'Test Artist',
+  },
+];
+
+const artistImage = {
+  stream: Readable.from(Buffer.from('image file')),
+  contentType: 'image/jpeg',
+  contentLength: 10,
+};
 
 describe('ArtistsController', () => {
-  let artistsController: ArtistsController;
+  let app: INestApplication<App>;
 
-  const mockArtistsService = {
-    find: jest.fn<ArtistsService['find']>(),
-    findAll: jest.fn<ArtistsService['findAll']>(),
-    findArtistImage: jest.fn<ArtistsService['findArtistImage']>(),
-    updateStar: jest.fn<ArtistsService['updateStar']>(),
+  const artistsService = {
+    find: jest.fn().mockReturnValue(artist),
+    findAll: jest.fn().mockReturnValue(artistSummaries),
+    findArtistImage: jest.fn().mockReturnValue(artistImage),
+    updateStar: jest.fn(),
   };
 
   beforeEach(async () => {
-    const moduleRef = await Test.createTestingModule({
+    const module = await Test.createTestingModule({
       controllers: [ArtistsController],
       providers: [
         {
           provide: ArtistsService,
-          useValue: mockArtistsService,
+          useValue: artistsService,
         },
       ],
     })
-      .useMocker((token) => {
-        if (typeof token === 'function') {
-          const mockMetadata = moduleMocker.getMetadata(token) as MockMetadata<
-            any,
-            any
-          >;
-          const Mock = moduleMocker.generateFromMetadata(
-            mockMetadata,
-          ) as ObjectConstructor;
-          return new Mock();
-        }
+      .overrideGuard(AuthGuard)
+      .useValue({
+        canActivate: (context: ExecutionContext): boolean => {
+          const req = context.switchToHttp().getRequest<Request>();
+          req.user = { sub: 'test-user', isAdmin: false, deviceId: '1234' };
+          return true;
+        },
       })
       .compile();
 
-    artistsController = moduleRef.get(ArtistsController);
+    app = module.createNestApplication();
+    await app.init();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     jest.clearAllMocks();
+    await app.close();
   });
 
   describe('find', () => {
     it('should return an artist', async () => {
-      const result: Artist = {
-        id: 'artist-1',
-        name: 'Test Artist',
-        bio: '',
-      };
-      mockArtistsService.find.mockResolvedValue(result);
-
-      await expect(artistsController.find('artist-1')).resolves.toBe(result);
+      return request(app.getHttpServer())
+        .get('/artists/1234')
+        .expect(200)
+        .expect(artist);
     });
   });
 
   describe('findAll', () => {
     it('should return an array of artists', async () => {
-      const result: ArtistSummary[] = [
-        {
-          id: 'artist-1',
-          name: 'Test Artist',
-        },
-      ];
-      mockArtistsService.findAll.mockResolvedValue(result);
-
-      await expect(artistsController.findAll('sub', {})).resolves.toBe(result);
+      return request(app.getHttpServer())
+        .get('/artists')
+        .expect(200)
+        .expect(artistSummaries);
     });
   });
 
   describe('findArtistImage', () => {
     it('should return the image of an artist', async () => {
-      const object: ObjectStreamResult = {
-        stream: Readable.from(Buffer.from('image file')),
-        contentType: 'image/jpeg',
-        contentLength: 10,
-      };
-      mockArtistsService.findArtistImage.mockResolvedValue(object);
+      const res = await request(app.getHttpServer())
+        .get('/artists/1234/stream')
+        .buffer(true)
+        .parse((res, cb) => {
+          const chunks: Buffer[] = [];
+          res.on('data', (c: Buffer) => chunks.push(Buffer.from(c)));
+          res.on('end', () => cb(null, Buffer.concat(chunks)));
+        });
 
-      const result = await artistsController.findArtistImage('artist-1');
-
-      expect(result).toBeInstanceOf(StreamableFile);
-      expect(result.getStream()).toBe(object.stream);
+      expect(res.status).toBe(200);
+      expect(res.headers['content-type']).toBe('image/jpeg');
+      expect(res.body).toEqual(Buffer.from('image file'));
     });
   });
 
   describe('star', () => {
     it('calls updateStar with true', async () => {
-      mockArtistsService.updateStar.mockResolvedValue(undefined);
-
-      await artistsController.star('artist-1', 'sub');
-
-      expect(mockArtistsService.updateStar).toHaveBeenCalledWith(
-        'sub',
-        'artist-1',
+      await request(app.getHttpServer()).post('/artists/1234/star').expect(204);
+      expect(artistsService.updateStar).toHaveBeenCalledWith(
+        'test-user',
+        '1234',
         true,
       );
     });
@@ -110,13 +114,12 @@ describe('ArtistsController', () => {
 
   describe('unStar', () => {
     it('calls updateStar with false', async () => {
-      mockArtistsService.updateStar.mockResolvedValue(undefined);
-
-      await artistsController.unStar('artist-1', 'sub');
-
-      expect(mockArtistsService.updateStar).toHaveBeenCalledWith(
-        'sub',
-        'artist-1',
+      await request(app.getHttpServer())
+        .delete('/artists/1234/star')
+        .expect(204);
+      expect(artistsService.updateStar).toHaveBeenCalledWith(
+        'test-user',
+        '1234',
         false,
       );
     });

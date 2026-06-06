@@ -34,7 +34,7 @@ export class SearchService {
         filters: { search: query },
         pagination: { limit: 10 },
       }),
-      this.trackService.findTracks(userId, {
+      this.trackService.findAll(userId, {
         filters: { search: query },
         pagination: { limit: 10 },
       }),

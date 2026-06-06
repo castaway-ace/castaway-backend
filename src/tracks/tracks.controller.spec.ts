@@ -3,54 +3,50 @@ import request from 'supertest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ExecutionContext, INestApplication } from '@nestjs/common';
 import { Readable } from 'node:stream';
-import { AlbumsService } from './albums.service.js';
-import { AlbumsController } from './albums.controller.js';
+import { TracksController } from './tracks.controller.js';
+import { TracksService } from './tracks.service.js';
 import { App } from 'supertest/types.js';
 import { AuthGuard } from '../auth/guards/auth.guard.js';
 import type { Request } from 'express';
 
-const album = {
+const track = {
   id: '1',
-  title: 'test1',
-  releaseDate: '2026-06-06T00:00:00.000Z',
-  artists: ['test1'],
-  genres: ['test1'],
-  compilation: false,
+  title: 'track',
 };
 
-const albumSummaries = [
+const trackSummaries = [
   {
     id: '1',
-    title: 'test1',
-    releaseDate: '2026-06-06T00:00:00.000Z',
-    artists: ['test1'],
-    genres: ['test1'],
+    title: 'track-1',
+  },
+  {
+    id: '2',
+    title: 'track-2',
   },
 ];
 
-const albumCover = {
-  stream: Readable.from(Buffer.from('image file')),
-  contentType: 'image/jpeg',
+const trackStream = {
+  stream: Readable.from(Buffer.from('audio file')),
+  contentType: 'audio/flac',
   contentLength: 10,
 };
 
-describe('AlbumsController', () => {
+describe('TracksController', () => {
   let app: INestApplication<App>;
-
-  const albumsService = {
-    find: jest.fn().mockReturnValue(album),
-    findAll: jest.fn().mockReturnValue(albumSummaries),
-    findAlbumCover: jest.fn().mockReturnValue(albumCover),
+  const tracksService = {
+    find: jest.fn().mockReturnValue(track),
+    findAll: jest.fn().mockReturnValue(trackSummaries),
+    findTrackStream: jest.fn().mockReturnValue(trackStream),
     updateStar: jest.fn(),
   };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      controllers: [AlbumsController],
+      controllers: [TracksController],
       providers: [
         {
-          provide: AlbumsService,
-          useValue: albumsService,
+          provide: TracksService,
+          useValue: tracksService,
         },
       ],
     })
@@ -74,27 +70,27 @@ describe('AlbumsController', () => {
   });
 
   describe('find', () => {
-    it('should return an album', async () => {
+    it('should return a track', async () => {
       return request(app.getHttpServer())
-        .get('/albums/1234')
+        .get('/tracks/1234')
         .expect(200)
-        .expect(album);
+        .expect(track);
     });
   });
 
   describe('findAll', () => {
-    it('should return an array of albums', async () => {
+    it('should return an array of tracks', async () => {
       return request(app.getHttpServer())
-        .get('/albums')
+        .get('/tracks')
         .expect(200)
-        .expect(albumSummaries);
+        .expect(trackSummaries);
     });
   });
 
-  describe('findAlbumCover', () => {
-    it('should return the image of an album cover', async () => {
+  describe('findTrackStream', () => {
+    it('should return the stream of a track', async () => {
       const res = await request(app.getHttpServer())
-        .get('/albums/1234/stream')
+        .get('/tracks/1234/stream')
         .buffer(true)
         .parse((res, cb) => {
           const chunks: Buffer[] = [];
@@ -103,15 +99,15 @@ describe('AlbumsController', () => {
         });
 
       expect(res.status).toBe(200);
-      expect(res.headers['content-type']).toBe('image/jpeg');
-      expect(res.body).toEqual(Buffer.from('image file'));
+      expect(res.headers['content-type']).toBe('audio/flac');
+      expect(res.body).toEqual(Buffer.from('audio file'));
     });
   });
 
   describe('star', () => {
     it('calls updateStar with true', async () => {
-      await request(app.getHttpServer()).post('/albums/1234/star').expect(204);
-      expect(albumsService.updateStar).toHaveBeenCalledWith(
+      await request(app.getHttpServer()).post('/tracks/1234/star').expect(204);
+      expect(tracksService.updateStar).toHaveBeenCalledWith(
         'test-user',
         '1234',
         true,
@@ -122,9 +118,9 @@ describe('AlbumsController', () => {
   describe('unStar', () => {
     it('calls updateStar with false', async () => {
       await request(app.getHttpServer())
-        .delete('/albums/1234/star')
+        .delete('/tracks/1234/star')
         .expect(204);
-      expect(albumsService.updateStar).toHaveBeenCalledWith(
+      expect(tracksService.updateStar).toHaveBeenCalledWith(
         'test-user',
         '1234',
         false,

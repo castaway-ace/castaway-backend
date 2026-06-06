@@ -80,7 +80,7 @@ export class PlaylistsService {
 
   async addTrack(userId: string, id: string, trackId: string): Promise<void> {
     const playlist = await this.find(id);
-    const track = await this.trackService.findTrack(trackId);
+    const track = await this.trackService.find(trackId);
 
     if (!track) {
       throw new NotFoundException('Track not found');

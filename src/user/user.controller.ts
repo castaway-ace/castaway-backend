@@ -19,7 +19,7 @@ export class UserController {
   constructor(private readonly userService: UserService) {}
 
   @Get('me')
-  async getCurrentUser(@CurrentUser('sub') sub: string): Promise<UserEntity> {
+  async find(@CurrentUser('sub') sub: string): Promise<UserEntity> {
     const foundUser = await this.userService.findById(sub);
     if (!foundUser) {
       throw new NotFoundException('User not found');
@@ -28,7 +28,7 @@ export class UserController {
   }
 
   @Delete('me')
-  async deleteUser(@CurrentUser('sub') sub: string): Promise<void> {
+  async delete(@CurrentUser('sub') sub: string): Promise<void> {
     try {
       await this.userService.delete(sub);
     } catch {

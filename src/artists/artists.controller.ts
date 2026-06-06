@@ -63,8 +63,8 @@ export class ArtistsController {
   @Post(':id/star')
   @HttpCode(204)
   async star(
-    @Param('id') id: string,
     @CurrentUser('sub') sub: string,
+    @Param('id') id: string,
   ): Promise<void> {
     await this.artistService.updateStar(sub, id, true);
   }
@@ -72,8 +72,8 @@ export class ArtistsController {
   @Delete(':id/star')
   @HttpCode(204)
   async unStar(
-    @Param('id') id: string,
     @CurrentUser('sub') sub: string,
+    @Param('id') id: string,
   ): Promise<void> {
     await this.artistService.updateStar(sub, id, false);
   }

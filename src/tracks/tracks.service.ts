@@ -86,7 +86,7 @@ export class TracksService {
     });
   }
 
-  async findTrack(id: string): Promise<Track | null> {
+  async find(id: string): Promise<Track | null> {
     const track = await this.prisma.track.findUnique({
       where: { id },
       select: {
@@ -150,7 +150,7 @@ export class TracksService {
     return track.fileKey;
   }
 
-  async findTracks(
+  async findAll(
     userId: string,
     options: TrackQueryOptions,
   ): Promise<TrackSummary[]> {
@@ -215,9 +215,9 @@ export class TracksService {
     };
   }
 
-  async updateTrackStar(
-    trackId: string,
+  async updateStar(
     userId: string,
+    trackId: string,
     starred: boolean,
   ): Promise<void> {
     await this.prisma.trackAnnotation.upsert({

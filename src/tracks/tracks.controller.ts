@@ -26,11 +26,11 @@ export class TracksController {
   constructor(private readonly trackService: TracksService) {}
 
   @Get()
-  async getTracks(
+  async findAll(
     @CurrentUser('sub') sub: string,
     @Query() query: TrackQueryDto,
   ): Promise<TrackSummary[]> {
-    return this.trackService.findTracks(sub, {
+    return this.trackService.findAll(sub, {
       filters: {
         artistIds: query.artistIds,
         albumIds: query.albumIds,
@@ -46,8 +46,8 @@ export class TracksController {
   }
 
   @Get(':id')
-  async getTrack(@Param('id') id: string): Promise<Track> {
-    const track = await this.trackService.findTrack(id);
+  async find(@Param('id') id: string): Promise<Track> {
+    const track = await this.trackService.find(id);
 
     if (!track) {
       throw new NotFoundException('Track not found');
@@ -57,7 +57,7 @@ export class TracksController {
   }
 
   @Get(':id/stream')
-  async getTrackStream(
+  async findTrackStream(
     @Param('id') id: string,
     @Res({ passthrough: true }) res: Response,
     @Headers('range') range?: string,
@@ -80,19 +80,19 @@ export class TracksController {
 
   @Post(':id/star')
   @HttpCode(204)
-  async starTrack(
-    @Param('id') id: string,
+  async star(
     @CurrentUser('sub') sub: string,
+    @Param('id') id: string,
   ): Promise<void> {
-    await this.trackService.updateTrackStar(id, sub, true);
+    await this.trackService.updateStar(sub, id, true);
   }
 
   @Delete(':id/star')
   @HttpCode(204)
-  async unStarTrack(
-    @Param('id') id: string,
+  async unStar(
     @CurrentUser('sub') sub: string,
+    @Param('id') id: string,
   ): Promise<void> {
-    await this.trackService.updateTrackStar(id, sub, false);
+    await this.trackService.updateStar(sub, id, false);
   }
 }
