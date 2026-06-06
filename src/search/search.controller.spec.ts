@@ -60,6 +60,11 @@ describe('SearchController', () => {
     await app.init();
   });
 
+  afterEach(async () => {
+    jest.clearAllMocks();
+    await app.close();
+  });
+
   describe('find', () => {
     it('returns the results from the service', async () => {
       return request(app.getHttpServer())

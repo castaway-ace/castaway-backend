@@ -101,6 +101,11 @@ describe('PlaylistsController', () => {
     await app.init();
   });
 
+  afterEach(async () => {
+    jest.clearAllMocks();
+    await app.close();
+  });
+
   describe('find', () => {
     it('should return a playlist', async () => {
       return request(app.getHttpServer())

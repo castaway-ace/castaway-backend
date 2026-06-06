@@ -3,18 +3,25 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { MockMetadata, ModuleMocker } from 'jest-mock';
 import { UserController } from './user.controller.js';
 import { UserService } from './user.service.js';
-import { User } from 'generated/prisma/client.js';
-import { UserEntity } from '../dto/user.dto.js';
-import { instanceToPlain } from 'class-transformer';
+import { ExecutionContext, INestApplication } from '@nestjs/common';
+import { App } from 'supertest/types.js';
+import type { Request } from 'express';
+import request from 'supertest';
+import { AuthGuard } from '../auth/guards/auth.guard.js';
 
 const moduleMocker = new ModuleMocker(global);
 
-describe('UserController', () => {
-  let userController: UserController;
+const user = {
+  id: '1',
+  password: '1234',
+};
 
-  const mockUserService = {
-    findById: jest.fn<UserService['findById']>(),
-    delete: jest.fn<UserService['delete']>(),
+describe('UserController', () => {
+  let app: INestApplication<App>;
+
+  const userService = {
+    findById: jest.fn().mockReturnValue(user),
+    delete: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -23,7 +30,7 @@ describe('UserController', () => {
       providers: [
         {
           provide: UserService,
-          useValue: mockUserService,
+          useValue: userService,
         },
       ],
     })
@@ -39,31 +46,39 @@ describe('UserController', () => {
           return new Mock();
         }
       })
+      .overrideGuard(AuthGuard)
+      .useValue({
+        canActivate: (context: ExecutionContext): boolean => {
+          const req = context.switchToHttp().getRequest<Request>();
+          req.user = { sub: 'sub', isAdmin: false, deviceId: '1234' };
+          return true;
+        },
+      })
       .compile();
 
-    userController = module.get(UserController);
+    app = module.createNestApplication();
+    await app.init();
+  });
+
+  afterEach(async () => {
+    jest.clearAllMocks();
+    await app.close();
   });
 
   describe('find', () => {
     it('should return a user', async () => {
-      const mockUser = {
-        id: '1',
-        password: '1234',
-      } as unknown as User;
-      mockUserService.findById.mockResolvedValue(mockUser);
-      const result = await userController.find('user-1');
-
-      expect(result).toBeInstanceOf(UserEntity);
-      expect(instanceToPlain(result)).not.toHaveProperty('password');
-      expect(instanceToPlain(result)).toMatchObject({ id: '1' });
+      return request(app.getHttpServer())
+        .get('/user/me')
+        .expect(200)
+        .expect({ id: '1' });
     });
   });
 
   describe('delete', () => {
     it('forwards the user id to the service', async () => {
-      await mockUserService.delete('sub');
+      await request(app.getHttpServer()).delete('/user/me').expect(200);
 
-      expect(mockUserService.delete).toHaveBeenCalledWith('sub');
+      expect(userService.delete).toHaveBeenCalledWith('sub');
     });
   });
 });
