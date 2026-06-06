@@ -21,19 +21,6 @@ import { Playlist, PlaylistSummary } from '../types/playlists.js';
 export class PlaylistsController {
   constructor(private readonly playlistService: PlaylistsService) {}
 
-  @Post('')
-  async create(
-    @CurrentUser('sub') sub: string,
-    @Body() playlistDto: PlaylistDto,
-  ): Promise<void> {
-    await this.playlistService.create(sub, playlistDto.name);
-  }
-
-  @Get('')
-  async findAll(@CurrentUser('sub') sub: string): Promise<PlaylistSummary[]> {
-    return await this.playlistService.findAll(sub);
-  }
-
   @Get('/:id')
   async find(
     @CurrentUser('sub') sub: string,
@@ -45,6 +32,19 @@ export class PlaylistsController {
       throw new NotFoundException('Playlist not found');
     }
     return playlist;
+  }
+
+  @Get('')
+  async findAll(@CurrentUser('sub') sub: string): Promise<PlaylistSummary[]> {
+    return await this.playlistService.findAll(sub);
+  }
+
+  @Post('')
+  async create(
+    @CurrentUser('sub') sub: string,
+    @Body() playlistDto: PlaylistDto,
+  ): Promise<void> {
+    await this.playlistService.create(sub, playlistDto.name);
   }
 
   @Patch('/:id')
@@ -64,23 +64,6 @@ export class PlaylistsController {
     await this.playlistService.delete(sub, id);
   }
 
-  @Get('/:id/tracks')
-  async findTracks(
-    @CurrentUser('sub') sub: string,
-    @Param('id') id: string,
-  ): Promise<PlaylistTrack[]> {
-    return await this.playlistService.findTracks(sub, id);
-  }
-
-  @Post('/:id/tracks/:trackId')
-  async addTrack(
-    @CurrentUser('sub') sub: string,
-    @Param('id') id: string,
-    @Param('trackId') trackId: string,
-  ): Promise<void> {
-    await this.playlistService.addTrack(sub, id, trackId);
-  }
-
   @Get('/:id/tracks/:trackId')
   async findTrack(
     @CurrentUser('sub') sub: string,
@@ -97,6 +80,23 @@ export class PlaylistsController {
       throw new NotFoundException('Playlist tracks not found');
     }
     return playlistTrack;
+  }
+
+  @Get('/:id/tracks')
+  async findTracks(
+    @CurrentUser('sub') sub: string,
+    @Param('id') id: string,
+  ): Promise<PlaylistTrack[]> {
+    return await this.playlistService.findTracks(sub, id);
+  }
+
+  @Post('/:id/tracks/:trackId')
+  async addTrack(
+    @CurrentUser('sub') sub: string,
+    @Param('id') id: string,
+    @Param('trackId') trackId: string,
+  ): Promise<void> {
+    await this.playlistService.addTrack(sub, id, trackId);
   }
 
   @Delete('/:id/tracks/:trackId')
