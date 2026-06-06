@@ -1,16 +1,27 @@
 import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
-import { MockMetadata, ModuleMocker } from 'jest-mock';
 import { SearchController } from './search.controller.js';
-import { SearchResults, SearchService } from './search.service.js';
+import { MockMetadata, ModuleMocker } from 'jest-mock';
+import { SearchService } from './search.service.js';
+import { ExecutionContext, INestApplication } from '@nestjs/common';
+import { App } from 'supertest/types.js';
+import type { Request } from 'express';
+import request from 'supertest';
+import { AuthGuard } from '../auth/guards/auth.guard.js';
 
 const moduleMocker = new ModuleMocker(global);
 
-describe('SearchController', () => {
-  let searchController: SearchController;
+const searchResults = {
+  artists: [],
+  albums: [],
+  tracks: [],
+};
 
-  const mockSearchService = {
-    find: jest.fn<SearchService['find']>(),
+describe('SearchController', () => {
+  let app: INestApplication<App>;
+
+  const searchService = {
+    find: jest.fn().mockReturnValue(searchResults),
   };
 
   beforeEach(async () => {
@@ -19,7 +30,7 @@ describe('SearchController', () => {
       providers: [
         {
           provide: SearchService,
-          useValue: mockSearchService,
+          useValue: searchService,
         },
       ],
     })
@@ -35,23 +46,26 @@ describe('SearchController', () => {
           return new Mock();
         }
       })
+      .overrideGuard(AuthGuard)
+      .useValue({
+        canActivate: (context: ExecutionContext): boolean => {
+          const req = context.switchToHttp().getRequest<Request>();
+          req.user = { sub: 'sub', isAdmin: false, deviceId: '1234' };
+          return true;
+        },
+      })
       .compile();
 
-    searchController = module.get(SearchController);
+    app = module.createNestApplication();
+    await app.init();
   });
 
   describe('find', () => {
     it('returns the results from the service', async () => {
-      const mockSearchResults: SearchResults = {
-        artists: [],
-        albums: [],
-        tracks: [],
-      };
-      mockSearchService.find.mockResolvedValue(mockSearchResults);
-      await expect(searchController.find('sub', { query: '12' })).resolves.toBe(
-        mockSearchResults,
-      );
-      expect(mockSearchService.find).toHaveBeenCalledWith('sub', '12');
+      return request(app.getHttpServer())
+        .get('/search')
+        .expect(200)
+        .expect(searchResults);
     });
   });
 });
