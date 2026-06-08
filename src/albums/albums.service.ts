@@ -1,10 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { AlbumSortOptions as AlbumOrderOptions } from '../dto/album.dto.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import {
-  ObjectStreamResult,
-  StorageService,
-} from '../storage/storage.service.js';
+import { StorageService } from '../storage/storage.service.js';
 import { Prisma, Album as PrismaAlbum } from '../../generated/prisma/client.js';
 import { Album, AlbumSummary } from '../types/albums.js';
 import { StorageBucket } from '../types/storage.js';
@@ -122,22 +119,19 @@ export class AlbumsService {
     return album.imageKey;
   }
 
-  async findAlbumCover(id: string): Promise<ObjectStreamResult> {
+  async findAlbumCover(id: string): Promise<string> {
     const imageKey = await this.findAlbumImageKey(id);
 
     if (!imageKey) {
       throw new NotFoundException('Album Art does not exist');
     }
 
-    const result = await this.storageService.getObjectStream(
+    const result = await this.storageService.getPresignedUrl(
       StorageBucket.AlbumArt,
       imageKey,
     );
 
-    return {
-      ...result,
-      contentType: this.resolveImageContentType(imageKey, result.contentType),
-    };
+    return result;
   }
 
   async updateStar(

@@ -2,7 +2,6 @@ import { jest } from '@jest/globals';
 import request from 'supertest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ExecutionContext, INestApplication } from '@nestjs/common';
-import { Readable } from 'node:stream';
 import { AlbumsService } from './albums.service.js';
 import { AlbumsController } from './albums.controller.js';
 import { App } from 'supertest/types.js';
@@ -28,11 +27,8 @@ const albumSummaries = [
   },
 ];
 
-const albumCover = {
-  stream: Readable.from(Buffer.from('image file')),
-  contentType: 'image/jpeg',
-  contentLength: 10,
-};
+const albumCoverURL =
+  'http://localhost:9000/albums/1234/cover.jpg?X-Amz-Signature=test';
 
 describe('AlbumsController', () => {
   let app: INestApplication<App>;
@@ -40,7 +36,7 @@ describe('AlbumsController', () => {
   const albumsService = {
     find: jest.fn().mockReturnValue(album),
     findAll: jest.fn().mockReturnValue(albumSummaries),
-    findAlbumCover: jest.fn().mockReturnValue(albumCover),
+    findAlbumCover: jest.fn().mockReturnValue(albumCoverURL),
     updateStar: jest.fn(),
   };
 
@@ -92,19 +88,11 @@ describe('AlbumsController', () => {
   });
 
   describe('findAlbumCover', () => {
-    it('should return the image of an album cover', async () => {
-      const res = await request(app.getHttpServer())
-        .get('/albums/1234/stream')
-        .buffer(true)
-        .parse((res, cb) => {
-          const chunks: Buffer[] = [];
-          res.on('data', (c: Buffer) => chunks.push(Buffer.from(c)));
-          res.on('end', () => cb(null, Buffer.concat(chunks)));
-        });
-
-      expect(res.status).toBe(200);
-      expect(res.headers['content-type']).toBe('image/jpeg');
-      expect(res.body).toEqual(Buffer.from('image file'));
+    it('should return the presigned url of an album cover', async () => {
+      await request(app.getHttpServer())
+        .get('/albums/1234/cover')
+        .expect(200)
+        .expect(albumCoverURL);
     });
   });
 

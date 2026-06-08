@@ -2,7 +2,6 @@ import { jest } from '@jest/globals';
 import { Test } from '@nestjs/testing';
 import { ArtistsController } from './artists.controller.js';
 import { ArtistsService } from './artists.service.js';
-import { Readable } from 'node:stream';
 import { ExecutionContext, INestApplication } from '@nestjs/common';
 import { App } from 'supertest/types.js';
 import { AuthGuard } from '../auth/guards/auth.guard.js';
@@ -21,11 +20,8 @@ const artistSummaries = [
   },
 ];
 
-const artistImage = {
-  stream: Readable.from(Buffer.from('image file')),
-  contentType: 'image/jpeg',
-  contentLength: 10,
-};
+const artistImageURL =
+  'http://localhost:9000/artists/1234/image.jpg?X-Amz-Signature=test';
 
 describe('ArtistsController', () => {
   let app: INestApplication<App>;
@@ -33,7 +29,7 @@ describe('ArtistsController', () => {
   const artistsService = {
     find: jest.fn().mockReturnValue(artist),
     findAll: jest.fn().mockReturnValue(artistSummaries),
-    findArtistImage: jest.fn().mockReturnValue(artistImage),
+    findArtistImage: jest.fn().mockReturnValue(artistImageURL),
     updateStar: jest.fn(),
   };
 
@@ -86,18 +82,10 @@ describe('ArtistsController', () => {
 
   describe('findArtistImage', () => {
     it('should return the image of an artist', async () => {
-      const res = await request(app.getHttpServer())
-        .get('/artists/1234/stream')
-        .buffer(true)
-        .parse((res, cb) => {
-          const chunks: Buffer[] = [];
-          res.on('data', (c: Buffer) => chunks.push(Buffer.from(c)));
-          res.on('end', () => cb(null, Buffer.concat(chunks)));
-        });
-
-      expect(res.status).toBe(200);
-      expect(res.headers['content-type']).toBe('image/jpeg');
-      expect(res.body).toEqual(Buffer.from('image file'));
+      await request(app.getHttpServer())
+        .get('/artists/1234/image')
+        .expect(200)
+        .expect(artistImageURL);
     });
   });
 

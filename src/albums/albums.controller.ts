@@ -7,7 +7,6 @@ import {
   Param,
   Post,
   Query,
-  StreamableFile,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '../auth/guards/auth.guard.js';
@@ -51,15 +50,11 @@ export class AlbumsController {
     return album;
   }
 
-  @Get(':id/stream')
-  async findAlbumCover(@Param('id') id: string): Promise<StreamableFile> {
-    const { stream, contentType, contentLength } =
-      await this.albumService.findAlbumCover(id);
+  @Get(':id/cover')
+  async findAlbumCover(@Param('id') id: string): Promise<string> {
+    const url = await this.albumService.findAlbumCover(id);
 
-    return new StreamableFile(stream, {
-      type: contentType,
-      length: contentLength,
-    });
+    return url;
   }
 
   @Post(':id/star')

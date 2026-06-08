@@ -1,9 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
-import {
-  ObjectStreamResult,
-  StorageService,
-} from '../storage/storage.service.js';
+import { StorageService } from '../storage/storage.service.js';
 import {
   Prisma,
   Artist as PrismaArtist,
@@ -86,22 +83,19 @@ export class ArtistsService {
     return track.imageKey;
   }
 
-  async findArtistImage(id: string): Promise<ObjectStreamResult> {
+  async findArtistImage(id: string): Promise<string> {
     const imageKey = await this.findArtistImageKey(id);
 
     if (!imageKey) {
       throw new NotFoundException('Artist Art does not exist');
     }
 
-    const result = await this.storageService.getObjectStream(
+    const result = await this.storageService.getPresignedUrl(
       StorageBucket.ArtistArt,
       imageKey,
     );
 
-    return {
-      ...result,
-      contentType: this.resolveImageContentType(imageKey, result.contentType),
-    };
+    return result;
   }
 
   async updateStar(

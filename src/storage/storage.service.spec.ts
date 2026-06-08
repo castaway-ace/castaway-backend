@@ -8,6 +8,7 @@ const moduleMocker = new ModuleMocker(global);
 
 const configValues: Readonly<Record<string, unknown>> = {
   STORAGE_ENDPOINT: 'https://storage.example.com',
+  STORAGE_PRESIGNED_ENDPOINT: 'https://storage.example.com',
   STORAGE_REGION: 'us-east-1',
   STORAGE_ACCESS_KEY: 'access-key',
   STORAGE_SECRET_ACCESS_KEY: 'secret-access-key',

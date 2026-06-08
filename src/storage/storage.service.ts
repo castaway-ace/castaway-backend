@@ -10,9 +10,11 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { StorageBucket } from '../types/storage.js';
 import { Readable } from 'stream';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 interface StorageConfig {
   endpoint: string;
+  presignedEndpoint: string;
   region: string;
   accessKey: string;
   secretKey: string;
@@ -35,13 +37,23 @@ export interface ObjectStreamResult {
 @Injectable()
 export class StorageService {
   private readonly client: S3Client;
+  private readonly preSignedClient: S3Client;
   private readonly storageConfig: StorageConfig;
 
   constructor(private readonly configService: ConfigService) {
     this.storageConfig = this.loadStorageConfig(configService);
     this.client = new S3Client({
       endpoint: this.storageConfig.endpoint,
-      region: this.storageConfig.region ?? 'us-east-1',
+      region: this.storageConfig.region,
+      credentials: {
+        accessKeyId: this.storageConfig.accessKey,
+        secretAccessKey: this.storageConfig.secretKey,
+      },
+      forcePathStyle: true,
+    });
+    this.preSignedClient = new S3Client({
+      endpoint: this.storageConfig.presignedEndpoint,
+      region: this.storageConfig.region,
       credentials: {
         accessKeyId: this.storageConfig.accessKey,
         secretAccessKey: this.storageConfig.secretKey,
@@ -105,6 +117,25 @@ export class StorageService {
     };
   }
 
+  async getPresignedUrl(
+    bucket: StorageBucket,
+    key: string | null,
+  ): Promise<string> {
+    if (!key) {
+      throw new Error(`Key is not provided`);
+    }
+
+    const command = new GetObjectCommand({
+      Bucket: bucket,
+      Key: key,
+    });
+
+    const url = await getSignedUrl(this.preSignedClient, command, {
+      expiresIn: 3600,
+    });
+    return url;
+  }
+
   async objectExists(bucket: string, key: string): Promise<boolean> {
     try {
       await this.client.send(
@@ -135,16 +166,26 @@ export class StorageService {
 
   private loadStorageConfig(configService: ConfigService): StorageConfig {
     const endpoint = configService.get<string>('STORAGE_ENDPOINT');
+    const presignedEndpoint = configService.get<string>(
+      'STORAGE_PRESIGNED_ENDPOINT',
+    );
     const region = configService.get<string>('STORAGE_REGION');
     const accessKey = configService.get<string>('STORAGE_ACCESS_KEY');
     const secretKey = configService.get<string>('STORAGE_SECRET_ACCESS_KEY');
 
-    if (!endpoint || !region || !accessKey || !secretKey) {
-      throw new Error('JWT configuration is incomplete');
+    if (
+      !endpoint ||
+      !region ||
+      !accessKey ||
+      !secretKey ||
+      !presignedEndpoint
+    ) {
+      throw new Error('Storage configuration is incomplete');
     }
 
     return {
       endpoint,
+      presignedEndpoint,
       region,
       accessKey,
       secretKey,
