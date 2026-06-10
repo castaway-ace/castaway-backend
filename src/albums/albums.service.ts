@@ -44,7 +44,20 @@ export class AlbumsService {
             },
           },
         },
-        tracks: true,
+        tracks: {
+          select: {
+            id: true,
+            title: true,
+            duration: true,
+            trackArtists: {
+              select: {
+                artist: {
+                  select: { name: true },
+                },
+              },
+            },
+          },
+        },
       },
     });
 
@@ -57,7 +70,10 @@ export class AlbumsService {
       compilation: album.compilation,
       genres: album.genres,
       artists: album.albumArtists.map((ta) => ta.artist.name),
-      tracks: album.tracks,
+      tracks: album.tracks.map(({ trackArtists, ...track }) => ({
+        ...track,
+        artistNames: trackArtists.map((ta) => ta.artist.name),
+      })),
     };
   }
 
