@@ -6,8 +6,9 @@ import {
   Artist as PrismaArtist,
 } from '../../generated/prisma/client.js';
 import { ArtistOrderOptions } from '../dto/artist.dto.js';
-import { Artist, ArtistSummary } from '../types/artists.js';
+import { Artist, ArtistAlbum, ArtistSummary } from '../types/artists.js';
 import { StorageBucket } from '../types/storage.js';
+import { AlbumsService } from '../albums/albums.service.js';
 
 interface ArtistFilters {
   genres?: string[];
@@ -25,11 +26,12 @@ interface ArtistQueryOptions {
 export class ArtistsService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly albumService: AlbumsService,
     private readonly storageService: StorageService,
   ) {}
 
-  async find(id: string): Promise<Artist | null> {
-    return this.prisma.artist.findUnique({
+  async find(id: string): Promise<(Artist & { albums: ArtistAlbum[] }) | null> {
+    const artist = await this.prisma.artist.findUnique({
       where: { id },
       select: {
         id: true,
@@ -37,6 +39,17 @@ export class ArtistsService {
         bio: true,
       },
     });
+
+    if (!artist) {
+      throw new NotFoundException('Artist does not exist');
+    }
+
+    const albums = await this.albumService.findAlbumsByArtist(artist.id);
+
+    return {
+      ...artist,
+      albums,
+    };
   }
 
   async findAll(
