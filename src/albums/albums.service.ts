@@ -49,6 +49,8 @@ export class AlbumsService {
             id: true,
             title: true,
             duration: true,
+            trackNumber: true,
+            albumId: true,
             trackArtists: {
               select: {
                 artist: {
@@ -70,10 +72,12 @@ export class AlbumsService {
       compilation: album.compilation,
       genres: album.genres,
       artists: album.albumArtists.map((ta) => ta.artist.name),
-      tracks: album.tracks.map(({ trackArtists, ...track }) => ({
-        ...track,
-        artistNames: trackArtists.map((ta) => ta.artist.name),
-      })),
+      tracks: album.tracks
+        .map(({ trackArtists, ...track }) => ({
+          ...track,
+          artistNames: trackArtists.map((ta) => ta.artist.name),
+        }))
+        .sort((a, b) => a.trackNumber - b.trackNumber),
     };
   }
 

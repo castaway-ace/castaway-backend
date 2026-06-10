@@ -6,7 +6,6 @@ import {
 type AlbumTrack = Omit<
   PrismaTrack,
   | 'fileKey'
-  | 'trackNumber'
   | 'size'
   | 'suffix'
   | 'bitRate'
@@ -16,7 +15,6 @@ type AlbumTrack = Omit<
   | 'discNumber'
   | 'updatedAt'
   | 'releaseDate'
-  | 'albumId'
   | 'genres'
 > & { artistNames: string[] };
 
