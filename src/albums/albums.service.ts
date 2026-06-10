@@ -44,6 +44,7 @@ export class AlbumsService {
             },
           },
         },
+        tracks: true,
       },
     });
 
@@ -56,6 +57,7 @@ export class AlbumsService {
       compilation: album.compilation,
       genres: album.genres,
       artists: album.albumArtists.map((ta) => ta.artist.name),
+      tracks: album.tracks,
     };
   }
 
