@@ -39,9 +39,10 @@ export class ArtistsController {
 
   @Get(':id')
   async find(
+    @CurrentUser('sub') sub: string,
     @Param('id') id: string,
-  ): Promise<Artist & { albums: ArtistAlbum[] }> {
-    const artist = await this.artistService.find(id);
+  ): Promise<Artist & { albums: ArtistAlbum[]; starred: boolean }> {
+    const artist = await this.artistService.findWithStarred(sub, id);
 
     if (!artist) {
       throw new NotFoundException('Artist not found');

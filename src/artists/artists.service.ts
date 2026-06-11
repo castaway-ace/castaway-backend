@@ -30,7 +30,7 @@ export class ArtistsService {
     private readonly storageService: StorageService,
   ) {}
 
-  async find(id: string): Promise<(Artist & { albums: ArtistAlbum[] }) | null> {
+  async find(id: string): Promise<Artist & { albums: ArtistAlbum[] }> {
     const artist = await this.prisma.artist.findUnique({
       where: { id },
       select: {
@@ -50,6 +50,19 @@ export class ArtistsService {
       ...artist,
       albums,
     };
+  }
+
+  async findWithStarred(
+    userId: string,
+    id: string,
+  ): Promise<Artist & { albums: ArtistAlbum[]; starred: boolean }> {
+    const artist = await this.find(id);
+
+    const annotation = await this.prisma.artistAnnotation.findUnique({
+      where: { userId_artistId: { userId, artistId: id } },
+    });
+
+    return { ...artist, starred: !!annotation };
   }
 
   async findAll(
