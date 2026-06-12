@@ -45,6 +45,11 @@ export class TracksController {
     });
   }
 
+  @Get('starred')
+  async getStarred(@CurrentUser() user: { id: string }): Promise<string[]> {
+    return this.trackService.findStarredTrackIds(user.id);
+  }
+
   @Get(':id')
   async find(@Param('id') id: string): Promise<Track> {
     const track = await this.trackService.find(id);

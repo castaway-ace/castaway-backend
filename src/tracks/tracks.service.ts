@@ -207,17 +207,12 @@ export class TracksService {
     return results;
   }
 
-  async findAllWithStarred(
-    userId: string,
-    id: string,
-  ): Promise<Track & { starred: boolean }> {
-    const track = await this.find(id);
-
-    const annotation = await this.prisma.trackAnnotation.findUnique({
-      where: { userId_trackId: { userId, trackId: id } },
+  async findStarredTrackIds(userId: string): Promise<string[]> {
+    const annotations = await this.prisma.trackAnnotation.findMany({
+      where: { userId, starred: true },
+      select: { trackId: true },
     });
-
-    return { ...track, starred: !!annotation };
+    return annotations.map((a) => a.trackId);
   }
 
   async findTrackStream(

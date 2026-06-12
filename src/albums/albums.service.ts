@@ -6,7 +6,6 @@ import { Prisma, Album as PrismaAlbum } from '../../generated/prisma/client.js';
 import { Album, AlbumSummary } from '../types/albums.js';
 import { StorageBucket } from '../types/storage.js';
 import { ArtistAlbum } from '../types/artists.js';
-import { TracksService } from '../tracks/tracks.service.js';
 
 interface AlbumFilters {
   artistIds?: string[];
@@ -26,10 +25,9 @@ export class AlbumsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storageService: StorageService,
-    private readonly trackService: TracksService,
   ) {}
 
-  async find(userId: string, id: string): Promise<Album | null> {
+  async find(id: string): Promise<Album | null> {
     const album = await this.prisma.album.findUnique({
       where: { id },
       select: {
@@ -50,6 +48,19 @@ export class AlbumsService {
         tracks: {
           select: {
             id: true,
+            title: true,
+            genres: true,
+            duration: true,
+            releaseDate: true,
+            suffix: true,
+            bitRate: true,
+            albumId: true,
+            sampleRate: true,
+            bitDepth: true,
+            trackNumber: true,
+            discNumber: true,
+            size: true,
+            trackArtists: { select: { artist: { select: { name: true } } } },
           },
         },
       },
@@ -57,11 +68,15 @@ export class AlbumsService {
 
     if (!album) return null;
 
-    const albumTracks = await this.trackService.findAll(userId, {
-      filters: {
-        albumIds: [album.id],
-      },
-    });
+    const tracks = album.tracks
+      .map(({ trackArtists, ...track }) => ({
+        ...track,
+        albumName: album.title,
+        artistNames: trackArtists.map((ta) => ta.artist.name),
+      }))
+      .sort(
+        (a, b) => a.discNumber - b.discNumber || a.trackNumber - b.trackNumber,
+      );
 
     return {
       id: album.id,
@@ -70,7 +85,7 @@ export class AlbumsService {
       compilation: album.compilation,
       genres: album.genres,
       artists: album.albumArtists.map((ta) => ta.artist.name),
-      tracks: albumTracks.sort((a, b) => a.trackNumber - b.trackNumber),
+      tracks,
     };
   }
 

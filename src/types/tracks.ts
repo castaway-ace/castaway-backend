@@ -16,4 +16,4 @@ export type TrackSummary = Omit<
   | 'createdAt'
   | 'discNumber'
   | 'updatedAt'
-> & { albumName: string; artistNames: string[]; starred: boolean };
+> & { albumName: string; artistNames: string[] };
