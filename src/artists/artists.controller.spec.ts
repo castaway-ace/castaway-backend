@@ -27,7 +27,7 @@ describe('ArtistsController', () => {
   let app: INestApplication<App>;
 
   const artistsService = {
-    find: jest.fn().mockReturnValue(artist),
+    findWithStarred: jest.fn().mockReturnValue(artist),
     findAll: jest.fn().mockReturnValue(artistSummaries),
     findArtistImage: jest.fn().mockReturnValue(artistImageURL),
     updateStar: jest.fn(),

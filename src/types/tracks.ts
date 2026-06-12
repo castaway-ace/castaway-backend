@@ -8,7 +8,6 @@ export type Track = Omit<
 export type TrackSummary = Omit<
   PrismaTrack,
   | 'fileKey'
-  | 'trackNumber'
   | 'size'
   | 'suffix'
   | 'bitRate'
@@ -17,4 +16,4 @@ export type TrackSummary = Omit<
   | 'createdAt'
   | 'discNumber'
   | 'updatedAt'
-> & { albumName: string; artistNames: string[] };
+> & { albumName: string; artistNames: string[]; starred: boolean };

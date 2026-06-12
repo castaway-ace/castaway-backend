@@ -57,11 +57,11 @@ export class AlbumsService {
 
     if (!album) return null;
 
-    const albumTracks = await Promise.all(
-      album.tracks.map((track) =>
-        this.trackService.findWithStarred(userId, track.id),
-      ),
-    );
+    const albumTracks = await this.trackService.findAll(userId, {
+      filters: {
+        albumIds: [album.id],
+      },
+    });
 
     return {
       id: album.id,

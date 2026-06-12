@@ -1,12 +1,12 @@
 import { Album as PrismaAlbum } from 'generated/prisma/client.js';
-import { Track } from './tracks.js';
+import { TrackSummary } from './tracks.js';
 
 export type Album = Omit<
   PrismaAlbum,
   'createdAt' | 'updatedAt' | 'imageKey'
 > & {
   artists: string[];
-  tracks: Track[];
+  tracks: TrackSummary[];
 };
 
 export type AlbumSummary = Omit<

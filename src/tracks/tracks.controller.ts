@@ -46,11 +46,8 @@ export class TracksController {
   }
 
   @Get(':id')
-  async find(
-    @CurrentUser('sub') sub: string,
-    @Param('id') id: string,
-  ): Promise<Track & { starred: boolean }> {
-    const track = await this.trackService.findWithStarred(sub, id);
+  async find(@Param('id') id: string): Promise<Track> {
+    const track = await this.trackService.find(id);
 
     if (!track) {
       throw new NotFoundException('Track not found');
