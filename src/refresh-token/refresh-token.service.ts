@@ -15,7 +15,6 @@ import { UserService } from '../user/user.service.js';
 interface JwtConfig {
   accessSecret: string;
   accessExpiresIn: StringValue;
-  refreshSecret: string;
   refreshExpiresIn: StringValue;
 }
 
@@ -161,24 +160,17 @@ export class RefreshTokenService {
   private loadJwtConfig(configService: ConfigService): JwtConfig {
     const accessSecret = configService.get<string>('JWT_ACCESS_SECRET');
     const accessExpiresIn = configService.get<string>('JWT_ACCESS_EXPIRATION');
-    const refreshSecret = configService.get<string>('JWT_REFRESH_SECRET');
     const refreshExpiresIn = configService.get<string>(
       'JWT_REFRESH_EXPIRATION',
     );
 
-    if (
-      !accessSecret ||
-      !accessExpiresIn ||
-      !refreshSecret ||
-      !refreshExpiresIn
-    ) {
+    if (!accessSecret || !accessExpiresIn || !refreshExpiresIn) {
       throw new Error('JWT configuration is incomplete');
     }
 
     return {
       accessSecret,
       accessExpiresIn: accessExpiresIn as StringValue,
-      refreshSecret,
       refreshExpiresIn: refreshExpiresIn as StringValue,
     };
   }
