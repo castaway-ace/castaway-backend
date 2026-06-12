@@ -40,8 +40,11 @@ export class AlbumsController {
   }
 
   @Get(':id')
-  async find(@Param('id') id: string): Promise<Album> {
-    const album = await this.albumService.find(id);
+  async find(
+    @CurrentUser('sub') sub: string,
+    @Param('id') id: string,
+  ): Promise<Album & { starred: boolean }> {
+    const album = await this.albumService.findWithStarred(sub, id);
 
     if (!album) {
       throw new NotFoundException('Album not found');

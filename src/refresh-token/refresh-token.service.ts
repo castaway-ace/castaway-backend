@@ -9,7 +9,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { type StringValue } from 'ms';
 import ms from 'ms';
-import { createHash } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
 import { UserService } from '../user/user.service.js';
 
 interface JwtConfig {
@@ -77,32 +77,41 @@ export class RefreshTokenService {
 
     const newTokenHash = this.hashToken(newRawRefreshToken);
 
-    const newToken = await this.prisma.refreshToken.create({
-      data: {
-        deviceId: existingRefreshToken.deviceId,
-        familyId: existingRefreshToken.familyId,
-        tokenHash: newTokenHash,
-        expiresAt: refreshExpiresAt,
-      },
+    const claimed = await this.prisma.$transaction(async (tx) => {
+      const claim = await tx.refreshToken.updateMany({
+        where: { id: existingRefreshToken.id, usedAt: null },
+        data: { usedAt: new Date() },
+      });
+
+      if (claim.count === 0) {
+        return false;
+      }
+
+      const newToken = await tx.refreshToken.create({
+        data: {
+          deviceId: existingRefreshToken.deviceId,
+          familyId: existingRefreshToken.familyId,
+          tokenHash: newTokenHash,
+          expiresAt: refreshExpiresAt,
+        },
+      });
+
+      await tx.refreshToken.update({
+        where: { id: existingRefreshToken.id },
+        data: { replacedById: newToken.id },
+      });
+
+      await tx.device.update({
+        where: { id: existingRefreshToken.deviceId },
+        data: { lastSeenAt: new Date() },
+      });
+
+      return true;
     });
 
-    const updateResult = await this.prisma.refreshToken.updateMany({
-      where: { id: existingRefreshToken.id, usedAt: null },
-      data: {
-        usedAt: new Date(),
-        replacedById: newToken.id,
-      },
-    });
-
-    if (updateResult.count === 0) {
-      await this.revokeFamily(existingRefreshToken.familyId);
+    if (!claimed) {
       throw new UnauthorizedException('Concurrent rotation detected');
     }
-
-    await this.prisma.device.update({
-      where: { id: existingRefreshToken.deviceId },
-      data: { lastSeenAt: new Date() },
-    });
 
     return { accessToken, refreshToken: newRawRefreshToken };
   }
@@ -110,17 +119,12 @@ export class RefreshTokenService {
   async generateTokens(
     payload: TokenPayload,
   ): Promise<AuthTokens & { refreshExpiresAt: Date }> {
-    const [accessToken, refreshToken] = await Promise.all([
-      this.jwtService.signAsync(payload, {
-        secret: this.jwtConfig.accessSecret,
-        expiresIn: this.jwtConfig.accessExpiresIn,
-      }),
-      this.jwtService.signAsync(payload, {
-        secret: this.jwtConfig.refreshSecret,
-        expiresIn: this.jwtConfig.refreshExpiresIn,
-      }),
-    ]);
+    const accessToken = await this.jwtService.signAsync(payload, {
+      secret: this.jwtConfig.accessSecret,
+      expiresIn: this.jwtConfig.accessExpiresIn,
+    });
 
+    const refreshToken = randomBytes(32).toString('base64url');
     const refreshExpiresAt = new Date(
       Date.now() + ms(this.jwtConfig.refreshExpiresIn),
     );

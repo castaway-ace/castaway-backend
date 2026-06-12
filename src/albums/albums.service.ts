@@ -27,7 +27,7 @@ export class AlbumsService {
     private readonly storageService: StorageService,
   ) {}
 
-  async find(id: string): Promise<Album | null> {
+  async find(id: string): Promise<Album> {
     const album = await this.prisma.album.findUnique({
       where: { id },
       select: {
@@ -66,7 +66,9 @@ export class AlbumsService {
       },
     });
 
-    if (!album) return null;
+    if (!album) {
+      throw new NotFoundException('Album does not exist');
+    }
 
     const tracks = album.tracks
       .map(({ trackArtists, ...track }) => ({
@@ -87,6 +89,19 @@ export class AlbumsService {
       artists: album.albumArtists.map((ta) => ta.artist.name),
       tracks,
     };
+  }
+
+  async findWithStarred(
+    userId: string,
+    id: string,
+  ): Promise<Album & { starred: boolean }> {
+    const album = await this.find(id);
+
+    const annotation = await this.prisma.albumAnnotation.findUnique({
+      where: { userId_albumId: { userId, albumId: id } },
+    });
+
+    return { ...album, starred: !!annotation };
   }
 
   async findAll(
