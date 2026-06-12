@@ -1,29 +1,12 @@
-import {
-  Album as PrismaAlbum,
-  Track as PrismaTrack,
-} from 'generated/prisma/client.js';
-
-type AlbumTrack = Omit<
-  PrismaTrack,
-  | 'fileKey'
-  | 'size'
-  | 'suffix'
-  | 'bitRate'
-  | 'sampleRate'
-  | 'bitDepth'
-  | 'createdAt'
-  | 'discNumber'
-  | 'updatedAt'
-  | 'releaseDate'
-  | 'genres'
-> & { artistNames: string[] };
+import { Album as PrismaAlbum } from 'generated/prisma/client.js';
+import { Track } from './tracks.js';
 
 export type Album = Omit<
   PrismaAlbum,
   'createdAt' | 'updatedAt' | 'imageKey'
 > & {
   artists: string[];
-  tracks: AlbumTrack[];
+  tracks: Track[];
 };
 
 export type AlbumSummary = Omit<

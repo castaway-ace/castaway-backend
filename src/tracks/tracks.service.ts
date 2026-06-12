@@ -86,7 +86,7 @@ export class TracksService {
     });
   }
 
-  async find(id: string): Promise<Track | null> {
+  async find(id: string): Promise<Track> {
     const track = await this.prisma.track.findUnique({
       where: { id },
       select: {
@@ -116,7 +116,9 @@ export class TracksService {
       },
     });
 
-    if (!track) return null;
+    if (!track) {
+      throw new NotFoundException('Track does not exist');
+    }
 
     return {
       id: track.id,
@@ -135,6 +137,19 @@ export class TracksService {
       albumName: track.album.title,
       artistNames: track.trackArtists.map((ta) => ta.artist.name),
     };
+  }
+
+  async findWithStarred(
+    userId: string,
+    id: string,
+  ): Promise<Track & { starred: boolean }> {
+    const track = await this.find(id);
+
+    const annotation = await this.prisma.trackAnnotation.findUnique({
+      where: { userId_trackId: { userId, trackId: id } },
+    });
+
+    return { ...track, starred: !!annotation };
   }
 
   async findTrackFileKey(id: string): Promise<string | null> {
@@ -191,6 +206,19 @@ export class TracksService {
       artistNames: trackArtists.map((ta) => ta.artist.name),
       albumName: album.title,
     }));
+  }
+
+  async findAllWithStarred(
+    userId: string,
+    id: string,
+  ): Promise<Track & { starred: boolean }> {
+    const track = await this.find(id);
+
+    const annotation = await this.prisma.trackAnnotation.findUnique({
+      where: { userId_trackId: { userId, trackId: id } },
+    });
+
+    return { ...track, starred: !!annotation };
   }
 
   async findTrackStream(

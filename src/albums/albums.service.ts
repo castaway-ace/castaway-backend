@@ -6,6 +6,7 @@ import { Prisma, Album as PrismaAlbum } from '../../generated/prisma/client.js';
 import { Album, AlbumSummary } from '../types/albums.js';
 import { StorageBucket } from '../types/storage.js';
 import { ArtistAlbum } from '../types/artists.js';
+import { TracksService } from '../tracks/tracks.service.js';
 
 interface AlbumFilters {
   artistIds?: string[];
@@ -25,9 +26,10 @@ export class AlbumsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storageService: StorageService,
+    private readonly trackService: TracksService,
   ) {}
 
-  async find(id: string): Promise<Album | null> {
+  async find(userId: string, id: string): Promise<Album | null> {
     const album = await this.prisma.album.findUnique({
       where: { id },
       select: {
@@ -48,23 +50,18 @@ export class AlbumsService {
         tracks: {
           select: {
             id: true,
-            title: true,
-            duration: true,
-            trackNumber: true,
-            albumId: true,
-            trackArtists: {
-              select: {
-                artist: {
-                  select: { name: true },
-                },
-              },
-            },
           },
         },
       },
     });
 
     if (!album) return null;
+
+    const albumTracks = await Promise.all(
+      album.tracks.map((track) =>
+        this.trackService.findWithStarred(userId, track.id),
+      ),
+    );
 
     return {
       id: album.id,
@@ -73,12 +70,7 @@ export class AlbumsService {
       compilation: album.compilation,
       genres: album.genres,
       artists: album.albumArtists.map((ta) => ta.artist.name),
-      tracks: album.tracks
-        .map(({ trackArtists, ...track }) => ({
-          ...track,
-          artistNames: trackArtists.map((ta) => ta.artist.name),
-        }))
-        .sort((a, b) => a.trackNumber - b.trackNumber),
+      tracks: albumTracks.sort((a, b) => a.trackNumber - b.trackNumber),
     };
   }
 
