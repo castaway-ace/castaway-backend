@@ -1,6 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { Interaction } from '../types/interactions.js';
+import {
+  AlbumInteraction,
+  albumInteractionSelect,
+  ArtistInteraction,
+  artistInteractionSelect,
+  Interaction,
+  InteractionType,
+  PlaylistInteraction,
+  playlistInteractionSelect,
+} from '../types/interactions.js';
 
 @Injectable()
 export class InteractionsService {
@@ -11,25 +20,40 @@ export class InteractionsService {
       await Promise.all([
         this.prisma.artistInteraction.findMany({
           where: { userId },
-          orderBy: { updatedAt: 'desc' },
+          select: artistInteractionSelect,
           take: limit,
         }),
         this.prisma.playlistInteraction.findMany({
           where: { userId },
-          orderBy: { updatedAt: 'desc' },
+          select: playlistInteractionSelect,
           take: limit,
         }),
         this.prisma.albumInteraction.findMany({
           where: { userId },
-          orderBy: { updatedAt: 'desc' },
+          select: albumInteractionSelect,
           take: limit,
         }),
       ]);
 
     const merged = [
-      ...artistInteractions.map((i) => ({ type: 'artist', ...i })),
-      ...playlistInteractions.map((i) => ({ type: 'playlist', ...i })),
-      ...albumInteractions.map((i) => ({ type: 'album', ...i })),
+      ...artistInteractions.map(
+        (i): ArtistInteraction => ({
+          type: InteractionType.ARTIST,
+          ...i,
+        }),
+      ),
+      ...playlistInteractions.map(
+        (i): PlaylistInteraction => ({
+          type: InteractionType.PLAYLIST,
+          ...i,
+        }),
+      ),
+      ...albumInteractions.map(
+        (i): AlbumInteraction => ({
+          type: InteractionType.ALBUM,
+          ...i,
+        }),
+      ),
     ];
 
     merged.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
