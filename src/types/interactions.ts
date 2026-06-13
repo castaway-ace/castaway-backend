@@ -19,6 +19,7 @@ export const playlistInteractionSelect = {
   userId: true,
   playlistId: true,
   updatedAt: true,
+  playlist: { select: { name: true } },
 } satisfies Prisma.PlaylistInteractionSelect;
 
 export const albumInteractionSelect = {
