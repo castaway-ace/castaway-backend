@@ -34,7 +34,7 @@ describe('AlbumsController', () => {
   let app: INestApplication<App>;
 
   const albumsService = {
-    find: jest.fn().mockReturnValue(album),
+    findWithStarred: jest.fn().mockReturnValue(album),
     findAll: jest.fn().mockReturnValue(albumSummaries),
     findAlbumCover: jest.fn().mockReturnValue(albumCoverURL),
     updateStar: jest.fn(),

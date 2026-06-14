@@ -11,8 +11,7 @@ const moduleMocker = new ModuleMocker(global);
 
 const configValues: Readonly<Record<string, unknown>> = {
   JWT_ACCESS_SECRET: 'access-secret',
-  JWT_ACCESS_EXPIRATION: '1h',
-  JWT_REFRESH_SECRET: 'refresh-secret',
+  JWT_ACCESS_EXPIRATION: '15m',
   JWT_REFRESH_EXPIRATION: '7d',
 };
 
@@ -33,7 +32,7 @@ const makeMockDevice = (
     userId: 'user-1',
     clientId: '1234',
     name: 'Goose',
-    model: 'IPhone 15',
+    model: 'iPhone 15',
     activatedAt: new Date(Date.now()),
     lastSeenAt: new Date(Date.now()),
   },
@@ -44,21 +43,52 @@ describe('RefreshTokenService', () => {
   let refreshTokenService: RefreshTokenService;
 
   const findUnique = jest.fn<() => Promise<RefreshTokenWithDevice | null>>();
-  const create = jest.fn<() => Promise<{ id: string }>>();
-  const updateMany = jest.fn<() => Promise<{ count: number }>>();
+  const revokeUpdateMany = jest.fn<() => Promise<{ count: number }>>();
+
+  const claimUpdateMany = jest.fn<() => Promise<{ count: number }>>();
+  const claimCreate = jest.fn<() => Promise<{ id: string }>>();
+  const claimUpdate = jest.fn<() => Promise<unknown>>();
   const deviceUpdate = jest.fn<() => Promise<unknown>>();
+
   const findById =
     jest.fn<() => Promise<{ id: string; isAdmin: boolean } | null>>();
 
+  type TxClient = {
+    refreshToken: {
+      updateMany: typeof claimUpdateMany;
+      create: typeof claimCreate;
+      update: typeof claimUpdate;
+    };
+    device: {
+      update: typeof deviceUpdate;
+    };
+  };
+
+  const txClient = {
+    refreshToken: {
+      updateMany: claimUpdateMany,
+      create: claimCreate,
+      update: claimUpdate,
+    },
+    device: { update: deviceUpdate },
+  };
+
+  const $transaction = jest.fn(
+    (callback: (tx: TxClient) => Promise<unknown>): Promise<unknown> =>
+      callback(txClient),
+  );
+
   beforeEach(async () => {
+    jest.clearAllMocks();
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         RefreshTokenService,
         {
           provide: PrismaService,
           useValue: {
-            refreshToken: { findUnique, create, updateMany },
-            device: { update: deviceUpdate },
+            refreshToken: { findUnique, updateMany: revokeUpdateMany },
+            $transaction,
           },
         },
         { provide: UserService, useValue: { findById } },
@@ -121,11 +151,11 @@ describe('RefreshTokenService', () => {
 
   it('throws an Reuse error when the refresh token is being reused', async () => {
     findUnique.mockResolvedValue(makeMockDevice({ usedAt: new Date() }));
-    updateMany.mockResolvedValue({ count: 1 });
+    revokeUpdateMany.mockResolvedValue({ count: 1 });
     await expect(refreshTokenService.rotate('raw')).rejects.toThrow(
       'Refresh token reuse detected',
     );
-    expect(updateMany).toHaveBeenCalledWith({
+    expect(revokeUpdateMany).toHaveBeenCalledWith({
       where: { familyId: 'fam-1', invalidatedAt: null },
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       data: { invalidatedAt: expect.any(Date) },
@@ -143,8 +173,7 @@ describe('RefreshTokenService', () => {
   it('throws Concurrent error when a concurrent rotation occurs', async () => {
     findUnique.mockResolvedValue(makeMockDevice());
     findById.mockResolvedValue({ id: 'user-1', isAdmin: false });
-    create.mockResolvedValue({ id: 'rt-2' });
-    updateMany.mockResolvedValue({ count: 0 });
+    claimUpdateMany.mockResolvedValue({ count: 0 });
     await expect(refreshTokenService.rotate('raw')).rejects.toThrow(
       'Concurrent rotation detected',
     );
@@ -153,12 +182,18 @@ describe('RefreshTokenService', () => {
   it('when the refresh tokens has successfully rotated', async () => {
     findUnique.mockResolvedValue(makeMockDevice());
     findById.mockResolvedValue({ id: 'user-1', isAdmin: false });
-    create.mockResolvedValue({ id: 'rt-2' });
-    updateMany.mockResolvedValue({ count: 1 });
+    claimUpdateMany.mockResolvedValue({ count: 1 });
+    claimCreate.mockResolvedValue({ id: 'rt-2' });
+    claimUpdate.mockResolvedValue(undefined);
     deviceUpdate.mockResolvedValue(undefined);
 
     const result = await refreshTokenService.rotate('raw');
+
     expect(result.accessToken).toBe('access-user-1');
+    expect(claimUpdate).toHaveBeenCalledWith({
+      where: { id: 'rt-1' },
+      data: { replacedById: 'rt-2' },
+    });
     expect(deviceUpdate).toHaveBeenCalled();
   });
 });
