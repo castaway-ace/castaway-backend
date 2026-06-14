@@ -3,7 +3,11 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { SearchController } from './search.controller.js';
 import { MockMetadata, ModuleMocker } from 'jest-mock';
 import { SearchService } from './search.service.js';
-import { ExecutionContext, INestApplication } from '@nestjs/common';
+import {
+  ExecutionContext,
+  INestApplication,
+  ValidationPipe,
+} from '@nestjs/common';
 import { App } from 'supertest/types.js';
 import type { Request } from 'express';
 import request from 'supertest';
@@ -57,6 +61,9 @@ describe('SearchController', () => {
       .compile();
 
     app = module.createNestApplication();
+    app.useGlobalPipes(
+      new ValidationPipe({ whitelist: true, transform: true }),
+    );
     await app.init();
   });
 
@@ -67,10 +74,27 @@ describe('SearchController', () => {
 
   describe('find', () => {
     it('returns the results from the service', async () => {
-      return request(app.getHttpServer())
-        .get('/search')
+      await request(app.getHttpServer())
+        .get('/search?query=beatles')
         .expect(200)
         .expect(searchResults);
+
+      expect(searchService.find).toHaveBeenCalledWith('sub', 'beatles');
+    });
+
+    it('rejects an empty query', async () => {
+      await request(app.getHttpServer()).get('/search?query=').expect(400);
+
+      expect(searchService.find).not.toHaveBeenCalled();
+    });
+
+    it('rejects a query longer than 100 characters', async () => {
+      const query = 'a'.repeat(101);
+      await request(app.getHttpServer())
+        .get(`/search?query=${query}`)
+        .expect(400);
+
+      expect(searchService.find).not.toHaveBeenCalled();
     });
   });
 });
