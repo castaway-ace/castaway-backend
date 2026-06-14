@@ -36,18 +36,22 @@ export class InteractionsService {
       ]);
 
     const merged = [
-      ...artistInteractions.map(
-        (i): ArtistInteraction => ({
+      ...artistInteractions.map((i): ArtistInteraction => {
+        const { artist, ...rest } = i;
+        return {
           type: InteractionType.ARTIST,
-          ...i,
-        }),
-      ),
-      ...playlistInteractions.map(
-        (i): PlaylistInteraction => ({
+          ...rest,
+          name: artist.name,
+        };
+      }),
+      ...playlistInteractions.map((i): PlaylistInteraction => {
+        const { playlist, ...rest } = i;
+        return {
           type: InteractionType.PLAYLIST,
-          ...i,
-        }),
-      ),
+          ...rest,
+          name: playlist.name,
+        };
+      }),
       ...albumInteractions.map((i): AlbumInteraction => {
         const { album, ...rest } = i;
         return {

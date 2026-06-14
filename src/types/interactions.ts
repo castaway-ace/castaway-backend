@@ -11,7 +11,7 @@ export const artistInteractionSelect = {
   artistId: true,
   userId: true,
   updatedAt: true,
-  artist: { select: { name: true, id: true } },
+  artist: { select: { name: true } },
 } satisfies Prisma.ArtistInteractionSelect;
 
 export const playlistInteractionSelect = {
@@ -19,7 +19,7 @@ export const playlistInteractionSelect = {
   userId: true,
   playlistId: true,
   updatedAt: true,
-  playlist: { select: { name: true, id: true } },
+  playlist: { select: { name: true } },
 } satisfies Prisma.PlaylistInteractionSelect;
 
 export const albumInteractionSelect = {
@@ -31,7 +31,7 @@ export const albumInteractionSelect = {
     select: {
       title: true,
       albumArtists: {
-        select: { artist: { select: { name: true, id: true } } },
+        select: { artist: { select: { name: true } } },
       },
     },
   },
@@ -50,12 +50,14 @@ type AlbumInteractionRow = Prisma.AlbumInteractionGetPayload<{
 type AlbumArtistRow =
   AlbumInteractionRow['album']['albumArtists'][number]['artist'];
 
-export type ArtistInteraction = ArtistInteractionRow & {
+export type ArtistInteraction = Omit<ArtistInteractionRow, 'artist'> & {
   type: InteractionType.ARTIST;
+  name: string;
 };
 
-export type PlaylistInteraction = PlaylistInteractionRow & {
+export type PlaylistInteraction = Omit<PlaylistInteractionRow, 'playlist'> & {
   type: InteractionType.PLAYLIST;
+  name: string;
 };
 
 export type AlbumInteraction = Omit<AlbumInteractionRow, 'album'> & {
