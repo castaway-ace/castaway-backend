@@ -45,7 +45,6 @@ export class AlbumsService {
     const tracks = album.tracks
       .map(({ trackArtists, ...track }) => ({
         ...track,
-        albumTitle: album.title,
         artists: trackArtists.map((ta) => ta.artist),
       }))
       .sort(

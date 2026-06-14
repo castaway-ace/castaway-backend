@@ -25,7 +25,6 @@ export const albumSelect = {
       releaseDate: true,
       suffix: true,
       bitRate: true,
-      albumId: true,
       sampleRate: true,
       bitDepth: true,
       trackNumber: true,
@@ -33,6 +32,12 @@ export const albumSelect = {
       size: true,
       trackArtists: {
         select: { artist: { select: { name: true, id: true } } },
+      },
+      album: {
+        select: {
+          id: true,
+          title: true,
+        },
       },
     },
   },
@@ -64,7 +69,6 @@ type AlbumTrackRow = AlbumRow['tracks'][number];
 type AlbumArtistRow = AlbumRow['albumArtists'][number]['artist'];
 
 export type AlbumTrack = Omit<AlbumTrackRow, 'trackArtists'> & {
-  albumTitle: string;
   artists: AlbumArtistRow[];
 };
 
