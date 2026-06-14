@@ -65,7 +65,7 @@ export class InteractionsService {
     await this.prisma.albumInteraction.upsert({
       where: { albumId_userId: { userId, albumId: id } },
       create: { userId, albumId: id },
-      update: {},
+      update: { updatedAt: new Date(Date.now()) },
     });
   }
 
@@ -73,7 +73,7 @@ export class InteractionsService {
     await this.prisma.artistInteraction.upsert({
       where: { artistId_userId: { userId, artistId: id } },
       create: { userId, artistId: id },
-      update: {},
+      update: { updatedAt: new Date(Date.now()) },
     });
   }
 
@@ -81,7 +81,7 @@ export class InteractionsService {
     await this.prisma.playlistInteraction.upsert({
       where: { playlistId_userId: { userId, playlistId: id } },
       create: { userId, playlistId: id },
-      update: {},
+      update: { updatedAt: new Date(Date.now()) },
     });
   }
 }
