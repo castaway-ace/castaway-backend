@@ -1,17 +1,78 @@
-import { Album as PrismaAlbum } from 'generated/prisma/client.js';
-import { Track } from './tracks.js';
+import { Prisma } from 'generated/prisma/client.js';
 
-export type Album = Omit<
-  PrismaAlbum,
-  'createdAt' | 'updatedAt' | 'imageKey'
-> & {
-  artists: string[];
-  tracks: Track[];
+export const albumSelect = {
+  id: true,
+  title: true,
+  releaseDate: true,
+  compilation: true,
+  genres: true,
+  albumArtists: {
+    select: {
+      artist: {
+        select: {
+          name: true,
+          id: true,
+        },
+      },
+    },
+  },
+  tracks: {
+    select: {
+      id: true,
+      title: true,
+      genres: true,
+      duration: true,
+      releaseDate: true,
+      suffix: true,
+      bitRate: true,
+      albumId: true,
+      sampleRate: true,
+      bitDepth: true,
+      trackNumber: true,
+      discNumber: true,
+      size: true,
+      trackArtists: {
+        select: { artist: { select: { name: true, id: true } } },
+      },
+    },
+  },
+} satisfies Prisma.AlbumSelect;
+
+export const albumSummarySelect = {
+  id: true,
+  title: true,
+  releaseDate: true,
+  imageKey: true,
+  genres: true,
+  albumArtists: {
+    include: {
+      artist: {
+        select: {
+          name: true,
+          id: true,
+        },
+      },
+    },
+  },
+} satisfies Prisma.AlbumSelect;
+
+type AlbumRow = Prisma.AlbumGetPayload<{ select: typeof albumSelect }>;
+type AlbumSummaryRow = Prisma.AlbumGetPayload<{
+  select: typeof albumSummarySelect;
+}>;
+type AlbumTrackRow = AlbumRow['tracks'][number];
+type AlbumArtistRow = AlbumRow['albumArtists'][number]['artist'];
+
+export type AlbumTrack = Omit<AlbumTrackRow, 'trackArtists'> & {
+  albumTitle: string;
+  artists: AlbumArtistRow[];
 };
 
-export type AlbumSummary = Omit<
-  PrismaAlbum,
-  'createdAt' | 'updatedAt' | 'compilation' | 'imageKey'
-> & {
-  artists: string[];
+export type Album = Omit<AlbumRow, 'albumArtists' | 'tracks'> & {
+  artists: AlbumArtistRow[];
+  tracks: AlbumTrack[];
+};
+
+export type AlbumSummary = Omit<AlbumSummaryRow, 'albumArtists'> & {
+  artists: AlbumArtistRow[];
 };

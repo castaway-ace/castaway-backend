@@ -6,7 +6,12 @@ import {
   StorageService,
 } from '../storage/storage.service.js';
 import { TrackSortOptions as TrackOrderOptions } from '../dto/track.dto.js';
-import { Track, TrackSummary } from '../types/tracks.js';
+import {
+  Track,
+  trackSelect,
+  TrackSummary,
+  trackSummarySelect,
+} from '../types/tracks.js';
 import { StorageBucket } from '../types/storage.js';
 import { Artist } from '../types/artists.js';
 
@@ -89,31 +94,7 @@ export class TracksService {
   async find(id: string): Promise<Track> {
     const track = await this.prisma.track.findUnique({
       where: { id },
-      select: {
-        id: true,
-        title: true,
-        genres: true,
-        duration: true,
-        releaseDate: true,
-        suffix: true,
-        bitRate: true,
-        albumId: true,
-        sampleRate: true,
-        bitDepth: true,
-        trackNumber: true,
-        discNumber: true,
-        size: true,
-        trackArtists: {
-          select: {
-            artist: {
-              select: { name: true },
-            },
-          },
-        },
-        album: {
-          select: { title: true },
-        },
-      },
+      select: trackSelect,
     });
 
     if (!track) {
@@ -134,8 +115,8 @@ export class TracksService {
       trackNumber: track.trackNumber,
       discNumber: track.discNumber,
       size: track.size,
-      albumName: track.album.title,
-      artistNames: track.trackArtists.map((ta) => ta.artist.name),
+      album: track.album,
+      artists: track.trackArtists.map((ta) => ta.artist),
     };
   }
 
@@ -168,25 +149,7 @@ export class TracksService {
       take,
       skip,
       where,
-      select: {
-        id: true,
-        title: true,
-        genres: true,
-        duration: true,
-        releaseDate: true,
-        albumId: true,
-        trackNumber: true,
-        album: {
-          select: { title: true },
-        },
-        trackArtists: {
-          select: {
-            artist: {
-              select: { name: true },
-            },
-          },
-        },
-      },
+      select: trackSummarySelect,
     });
 
     const results = await Promise.all(
@@ -197,8 +160,8 @@ export class TracksService {
 
         return {
           ...track,
-          artistNames: trackArtists.map((ta) => ta.artist.name),
-          albumName: album.title,
+          artists: trackArtists.map((ta) => ta.artist),
+          album: album,
           starred: !!starred,
         };
       }),

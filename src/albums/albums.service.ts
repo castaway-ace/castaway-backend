@@ -3,7 +3,12 @@ import { AlbumSortOptions as AlbumOrderOptions } from '../dto/album.dto.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { StorageService } from '../storage/storage.service.js';
 import { Prisma, Album as PrismaAlbum } from '../../generated/prisma/client.js';
-import { Album, AlbumSummary } from '../types/albums.js';
+import {
+  Album,
+  albumSelect,
+  albumSummarySelect,
+  AlbumSummary,
+} from '../types/albums.js';
 import { StorageBucket } from '../types/storage.js';
 import { ArtistAlbum } from '../types/artists.js';
 
@@ -30,40 +35,7 @@ export class AlbumsService {
   async find(id: string): Promise<Album> {
     const album = await this.prisma.album.findUnique({
       where: { id },
-      select: {
-        id: true,
-        title: true,
-        releaseDate: true,
-        compilation: true,
-        genres: true,
-        albumArtists: {
-          select: {
-            artist: {
-              select: {
-                name: true,
-              },
-            },
-          },
-        },
-        tracks: {
-          select: {
-            id: true,
-            title: true,
-            genres: true,
-            duration: true,
-            releaseDate: true,
-            suffix: true,
-            bitRate: true,
-            albumId: true,
-            sampleRate: true,
-            bitDepth: true,
-            trackNumber: true,
-            discNumber: true,
-            size: true,
-            trackArtists: { select: { artist: { select: { name: true } } } },
-          },
-        },
-      },
+      select: albumSelect,
     });
 
     if (!album) {
@@ -73,8 +45,8 @@ export class AlbumsService {
     const tracks = album.tracks
       .map(({ trackArtists, ...track }) => ({
         ...track,
-        albumName: album.title,
-        artistNames: trackArtists.map((ta) => ta.artist.name),
+        albumTitle: album.title,
+        artists: trackArtists.map((ta) => ta.artist),
       }))
       .sort(
         (a, b) => a.discNumber - b.discNumber || a.trackNumber - b.trackNumber,
@@ -86,7 +58,7 @@ export class AlbumsService {
       releaseDate: album.releaseDate,
       compilation: album.compilation,
       genres: album.genres,
-      artists: album.albumArtists.map((ta) => ta.artist.name),
+      artists: album.albumArtists.map((ta) => ta.artist),
       tracks,
     };
   }
@@ -120,27 +92,12 @@ export class AlbumsService {
       take,
       skip,
       where,
-      select: {
-        id: true,
-        title: true,
-        releaseDate: true,
-        imageKey: true,
-        genres: true,
-        albumArtists: {
-          include: {
-            artist: {
-              select: {
-                name: true,
-              },
-            },
-          },
-        },
-      },
+      select: albumSummarySelect,
     });
 
     return albums.map(({ albumArtists, ...album }) => ({
       ...album,
-      artists: albumArtists.map((ta) => ta.artist.name),
+      artists: albumArtists.map((ta) => ta.artist),
     }));
   }
 
