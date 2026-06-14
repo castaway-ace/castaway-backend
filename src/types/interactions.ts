@@ -11,7 +11,7 @@ export const artistInteractionSelect = {
   artistId: true,
   userId: true,
   updatedAt: true,
-  artist: { select: { name: true } },
+  artist: { select: { name: true, id: true } },
 } satisfies Prisma.ArtistInteractionSelect;
 
 export const playlistInteractionSelect = {
@@ -19,7 +19,7 @@ export const playlistInteractionSelect = {
   userId: true,
   playlistId: true,
   updatedAt: true,
-  playlist: { select: { name: true } },
+  playlist: { select: { name: true, id: true } },
 } satisfies Prisma.PlaylistInteractionSelect;
 
 export const albumInteractionSelect = {
@@ -31,23 +31,38 @@ export const albumInteractionSelect = {
     select: {
       title: true,
       albumArtists: {
-        select: { artist: { select: { name: true } } },
+        select: { artist: { select: { name: true, id: true } } },
       },
     },
   },
 } satisfies Prisma.AlbumInteractionSelect;
 
-export type ArtistInteraction = Prisma.ArtistInteractionGetPayload<{
+type ArtistInteractionRow = Prisma.ArtistInteractionGetPayload<{
   select: typeof artistInteractionSelect;
-}> & { type: InteractionType.ARTIST };
-
-export type PlaylistInteraction = Prisma.PlaylistInteractionGetPayload<{
+}>;
+type PlaylistInteractionRow = Prisma.PlaylistInteractionGetPayload<{
   select: typeof playlistInteractionSelect;
-}> & { type: InteractionType.PLAYLIST };
-
-export type AlbumInteraction = Prisma.AlbumInteractionGetPayload<{
+}>;
+type AlbumInteractionRow = Prisma.AlbumInteractionGetPayload<{
   select: typeof albumInteractionSelect;
-}> & { type: InteractionType.ALBUM };
+}>;
+
+type AlbumArtistRow =
+  AlbumInteractionRow['album']['albumArtists'][number]['artist'];
+
+export type ArtistInteraction = ArtistInteractionRow & {
+  type: InteractionType.ARTIST;
+};
+
+export type PlaylistInteraction = PlaylistInteractionRow & {
+  type: InteractionType.PLAYLIST;
+};
+
+export type AlbumInteraction = Omit<AlbumInteractionRow, 'album'> & {
+  type: InteractionType.ALBUM;
+  title: string;
+  artists: AlbumArtistRow[];
+};
 
 export type Interaction =
   | AlbumInteraction

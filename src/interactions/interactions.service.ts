@@ -48,12 +48,15 @@ export class InteractionsService {
           ...i,
         }),
       ),
-      ...albumInteractions.map(
-        (i): AlbumInteraction => ({
+      ...albumInteractions.map((i): AlbumInteraction => {
+        const { album, ...rest } = i;
+        return {
           type: InteractionType.ALBUM,
-          ...i,
-        }),
-      ),
+          ...rest,
+          title: album.title,
+          artists: album.albumArtists.map((aa) => aa.artist),
+        };
+      }),
     ];
 
     merged.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
@@ -65,7 +68,7 @@ export class InteractionsService {
     await this.prisma.albumInteraction.upsert({
       where: { albumId_userId: { userId, albumId: id } },
       create: { userId, albumId: id },
-      update: { updatedAt: new Date(Date.now()) },
+      update: { updatedAt: new Date() },
     });
   }
 
@@ -73,7 +76,7 @@ export class InteractionsService {
     await this.prisma.artistInteraction.upsert({
       where: { artistId_userId: { userId, artistId: id } },
       create: { userId, artistId: id },
-      update: { updatedAt: new Date(Date.now()) },
+      update: { updatedAt: new Date() },
     });
   }
 
@@ -81,7 +84,7 @@ export class InteractionsService {
     await this.prisma.playlistInteraction.upsert({
       where: { playlistId_userId: { userId, playlistId: id } },
       create: { userId, playlistId: id },
-      update: { updatedAt: new Date(Date.now()) },
+      update: { updatedAt: new Date() },
     });
   }
 }
