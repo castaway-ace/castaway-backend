@@ -1,11 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { PlaylistTrack, PlaylistType } from '../../generated/prisma/client.js';
+import { PlaylistType } from '../../generated/prisma/client.js';
 import {
   Playlist,
   playlistSelect,
   PlaylistSummary,
   playlistSummarySelect,
+  PlaylistTrack,
+  playlistTrackSelect,
 } from '../types/playlists.js';
 
 @Injectable()
@@ -114,9 +116,19 @@ export class PlaylistsService {
       throw new NotFoundException('Playlist not found');
     }
 
-    return await this.prisma.playlistTrack.findMany({
+    const playlistTracks = await this.prisma.playlistTrack.findMany({
       where: { playlistId: playlist.id },
+      select: playlistTrackSelect,
       orderBy: { position: 'asc' },
+    });
+
+    return playlistTracks.map(({ track, ...playlistTrack }) => {
+      return {
+        ...playlistTrack,
+        id: track.id,
+        title: track.title,
+        artists: track.trackArtists.map((ta) => ta.artist),
+      };
     });
   }
 
@@ -124,16 +136,28 @@ export class PlaylistsService {
     userId: string,
     playlistId: string,
     trackId: string,
-  ): Promise<PlaylistTrack | null> {
+  ): Promise<PlaylistTrack> {
     const playlist = await this.find(playlistId);
 
     if (!playlist || playlist.ownerId !== userId) {
       throw new NotFoundException('Playlist not found');
     }
 
-    return await this.prisma.playlistTrack.findFirst({
+    const playlistTrack = await this.prisma.playlistTrack.findFirst({
       where: { playlistId, id: trackId },
+      select: playlistTrackSelect,
     });
+
+    if (!playlistTrack) {
+      throw new NotFoundException('Playlist track not found');
+    }
+
+    return {
+      position: playlistTrack.position,
+      id: playlistTrack.track.id,
+      title: playlistTrack.track.title,
+      artists: playlistTrack.track.trackArtists.map((ta) => ta.artist),
+    };
   }
 
   async deleteTrack(
