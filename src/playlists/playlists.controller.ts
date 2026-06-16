@@ -12,9 +12,12 @@ import {
 import { AuthGuard } from '../auth/guards/auth.guard.js';
 import { CurrentUser } from '../auth/decorators/user.decorator.js';
 import { PlaylistsService } from './playlists.service.js';
-import { PlaylistTrack } from '../../generated/prisma/client.js';
 import { PlaylistDto } from '../dto/playlist.dto.js';
-import { Playlist, PlaylistSummary } from '../types/playlists.js';
+import {
+  Playlist,
+  PlaylistSummary,
+  PlaylistTrack,
+} from '../types/playlists.js';
 
 @Controller('playlists')
 @UseGuards(AuthGuard)
@@ -69,7 +72,7 @@ export class PlaylistsController {
     @CurrentUser('sub') sub: string,
     @Param('id') id: string,
     @Param('trackId') trackId: string,
-  ): Promise<PlaylistTrack | null> {
+  ): Promise<PlaylistTrack> {
     const playlistTrack = await this.playlistService.findTrack(
       sub,
       id,

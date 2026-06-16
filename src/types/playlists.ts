@@ -5,7 +5,6 @@ export const playlistSelect = {
   name: true,
   description: true,
   ownerId: true,
-  tracks: true,
 } satisfies Prisma.PlaylistSelect;
 
 export const playlistSummarySelect = {
