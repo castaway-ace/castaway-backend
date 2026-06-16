@@ -11,6 +11,11 @@ datasource db {
   provider = "postgresql"
 }
 
+enum PlaylistType {
+  USER
+  LIKED
+}
+
 // ─── User & Auth ───────────────────────────────────────────────────────────────
 
 model User {
@@ -178,8 +183,7 @@ model Playlist {
   id          String   @id @default(uuid()) @db.Uuid
   name        String
   description String?
-  public      Boolean  @default(false)
-  position    Int
+  type   PlaylistType @default(USER)
   ownerId     String   @map("owner_id") @db.Uuid
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
@@ -188,7 +192,7 @@ model Playlist {
   tracks               PlaylistTrack[]
   playlistInteractions PlaylistInteraction[]
 
-  @@unique([ownerId, position])
+  @@index([ownerId])
   @@map("playlists")
 }
 
