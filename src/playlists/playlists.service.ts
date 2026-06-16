@@ -1,59 +1,52 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { PlaylistTrack } from '../../generated/prisma/client.js';
-import { TracksService } from '../tracks/tracks.service.js';
-import { Playlist, PlaylistSummary } from '../types/playlists.js';
+import { PlaylistTrack, PlaylistType } from '../../generated/prisma/client.js';
+import {
+  Playlist,
+  playlistSelect,
+  PlaylistSummary,
+  playlistSummarySelect,
+} from '../types/playlists.js';
 
 @Injectable()
 export class PlaylistsService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly trackService: TracksService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-  async create(userId: string, name: string): Promise<Playlist> {
-    const lastPlaylist = await this.prisma.playlist.findFirst({
-      where: { ownerId: userId },
-      orderBy: { position: 'desc' },
-      select: { position: true },
-    });
-
-    const nextPosition = lastPlaylist ? lastPlaylist.position + 1 : 0;
-
-    return this.prisma.playlist.create({
+  async create(userId: string, name: string): Promise<void> {
+    await this.prisma.playlist.create({
       data: {
         ownerId: userId,
         name,
-        position: nextPosition,
       },
+      select: playlistSelect,
+    });
+  }
+
+  async createLiked(userId: string): Promise<Playlist> {
+    return this.prisma.playlist.create({
+      data: { ownerId: userId, name: 'Liked Songs', type: PlaylistType.LIKED },
+      select: playlistSelect,
     });
   }
 
   async find(id: string): Promise<Playlist | null> {
     return this.prisma.playlist.findUnique({
       where: { id },
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        public: true,
-        position: true,
-        ownerId: true,
-        tracks: true,
-      },
+      select: playlistSelect,
+    });
+  }
+
+  async findLiked(userId: string): Promise<Playlist | null> {
+    return this.prisma.playlist.findFirst({
+      where: { ownerId: userId, type: PlaylistType.LIKED },
+      select: playlistSelect,
     });
   }
 
   async findAll(userId: string): Promise<PlaylistSummary[]> {
     return this.prisma.playlist.findMany({
       where: { ownerId: userId },
-      select: {
-        id: true,
-        name: true,
-        public: true,
-        position: true,
-        tracks: true,
-      },
+      select: playlistSummarySelect,
     });
   }
 
@@ -80,14 +73,18 @@ export class PlaylistsService {
 
   async addTrack(userId: string, id: string, trackId: string): Promise<void> {
     const playlist = await this.find(id);
-    const track = await this.trackService.find(trackId);
-
-    if (!track) {
-      throw new NotFoundException('Track not found');
-    }
 
     if (!playlist || playlist.ownerId !== userId) {
       throw new NotFoundException('Playlist not found');
+    }
+
+    const track = await this.prisma.track.findUnique({
+      where: { id: trackId },
+      select: { id: true },
+    });
+
+    if (!track) {
+      throw new NotFoundException('Track not found');
     }
 
     const lastPlaylist = await this.prisma.playlistTrack.findFirst({
@@ -113,7 +110,7 @@ export class PlaylistsService {
   ): Promise<PlaylistTrack[]> {
     const playlist = await this.find(playlistId);
 
-    if (!playlist || (!playlist.public && playlist.ownerId !== userId)) {
+    if (!playlist || playlist.ownerId !== userId) {
       throw new NotFoundException('Playlist not found');
     }
 
@@ -130,7 +127,7 @@ export class PlaylistsService {
   ): Promise<PlaylistTrack | null> {
     const playlist = await this.find(playlistId);
 
-    if (!playlist || (!playlist.public && playlist.ownerId !== userId)) {
+    if (!playlist || playlist.ownerId !== userId) {
       throw new NotFoundException('Playlist not found');
     }
 
@@ -144,13 +141,7 @@ export class PlaylistsService {
     id: string,
     trackId: string,
   ): Promise<void> {
-    const playlist = await this.find(id);
-
-    const playlistTrack = await this.findTrack(id, userId, trackId);
-
-    if (!playlist || playlist.ownerId !== userId) {
-      throw new NotFoundException('Playlist not found');
-    }
+    const playlistTrack = await this.findTrack(userId, id, trackId);
 
     if (!playlistTrack) {
       throw new NotFoundException('Track not found');

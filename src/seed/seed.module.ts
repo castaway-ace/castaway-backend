@@ -11,12 +11,14 @@ import { AlbumsModule } from '../albums/albums.module.js';
 import { ArtistsModule } from '../artists/artists.module.js';
 import { TracksModule } from '../tracks/tracks.module.js';
 import { DeviceModule } from '../device/device.module.js';
+import { GuardModule } from '../auth/guard.module.js';
 
 @Module({
   imports: [
     ConfigModule.forRoot(),
     StorageModule,
     AuthModule,
+    GuardModule,
     UserModule,
     DeviceModule,
     AdminModule,

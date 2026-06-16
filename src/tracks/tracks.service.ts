@@ -14,6 +14,7 @@ import {
 } from '../types/tracks.js';
 import { StorageBucket } from '../types/storage.js';
 import { Artist } from '../types/artists.js';
+import { PlaylistsService } from '../playlists/playlists.service.js';
 
 interface TrackFilters {
   artistIds?: string[];
@@ -50,6 +51,7 @@ interface CreateTrackItem {
 export class TracksService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly playlistService: PlaylistsService,
     private readonly storageService: StorageService,
   ) {}
 
@@ -220,6 +222,18 @@ export class TracksService {
         starredAt: starred ? new Date() : null,
       },
     });
+
+    const likedPlaylist = await this.playlistService.findLiked(userId);
+
+    if (!likedPlaylist) {
+      throw new NotFoundException('Liked Playlist not found');
+    }
+
+    if (starred) {
+      await this.playlistService.addTrack(userId, likedPlaylist.id, trackId);
+    } else {
+      await this.playlistService.deleteTrack(userId, likedPlaylist.id, trackId);
+    }
   }
 
   private buildWhere(

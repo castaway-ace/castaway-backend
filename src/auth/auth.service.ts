@@ -14,11 +14,13 @@ import { DeviceInfoDto } from '../dto/device.dto.js';
 import { DeviceService } from '../device/device.service.js';
 import { randomUUID } from 'crypto';
 import { User } from '../../generated/prisma/client.js';
+import { PlaylistsService } from '../playlists/playlists.service.js';
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly userService: UserService,
+    private readonly playlistService: PlaylistsService,
     private readonly refreshTokenService: RefreshTokenService,
     private readonly deviceService: DeviceService,
   ) {}
@@ -47,6 +49,8 @@ export class AuthService {
       ...signUpDto,
       password: hash,
     });
+
+    await this.playlistService.createLiked(newUser.id);
 
     return this.issueTokensForDevice(newUser, deviceInfo);
   }

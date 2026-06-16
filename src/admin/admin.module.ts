@@ -6,7 +6,7 @@ import { AlbumsModule } from '../albums/albums.module.js';
 import { ArtistsModule } from '../artists/artists.module.js';
 import { StorageModule } from '../storage/storage.module.js';
 import { TracksModule } from '../tracks/tracks.module.js';
-import { AuthModule } from '../auth/auth.module.js';
+import { GuardModule } from '../auth/guard.module.js';
 
 @Module({
   imports: [
@@ -14,7 +14,7 @@ import { AuthModule } from '../auth/auth.module.js';
     TracksModule,
     AlbumsModule,
     ArtistsModule,
-    AuthModule,
+    GuardModule,
   ],
   controllers: [AdminController],
   providers: [AdminService, PrismaService],
