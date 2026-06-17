@@ -111,7 +111,6 @@ export class TracksService {
       releaseDate: track.releaseDate,
       suffix: track.suffix,
       bitRate: track.bitRate,
-      albumId: track.albumId,
       sampleRate: track.sampleRate,
       bitDepth: track.bitDepth,
       trackNumber: track.trackNumber,

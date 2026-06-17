@@ -8,7 +8,6 @@ export const trackSelect = {
   releaseDate: true,
   suffix: true,
   bitRate: true,
-  albumId: true,
   sampleRate: true,
   bitDepth: true,
   trackNumber: true,
@@ -32,7 +31,6 @@ export const trackSummarySelect = {
   genres: true,
   duration: true,
   releaseDate: true,
-  albumId: true,
   trackNumber: true,
   album: {
     select: { title: true, id: true },
