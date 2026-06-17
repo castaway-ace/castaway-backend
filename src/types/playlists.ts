@@ -13,6 +13,7 @@ export const playlistSummarySelect = {
 } satisfies Prisma.PlaylistSelect;
 
 export const playlistTrackSelect = {
+  id: true,
   position: true,
   track: {
     select: {
@@ -48,7 +49,7 @@ type PlaylistTrackArtistRow =
   PlaylistTrackRow['track']['trackArtists'][number]['artist'];
 
 export type PlaylistTrack = Omit<PlaylistTrackRow, 'track'> & {
-  id: string;
+  trackId: string;
   title: string;
   artists: PlaylistTrackArtistRow[];
 };

@@ -125,7 +125,7 @@ export class PlaylistsService {
     return playlistTracks.map(({ track, ...playlistTrack }) => {
       return {
         ...playlistTrack,
-        id: track.id,
+        trackId: track.id,
         title: track.title,
         artists: track.trackArtists.map((ta) => ta.artist),
       };
@@ -144,7 +144,7 @@ export class PlaylistsService {
     }
 
     const playlistTrack = await this.prisma.playlistTrack.findFirst({
-      where: { playlistId, id: trackId },
+      where: { playlistId, trackId },
       select: playlistTrackSelect,
     });
 
@@ -153,8 +153,9 @@ export class PlaylistsService {
     }
 
     return {
+      id: playlistTrack.id,
       position: playlistTrack.position,
-      id: playlistTrack.track.id,
+      trackId: playlistTrack.track.id,
       title: playlistTrack.track.title,
       artists: playlistTrack.track.trackArtists.map((ta) => ta.artist),
     };
@@ -166,10 +167,6 @@ export class PlaylistsService {
     trackId: string,
   ): Promise<void> {
     const playlistTrack = await this.findTrack(userId, id, trackId);
-
-    if (!playlistTrack) {
-      throw new NotFoundException('Track not found');
-    }
 
     await this.prisma.playlistTrack.delete({
       where: { id: playlistTrack.id },
