@@ -7,12 +7,13 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '../auth/guards/auth.guard.js';
 import { CurrentUser } from '../auth/decorators/user.decorator.js';
 import { PlaylistsService } from './playlists.service.js';
-import { PlaylistDto } from '../dto/playlist.dto.js';
+import { PlaylistDto, PlaylistQueryDto } from '../dto/playlist.dto.js';
 import {
   Playlist,
   PlaylistSummary,
@@ -38,8 +39,19 @@ export class PlaylistsController {
   }
 
   @Get('')
-  async findAll(@CurrentUser('sub') sub: string): Promise<PlaylistSummary[]> {
-    return await this.playlistService.findAll(sub);
+  async findAll(
+    @CurrentUser('sub') sub: string,
+    @Query() query: PlaylistQueryDto,
+  ): Promise<PlaylistSummary[]> {
+    return await this.playlistService.findAll(sub, {
+      filters: {
+        onlyUser: query.onlyUser,
+      },
+      orderOptions: query.order
+        ? { order: query.order, orderBy: query.orderBy ?? 'asc' }
+        : undefined,
+      pagination: { limit: query.limit, offset: query.offset },
+    });
   }
 
   @Post('')

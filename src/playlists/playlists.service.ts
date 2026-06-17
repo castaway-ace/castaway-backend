@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { PlaylistType } from '../../generated/prisma/client.js';
+import { PlaylistType, Prisma } from '../../generated/prisma/client.js';
 import {
   Playlist,
   playlistSelect,
@@ -9,6 +9,17 @@ import {
   PlaylistTrack,
   playlistTrackSelect,
 } from '../types/playlists.js';
+import { PlaylistOrderOptions } from '../dto/playlist.dto.js';
+
+interface PlaylistFilters {
+  onlyUser?: boolean;
+}
+
+interface PlaylistQueryOptions {
+  filters?: PlaylistFilters;
+  orderOptions?: PlaylistOrderOptions;
+  pagination?: { limit?: number; offset?: number };
+}
 
 @Injectable()
 export class PlaylistsService {
@@ -45,10 +56,23 @@ export class PlaylistsService {
     });
   }
 
-  async findAll(userId: string): Promise<PlaylistSummary[]> {
+  async findAll(
+    userId: string,
+    options: PlaylistQueryOptions,
+  ): Promise<PlaylistSummary[]> {
+    const where = this.buildWhere(options.filters, userId);
+    const orderBy = this.buildOrderBy(options?.orderOptions);
+
+    const requestedLimit = options.pagination?.limit ?? 100;
+    const take = Math.min(Math.max(requestedLimit, 1), 200);
+    const skip = Math.max(options.pagination?.offset ?? 0, 0);
+
     return this.prisma.playlist.findMany({
-      where: { ownerId: userId },
+      where,
       select: playlistSummarySelect,
+      orderBy,
+      take,
+      skip,
     });
   }
 
@@ -171,5 +195,35 @@ export class PlaylistsService {
     await this.prisma.playlistTrack.delete({
       where: { id: playlistTrack.id },
     });
+  }
+
+  private buildWhere(
+    filters: PlaylistFilters | undefined,
+    userId: string,
+  ): Prisma.PlaylistWhereInput {
+    const where: Prisma.PlaylistWhereInput = { ownerId: userId };
+    if (!filters) return where;
+
+    if (filters.onlyUser === true) {
+      where.type = 'USER';
+    }
+
+    return where;
+  }
+
+  private static readonly SORT_FIELD_MAP: Record<
+    PlaylistOrderOptions['order'],
+    (direction: Prisma.SortOrder) => Prisma.PlaylistOrderByWithRelationInput
+  > = {
+    name: (direction) => ({ name: direction }),
+    added: (direction) => ({ createdAt: direction }),
+  };
+
+  private buildOrderBy(
+    orderOptions?: PlaylistOrderOptions,
+  ): Prisma.PlaylistOrderByWithRelationInput {
+    const ordering = orderOptions ?? { order: 'name', orderBy: 'asc' };
+    const orderBy = PlaylistsService.SORT_FIELD_MAP[ordering.order];
+    return orderBy(ordering.orderBy);
   }
 }

@@ -11,7 +11,7 @@ import {
 } from 'class-validator';
 import { ToBoolean, ToInt, ToStringArray } from '../utils/dto-transforms.js';
 
-export interface TrackSortOptions {
+export interface TrackOrderOptions {
   order: 'title' | 'album' | 'year' | 'added';
   orderBy: 'asc' | 'desc';
 }
@@ -45,11 +45,11 @@ export class TrackQueryDto {
 
   @IsOptional()
   @IsIn(['title', 'album', 'year', 'added'])
-  order?: TrackSortOptions['order'];
+  order?: TrackOrderOptions['order'];
 
   @IsOptional()
   @IsIn(['asc', 'desc'])
-  orderBy?: TrackSortOptions['orderBy'];
+  orderBy?: TrackOrderOptions['orderBy'];
 
   @IsOptional()
   @IsInt()

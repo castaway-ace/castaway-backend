@@ -5,7 +5,7 @@ import {
   ObjectStreamResult,
   StorageService,
 } from '../storage/storage.service.js';
-import { TrackSortOptions as TrackOrderOptions } from '../dto/track.dto.js';
+import { TrackOrderOptions } from '../dto/track.dto.js';
 import {
   Track,
   trackSelect,
