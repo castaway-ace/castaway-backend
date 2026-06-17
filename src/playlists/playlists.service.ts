@@ -35,25 +35,49 @@ export class PlaylistsService {
     });
   }
 
-  async createLiked(userId: string): Promise<Playlist> {
-    return this.prisma.playlist.create({
+  async createLiked(userId: string): Promise<void> {
+    await this.prisma.playlist.create({
       data: { ownerId: userId, name: 'Liked Songs', type: PlaylistType.LIKED },
       select: playlistSelect,
     });
   }
 
-  async find(id: string): Promise<Playlist | null> {
-    return this.prisma.playlist.findUnique({
+  async find(id: string): Promise<Playlist> {
+    const playlist = await this.prisma.playlist.findUnique({
       where: { id },
       select: playlistSelect,
     });
+
+    if (!playlist) {
+      throw new NotFoundException('Playlist not found');
+    }
+
+    return {
+      id: playlist.id,
+      name: playlist.name,
+      description: playlist.description,
+      ownerId: playlist.ownerId,
+      type: playlist.type,
+    };
   }
 
-  async findLiked(userId: string): Promise<Playlist | null> {
-    return this.prisma.playlist.findFirst({
+  async findLiked(userId: string): Promise<Playlist> {
+    const playlist = await this.prisma.playlist.findFirst({
       where: { ownerId: userId, type: PlaylistType.LIKED },
       select: playlistSelect,
     });
+
+    if (!playlist) {
+      throw new NotFoundException('Playlist not found');
+    }
+
+    return {
+      id: playlist.id,
+      name: playlist.name,
+      description: playlist.description,
+      ownerId: playlist.ownerId,
+      type: playlist.type,
+    };
   }
 
   async findAll(
@@ -152,6 +176,7 @@ export class PlaylistsService {
         trackId: track.id,
         title: track.title,
         artists: track.trackArtists.map((ta) => ta.artist),
+        album: track.album,
       };
     });
   }
@@ -182,6 +207,7 @@ export class PlaylistsService {
       trackId: playlistTrack.track.id,
       title: playlistTrack.track.title,
       artists: playlistTrack.track.trackArtists.map((ta) => ta.artist),
+      album: playlistTrack.track.album,
     };
   }
 
