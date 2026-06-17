@@ -8,8 +8,10 @@ import {
   playlistSummarySelect,
   PlaylistTrack,
   playlistTrackSelect,
+  PlaylistTracksRow,
 } from '../types/playlists.js';
 import { PlaylistOrderOptions } from '../dto/playlist.dto.js';
+import { AlbumsService } from '../albums/albums.service.js';
 
 interface PlaylistFilters {
   onlyUser?: boolean;
@@ -23,7 +25,10 @@ interface PlaylistQueryOptions {
 
 @Injectable()
 export class PlaylistsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly albumService: AlbumsService,
+  ) {}
 
   async create(userId: string, name: string): Promise<void> {
     await this.prisma.playlist.create({
@@ -52,12 +57,18 @@ export class PlaylistsService {
       throw new NotFoundException('Playlist not found');
     }
 
+    const uniqueAlbumIds = this.getUniqueAlbumIds(playlist.tracks);
+
+    const albumCoverUrls =
+      await this.albumService.findMultipleAlbumCovers(uniqueAlbumIds);
+
     return {
       id: playlist.id,
       name: playlist.name,
       description: playlist.description,
       ownerId: playlist.ownerId,
       type: playlist.type,
+      albumCoverUrls,
     };
   }
 
@@ -71,12 +82,18 @@ export class PlaylistsService {
       throw new NotFoundException('Playlist not found');
     }
 
+    const uniqueAlbumIds = this.getUniqueAlbumIds(playlist.tracks);
+
+    const albumCoverUrls =
+      await this.albumService.findMultipleAlbumCovers(uniqueAlbumIds);
+
     return {
       id: playlist.id,
       name: playlist.name,
       description: playlist.description,
       ownerId: playlist.ownerId,
       type: playlist.type,
+      albumCoverUrls,
     };
   }
 
@@ -251,5 +268,21 @@ export class PlaylistsService {
     const ordering = orderOptions ?? { order: 'name', orderBy: 'asc' };
     const orderBy = PlaylistsService.SORT_FIELD_MAP[ordering.order];
     return orderBy(ordering.orderBy);
+  }
+
+  private getUniqueAlbumIds(playlistTracks: PlaylistTracksRow): string[] {
+    if (!playlistTracks) return [];
+    const seen = new Set<string>();
+    const unique: string[] = [];
+
+    for (const playlistTrack of playlistTracks) {
+      const albumId = playlistTrack.track.albumId;
+      if (seen.has(albumId)) continue;
+      seen.add(albumId);
+      unique.push(albumId);
+      if (unique.length === 4) break;
+    }
+
+    return unique;
   }
 }

@@ -135,6 +135,28 @@ export class AlbumsService {
     return result;
   }
 
+  async findMultipleAlbumCovers(ids: string[]): Promise<string[]> {
+    const albums = await this.prisma.album.findMany({
+      where: { id: { in: ids } },
+      select: {
+        id: true,
+        imageKey: true,
+      },
+    });
+
+    const coverUrls = await Promise.all(
+      albums.map(async (album) => {
+        if (!album.imageKey) return null;
+        return this.storageService.getPresignedUrl(
+          StorageBucket.AlbumArt,
+          album.imageKey,
+        );
+      }),
+    );
+
+    return coverUrls.filter((url): url is string => url !== null);
+  }
+
   async findAlbumsByArtist(artistId: string): Promise<ArtistAlbum[]> {
     return this.prisma.album.findMany({
       where: { albumArtists: { some: { artistId } } },

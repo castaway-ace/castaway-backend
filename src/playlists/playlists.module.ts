@@ -4,9 +4,10 @@ import { PlaylistsService } from './playlists.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { StorageModule } from '../storage/storage.module.js';
 import { GuardModule } from '../auth/guard.module.js';
+import { AlbumsModule } from '../albums/albums.module.js';
 
 @Module({
-  imports: [StorageModule, GuardModule],
+  imports: [StorageModule, AlbumsModule, GuardModule],
   controllers: [PlaylistsController],
   providers: [PlaylistsService, PrismaService],
   exports: [PlaylistsService],
