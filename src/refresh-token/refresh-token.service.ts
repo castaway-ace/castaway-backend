@@ -78,7 +78,11 @@ export class RefreshTokenService {
 
     const claimed = await this.prisma.$transaction(async (tx) => {
       const claim = await tx.refreshToken.updateMany({
-        where: { id: existingRefreshToken.id, usedAt: null },
+        where: {
+          id: existingRefreshToken.id,
+          usedAt: null,
+          invalidatedAt: null,
+        },
         data: { usedAt: new Date() },
       });
 
