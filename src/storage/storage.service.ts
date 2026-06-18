@@ -1,6 +1,7 @@
 import {
   DeleteObjectCommand,
   GetObjectCommand,
+  HeadBucketCommand,
   HeadObjectCommand,
   PutObjectCommand,
   S3Client,
@@ -9,6 +10,7 @@ import {
 import {
   Injectable,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -24,6 +26,12 @@ interface StorageConfig {
   region: string;
   accessKey: string;
   secretKey: string;
+  buckets: string[];
+}
+
+export interface BucketHealth {
+  bucket: string;
+  healthy: boolean;
 }
 
 export interface PutObjectOptions {
@@ -42,6 +50,7 @@ export interface ObjectStreamResult {
 
 @Injectable()
 export class StorageService {
+  private readonly logger = new Logger(StorageService.name);
   private readonly client: S3Client;
   private readonly preSignedClient: S3Client;
   private readonly storageConfig: StorageConfig;
@@ -153,6 +162,25 @@ export class StorageService {
     );
   }
 
+  async checkBuckets(): Promise<BucketHealth[]> {
+    return Promise.all(
+      this.storageConfig.buckets.map((bucket) => this.checkBucket(bucket)),
+    );
+  }
+
+  private async checkBucket(bucket: string): Promise<BucketHealth> {
+    try {
+      await this.client.send(new HeadBucketCommand({ Bucket: bucket }));
+      return { bucket, healthy: true };
+    } catch (err) {
+      this.logger.warn(
+        `Bucket health check failed for "${bucket}": ` +
+          `${err instanceof Error ? err.message : 'unknown error'}`,
+      );
+      return { bucket, healthy: false };
+    }
+  }
+
   private createClient(endpoint: string): S3Client {
     return new S3Client({
       endpoint,
@@ -188,13 +216,23 @@ export class StorageService {
     const region = configService.get<string>('STORAGE_REGION');
     const accessKey = configService.get<string>('STORAGE_ACCESS_KEY');
     const secretKey = configService.get<string>('STORAGE_SECRET_ACCESS_KEY');
+    const tracksBucket = configService.get<string>('STORAGE_TRACKS_BUCKET');
+    const albumArtBucket = configService.get<string>(
+      'STORAGE_ALBUM_ART_BUCKET',
+    );
+    const artistImageBucket = configService.get<string>(
+      'STORAGE_ARTIST_IMAGE_BUCKET',
+    );
 
     if (
       !endpoint ||
       !region ||
       !accessKey ||
       !secretKey ||
-      !presignedEndpoint
+      !presignedEndpoint ||
+      !tracksBucket ||
+      !albumArtBucket ||
+      !artistImageBucket
     ) {
       throw new Error('Storage configuration is incomplete');
     }
@@ -205,6 +243,7 @@ export class StorageService {
       region,
       accessKey,
       secretKey,
+      buckets: [tracksBucket, albumArtBucket, artistImageBucket],
     };
   }
 }
