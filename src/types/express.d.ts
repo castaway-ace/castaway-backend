@@ -1,11 +1,9 @@
+import { AuthenticatedUser } from '../auth/decorators/user.decorator.js';
+
 declare global {
   namespace Express {
     interface Request {
-      user: {
-        sub: string;
-        deviceId: string;
-        isAdmin: boolean;
-      };
+      user?: AuthenticatedUser;
     }
   }
 }

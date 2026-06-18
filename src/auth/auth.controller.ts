@@ -37,7 +37,7 @@ export class AuthController {
   @Post('logout')
   @HttpCode(HttpStatus.NO_CONTENT)
   @UseGuards(AuthGuard)
-  async logout(@Body() dto: RefreshTokenDto) {
+  async logout(@Body() dto: RefreshTokenDto): Promise<void> {
     await this.authService.logout(dto.refreshToken);
   }
 }

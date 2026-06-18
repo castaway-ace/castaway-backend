@@ -16,10 +16,12 @@ import { StorageModule } from './storage/storage.module.js';
 import { DeviceModule } from './device/device.module.js';
 import { RefreshTokenModule } from './refresh-token/refresh-token.module.js';
 import { InteractionsModule } from './interactions/interactions.module.js';
+import { PrismaModule } from './prisma/prisma.module.js';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    PrismaModule,
     HealthModule,
     UserModule,
     AuthModule,

@@ -1,4 +1,8 @@
-import { createParamDecorator, ExecutionContext } from '@nestjs/common';
+import {
+  createParamDecorator,
+  ExecutionContext,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Request } from 'express';
 
 export interface AuthenticatedUser {
@@ -15,6 +19,10 @@ export const CurrentUser = createParamDecorator(
     ? AuthenticatedUser[K]
     : AuthenticatedUser => {
     const request = ctx.switchToHttp().getRequest<Request>();
-    return (data ? request.user[data] : request.user) as never;
+    const user = request.user;
+    if (!user) {
+      throw new UnauthorizedException();
+    }
+    return (data ? user[data] : user) as never;
   },
 );
