@@ -6,11 +6,17 @@ import {
   S3Client,
   S3ServiceException,
 } from '@aws-sdk/client-s3';
-import { Injectable } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { StorageBucket } from '../types/storage.js';
 import { Readable } from 'stream';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+
+const PRESIGNED_URL_TTL_SECONDS = 3600;
 
 interface StorageConfig {
   endpoint: string;
@@ -42,24 +48,10 @@ export class StorageService {
 
   constructor(private readonly configService: ConfigService) {
     this.storageConfig = this.loadStorageConfig(configService);
-    this.client = new S3Client({
-      endpoint: this.storageConfig.endpoint,
-      region: this.storageConfig.region,
-      credentials: {
-        accessKeyId: this.storageConfig.accessKey,
-        secretAccessKey: this.storageConfig.secretKey,
-      },
-      forcePathStyle: true,
-    });
-    this.preSignedClient = new S3Client({
-      endpoint: this.storageConfig.presignedEndpoint,
-      region: this.storageConfig.region,
-      credentials: {
-        accessKeyId: this.storageConfig.accessKey,
-        secretAccessKey: this.storageConfig.secretKey,
-      },
-      forcePathStyle: true,
-    });
+    this.client = this.createClient(this.storageConfig.endpoint);
+    this.preSignedClient = this.createClient(
+      this.storageConfig.presignedEndpoint,
+    );
   }
 
   async putObject(
@@ -85,24 +77,26 @@ export class StorageService {
     key: string | null,
     range?: string,
   ): Promise<ObjectStreamResult> {
-    if (!key) {
-      throw new Error(`Key is not provided`);
+    this.assertKey(key);
+
+    let response;
+    try {
+      response = await this.client.send(
+        new GetObjectCommand({ Bucket: bucket, Key: key, Range: range }),
+      );
+    } catch (err) {
+      if (this.isNotFound(err)) {
+        throw new NotFoundException(`Object not found: ${key}`);
+      }
+      throw err;
     }
 
-    const response = await this.client.send(
-      new GetObjectCommand({
-        Bucket: bucket,
-        Key: key,
-        Range: range,
-      }),
-    );
-
     if (!response.Body) {
-      throw new Error(`Object has no body: ${key}`);
+      throw new InternalServerErrorException(`Object has no body: ${key}`);
     }
 
     if (!(response.Body instanceof Readable)) {
-      throw new Error(
+      throw new InternalServerErrorException(
         `Expected Node Readable stream for object: ${key}. ` +
           `Got ${response.Body.constructor.name}.`,
       );
@@ -121,19 +115,16 @@ export class StorageService {
     bucket: StorageBucket,
     key: string | null,
   ): Promise<string> {
-    if (!key) {
-      throw new Error(`Key is not provided`);
-    }
+    this.assertKey(key);
 
     const command = new GetObjectCommand({
       Bucket: bucket,
       Key: key,
     });
 
-    const url = await getSignedUrl(this.preSignedClient, command, {
-      expiresIn: 3600,
+    return getSignedUrl(this.preSignedClient, command, {
+      expiresIn: PRESIGNED_URL_TTL_SECONDS,
     });
-    return url;
   }
 
   async objectExists(bucket: string, key: string): Promise<boolean> {
@@ -146,10 +137,8 @@ export class StorageService {
       );
       return true;
     } catch (err) {
-      if (err instanceof S3ServiceException) {
-        if (err.name === 'NotFound' || err.$metadata?.httpStatusCode === 404) {
-          return false;
-        }
+      if (this.isNotFound(err)) {
+        return false;
       }
       throw err;
     }
@@ -161,6 +150,33 @@ export class StorageService {
         Bucket: bucket,
         Key: key,
       }),
+    );
+  }
+
+  private createClient(endpoint: string): S3Client {
+    return new S3Client({
+      endpoint,
+      region: this.storageConfig.region,
+      credentials: {
+        accessKeyId: this.storageConfig.accessKey,
+        secretAccessKey: this.storageConfig.secretKey,
+      },
+      forcePathStyle: true,
+    });
+  }
+
+  private assertKey(key: string | null): asserts key is string {
+    if (!key) {
+      throw new NotFoundException('Object key is missing');
+    }
+  }
+
+  private isNotFound(err: unknown): boolean {
+    return (
+      err instanceof S3ServiceException &&
+      (err.name === 'NotFound' ||
+        err.name === 'NoSuchKey' ||
+        err.$metadata?.httpStatusCode === 404)
     );
   }
 
