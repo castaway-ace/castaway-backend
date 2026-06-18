@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  NotFoundException,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AuthTokens, RefreshTokenInput, TokenPayload } from '../types/auth.js';
 import { JwtService } from '@nestjs/jwt';
@@ -59,10 +55,6 @@ export class RefreshTokenService {
     const user = await this.userService.findById(
       existingRefreshToken.device.userId,
     );
-
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
 
     const {
       accessToken,

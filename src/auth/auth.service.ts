@@ -12,9 +12,10 @@ import { AuthTokens } from '../types/auth.js';
 import { DeviceInfoDto } from '../dto/device.dto.js';
 import { DeviceService } from '../device/device.service.js';
 import { randomUUID } from 'crypto';
-import { Prisma, User } from '../../generated/prisma/client.js';
+import { Prisma } from '../../generated/prisma/client.js';
 import { PlaylistsService } from '../playlists/playlists.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { User } from '../types/users.js';
 
 @Injectable()
 export class AuthService {

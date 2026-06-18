@@ -1,32 +1,42 @@
-import { Injectable } from '@nestjs/common';
-import { Prisma, User } from 'generated/prisma/client.js';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from 'generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-
-interface UserData {
-  userName: string;
-  email: string;
-  passwordHash: string;
-}
+import {
+  User,
+  UserCreateData,
+  userSelect,
+  UserWithPassword,
+  userWithPasswordSelect,
+} from '../types/users.js';
 
 @Injectable()
 export class UserService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findByEmail(email: string): Promise<User | null> {
+  async findByEmail(email: string): Promise<UserWithPassword | null> {
     return this.prisma.user.findUnique({
-      where: {
-        email,
-      },
+      where: { email },
+      select: userWithPasswordSelect,
     });
   }
 
-  async findById(id: string): Promise<User | null> {
-    return this.prisma.user.findUnique({
+  async findById(id: string): Promise<User> {
+    const user = await this.prisma.user.findUnique({
       where: { id },
+      select: userSelect,
     });
+
+    if (!user) {
+      throw new NotFoundException('User does not exist');
+    }
+
+    return user;
   }
 
-  async create(user: UserData, tx?: Prisma.TransactionClient): Promise<User> {
+  async create(
+    user: UserCreateData,
+    tx?: Prisma.TransactionClient,
+  ): Promise<User> {
     const client = tx ?? this.prisma;
     return client.user.create({
       data: user,
@@ -45,10 +55,6 @@ export class UserService {
   }
 
   async delete(id: string): Promise<void> {
-    await this.prisma.user.delete({
-      where: {
-        id,
-      },
-    });
+    await this.prisma.user.deleteMany({ where: { id } });
   }
 }
