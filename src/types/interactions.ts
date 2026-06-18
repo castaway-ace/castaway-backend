@@ -8,30 +8,29 @@ export enum InteractionType {
 
 export const artistInteractionSelect = {
   id: true,
-  artistId: true,
   userId: true,
   updatedAt: true,
-  artist: { select: { name: true } },
+  artist: { select: { name: true, id: true, imageKey: true } },
 } satisfies Prisma.ArtistInteractionSelect;
 
 export const playlistInteractionSelect = {
   id: true,
   userId: true,
-  playlistId: true,
   updatedAt: true,
-  playlist: { select: { name: true } },
+  playlist: { select: { name: true, id: true } },
 } satisfies Prisma.PlaylistInteractionSelect;
 
 export const albumInteractionSelect = {
   id: true,
   userId: true,
-  albumId: true,
   updatedAt: true,
   album: {
     select: {
+      id: true,
       title: true,
+      imageKey: true,
       albumArtists: {
-        select: { artist: { select: { name: true } } },
+        select: { artist: { select: { name: true, id: true } } },
       },
     },
   },
@@ -53,16 +52,19 @@ type AlbumArtistRow =
 export type ArtistInteraction = Omit<ArtistInteractionRow, 'artist'> & {
   type: InteractionType.ARTIST;
   name: string;
+  coverUrl: string | null;
 };
 
 export type PlaylistInteraction = Omit<PlaylistInteractionRow, 'playlist'> & {
   type: InteractionType.PLAYLIST;
+  coverUrls: string[];
   name: string;
 };
 
 export type AlbumInteraction = Omit<AlbumInteractionRow, 'album'> & {
   type: InteractionType.ALBUM;
   title: string;
+  coverUrl: string | null;
   artists: AlbumArtistRow[];
 };
 

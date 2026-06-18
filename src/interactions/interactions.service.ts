@@ -1,19 +1,23 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
-  AlbumInteraction,
   albumInteractionSelect,
-  ArtistInteraction,
   artistInteractionSelect,
   Interaction,
   InteractionType,
-  PlaylistInteraction,
   playlistInteractionSelect,
 } from '../types/interactions.js';
+import { PlaylistsService } from '../playlists/playlists.service.js';
+import { StorageService } from '../storage/storage.service.js';
+import { StorageBucket } from '../types/storage.js';
 
 @Injectable()
 export class InteractionsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly playlistService: PlaylistsService,
+    private readonly storageService: StorageService,
+  ) {}
 
   async findAll(userId: string, limit = 20): Promise<Interaction[]> {
     const [artistInteractions, playlistInteractions, albumInteractions] =
@@ -35,37 +39,72 @@ export class InteractionsService {
         }),
       ]);
 
-    const merged = [
-      ...artistInteractions.map((i): ArtistInteraction => {
-        const { artist, ...rest } = i;
-        return {
-          type: InteractionType.ARTIST,
-          ...rest,
-          name: artist.name,
-        };
-      }),
-      ...playlistInteractions.map((i): PlaylistInteraction => {
-        const { playlist, ...rest } = i;
-        return {
-          type: InteractionType.PLAYLIST,
-          ...rest,
-          name: playlist.name,
-        };
-      }),
-      ...albumInteractions.map((i): AlbumInteraction => {
-        const { album, ...rest } = i;
-        return {
-          type: InteractionType.ALBUM,
-          ...rest,
-          title: album.title,
-          artists: album.albumArtists.map((aa) => aa.artist),
-        };
-      }),
+    const candidates = [
+      ...artistInteractions.map((raw) => ({
+        kind: InteractionType.ARTIST as const,
+        raw,
+      })),
+      ...playlistInteractions.map((raw) => ({
+        kind: InteractionType.PLAYLIST as const,
+        raw,
+      })),
+      ...albumInteractions.map((raw) => ({
+        kind: InteractionType.ALBUM as const,
+        raw,
+      })),
     ];
 
-    merged.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+    candidates.sort(
+      (a, b) => b.raw.updatedAt.getTime() - a.raw.updatedAt.getTime(),
+    );
 
-    return merged.slice(0, limit);
+    const survivors = candidates.slice(0, limit);
+
+    return Promise.all(
+      survivors.map(async (candidate): Promise<Interaction> => {
+        switch (candidate.kind) {
+          case InteractionType.ARTIST: {
+            const { artist, ...rest } = candidate.raw;
+            return {
+              ...rest,
+              type: InteractionType.ARTIST,
+              name: artist.name,
+              coverUrl: artist.imageKey
+                ? await this.storageService.getPresignedUrl(
+                    StorageBucket.ArtistArt,
+                    artist.imageKey,
+                  )
+                : null,
+            };
+          }
+          case InteractionType.ALBUM: {
+            const { album, ...rest } = candidate.raw;
+            return {
+              ...rest,
+              type: InteractionType.ALBUM,
+              title: album.title,
+              artists: album.albumArtists.map((aa) => aa.artist),
+              coverUrl: album.imageKey
+                ? await this.storageService.getPresignedUrl(
+                    StorageBucket.AlbumArt,
+                    album.imageKey,
+                  )
+                : null,
+            };
+          }
+          case InteractionType.PLAYLIST: {
+            const { playlist, ...rest } = candidate.raw;
+            const found = await this.playlistService.find(playlist.id);
+            return {
+              ...rest,
+              type: InteractionType.PLAYLIST,
+              name: found.name,
+              coverUrls: found.albumCoverUrls,
+            };
+          }
+        }
+      }),
+    );
   }
 
   async createOrUpdateAlbum(userId: string, id: string): Promise<void> {
