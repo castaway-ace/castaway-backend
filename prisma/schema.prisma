@@ -19,17 +19,16 @@ enum PlaylistType {
 // ─── User & Auth ───────────────────────────────────────────────────────────────
 
 model User {
-  id        String   @id @default(uuid()) @db.Uuid
-  email     String   @unique
-  userName  String   @unique @map("user_name")
-  password  String
-  isAdmin   Boolean  @default(false) @map("is_admin")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  userName     String   @unique @map("user_name")
+  passwordHash String   @map("password_hash")
+  isAdmin      Boolean  @default(false) @map("is_admin")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
   devices              Device[]
   playlists            Playlist[]
-  playHistories        PlayHistory[]
   trackAnnotations     TrackAnnotation[]
   albumAnnotations     AlbumAnnotation[]
   artistAnnotations    ArtistAnnotation[]
@@ -55,7 +54,6 @@ model Device {
   refreshTokens RefreshToken[]
 
   @@unique([userId, clientId])
-  @@index([userId])
   @@map("devices")
 }
 
@@ -78,6 +76,7 @@ model RefreshToken {
   device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 
   @@index([deviceId])
+  @@index([familyId])
   @@index([expiresAt])
   @@map("refresh_tokens")
 }
@@ -97,7 +96,6 @@ model Artist {
   artistAnnotations  ArtistAnnotation[]
   artistInteractions ArtistInteraction[]
 
-  @@index([name])
   @@map("artists")
 }
 
@@ -158,7 +156,6 @@ model Track {
   trackArtists     TrackArtist[]
   playlistTracks   PlaylistTrack[]
   trackAnnotations TrackAnnotation[]
-  playHistories    PlayHistory[]
 
   @@index([title])
   @@index([albumId, discNumber, trackNumber])
@@ -180,13 +177,13 @@ model TrackArtist {
 // ─── Playlists ───────────────────────────────────────────────────────────────
 
 model Playlist {
-  id          String   @id @default(uuid()) @db.Uuid
+  id          String       @id @default(uuid()) @db.Uuid
   name        String
   description String?
-  type   PlaylistType @default(USER)
-  ownerId     String   @map("owner_id") @db.Uuid
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  type        PlaylistType @default(USER)
+  ownerId     String       @map("owner_id") @db.Uuid
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
 
   owner                User                  @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   tracks               PlaylistTrack[]
@@ -210,23 +207,7 @@ model PlaylistTrack {
   @@map("playlist_tracks")
 }
 
-// ─── Play History ───────────────────────────────────────────────────────────────
-
-model PlayHistory {
-  id             String   @id @default(uuid()) @db.Uuid
-  userId         String   @map("user_id") @db.Uuid
-  trackId        String   @map("track_id") @db.Uuid
-  playedAt       DateTime @default(now()) @map("played_at")
-  durationPlayed Int?     @map("duration_played")
-  wasSkipped     Boolean  @default(false) @map("was_skipped")
-
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  track Track @relation(fields: [trackId], references: [id], onDelete: Cascade)
-
-  @@index([userId, playedAt(sort: Desc)])
-  @@index([trackId])
-  @@map("play_histories")
-}
+// ─── Interactions ───────────────────────────────────────────────────────────────
 
 model AlbumInteraction {
   id        String   @id @default(uuid()) @db.Uuid
@@ -237,7 +218,7 @@ model AlbumInteraction {
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   album Album @relation(fields: [albumId], references: [id], onDelete: Cascade)
 
-  @@unique([albumId, userId])
+  @@unique([userId, albumId])
   @@index([userId, updatedAt(sort: Desc)])
   @@map("album_interactions")
 }
@@ -251,7 +232,7 @@ model PlaylistInteraction {
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   playlist Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
 
-  @@unique([playlistId, userId])
+  @@unique([userId, playlistId])
   @@index([userId, updatedAt(sort: Desc)])
   @@map("playlist_interactions")
 }
@@ -265,7 +246,7 @@ model ArtistInteraction {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   artist Artist @relation(fields: [artistId], references: [id], onDelete: Cascade)
 
-  @@unique([artistId, userId])
+  @@unique([userId, artistId])
   @@index([userId, updatedAt(sort: Desc)])
   @@map("artist_interactions")
 }
@@ -289,7 +270,7 @@ model TrackAnnotation {
   track Track @relation(fields: [trackId], references: [id], onDelete: Cascade)
 
   @@unique([userId, trackId])
-  @@index([userId, starred])
+  @@index([userId, starred, starredAt(sort: Desc)])
   @@index([userId, lastPlayed])
   @@map("track_annotations")
 }

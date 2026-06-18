@@ -29,7 +29,7 @@ export class AuthService {
     const { email, password, deviceInfo } = loginDto;
 
     const user = await this.userService.findByEmail(email);
-    if (!user || !(await argon2.verify(user.password, password))) {
+    if (!user || !(await argon2.verify(user.passwordHash, password))) {
       throw new UnauthorizedException('Invalid Credentials');
     }
 
@@ -44,10 +44,11 @@ export class AuthService {
       throw new BadRequestException('User already exists');
     }
 
-    const hash = await this.hashPassword(password);
+    const passwordHash = await this.hashPassword(password);
     const newUser = await this.userService.create({
-      ...signUpDto,
-      password: hash,
+      email: signUpDto.email,
+      userName: signUpDto.userName,
+      passwordHash,
     });
 
     await this.playlistService.createLiked(newUser.id);

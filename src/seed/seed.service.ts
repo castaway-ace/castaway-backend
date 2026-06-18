@@ -87,16 +87,11 @@ export class SeedService {
   }
 
   async createUsers(): Promise<void> {
-    const hashedPassword = await this.authService.hashPassword('A1234567sds8');
+    const passwordHash = await this.authService.hashPassword('A1234567sds8');
     const userData = {
       userName: 'wewe',
       email: 'test123@yahoo.com',
-      password: hashedPassword,
-      deviceInfo: {
-        name: "Anthony's S23+",
-        model: 'samsung SM-S916U1',
-        clientId: '8be4df61-93ca-11d2-aa0d-00e098032b8c',
-      },
+      passwordHash,
     };
     const user = await this.userService.create(userData);
     await this.userService.upgradeAdmin(user.id);
