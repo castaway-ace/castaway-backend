@@ -60,7 +60,7 @@ export class PlaylistsService {
     const uniqueAlbumIds = this.getUniqueAlbumIds(playlist.tracks);
 
     const albumCoverUrls =
-      await this.albumService.findMultipleAlbumCovers(uniqueAlbumIds);
+      await this.albumService.findAlbumCoverMap(uniqueAlbumIds);
 
     return {
       id: playlist.id,
@@ -68,7 +68,7 @@ export class PlaylistsService {
       description: playlist.description,
       ownerId: playlist.ownerId,
       type: playlist.type,
-      albumCoverUrls,
+      albumCoverUrls: [...albumCoverUrls.values()],
     };
   }
 
@@ -85,7 +85,7 @@ export class PlaylistsService {
     const uniqueAlbumIds = this.getUniqueAlbumIds(playlist.tracks);
 
     const albumCoverUrls =
-      await this.albumService.findMultipleAlbumCovers(uniqueAlbumIds);
+      await this.albumService.findAlbumCoverMap(uniqueAlbumIds);
 
     return {
       id: playlist.id,
@@ -93,7 +93,7 @@ export class PlaylistsService {
       description: playlist.description,
       ownerId: playlist.ownerId,
       type: playlist.type,
-      albumCoverUrls,
+      albumCoverUrls: [...albumCoverUrls.values()],
     };
   }
 
@@ -108,12 +108,37 @@ export class PlaylistsService {
     const take = Math.min(Math.max(requestedLimit, 1), 200);
     const skip = Math.max(options.pagination?.offset ?? 0, 0);
 
-    return this.prisma.playlist.findMany({
+    const playlists = await this.prisma.playlist.findMany({
       where,
       select: playlistSummarySelect,
       orderBy,
       take,
       skip,
+    });
+
+    const allAlbumIds = [
+      ...new Set(
+        playlists.flatMap((playlist) =>
+          this.getUniqueAlbumIds(playlist.tracks),
+        ),
+      ),
+    ];
+
+    const coverByAlbumId =
+      await this.albumService.findAlbumCoverMap(allAlbumIds);
+
+    return playlists.map((playlist) => {
+      const uniqueAlbumIds = this.getUniqueAlbumIds(playlist.tracks);
+      const albumCoverUrls = uniqueAlbumIds
+        .map((id) => coverByAlbumId.get(id))
+        .filter((url): url is string => url !== undefined);
+
+      return {
+        id: playlist.id,
+        name: playlist.name,
+        type: playlist.type,
+        albumCoverUrls,
+      };
     });
   }
 

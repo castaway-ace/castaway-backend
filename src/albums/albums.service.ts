@@ -135,7 +135,7 @@ export class AlbumsService {
     return result;
   }
 
-  async findMultipleAlbumCovers(ids: string[]): Promise<string[]> {
+  async findAlbumCoverMap(ids: string[]): Promise<Map<string, string>> {
     const albums = await this.prisma.album.findMany({
       where: { id: { in: ids } },
       select: {
@@ -144,17 +144,20 @@ export class AlbumsService {
       },
     });
 
-    const coverUrls = await Promise.all(
-      albums.map(async (album) => {
+    const entries = await Promise.all(
+      albums.map(async (album): Promise<[string, string] | null> => {
         if (!album.imageKey) return null;
-        return this.storageService.getPresignedUrl(
+        const url = await this.storageService.getPresignedUrl(
           StorageBucket.AlbumArt,
           album.imageKey,
         );
+        return [album.id, url];
       }),
     );
 
-    return coverUrls.filter((url): url is string => url !== null);
+    return new Map(
+      entries.filter((entry): entry is [string, string] => entry !== null),
+    );
   }
 
   async findAlbumsByArtist(artistId: string): Promise<ArtistAlbum[]> {

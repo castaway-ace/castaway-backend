@@ -21,6 +21,15 @@ export const playlistSummarySelect = {
   id: true,
   name: true,
   type: true,
+  tracks: {
+    select: {
+      track: {
+        select: {
+          albumId: true,
+        },
+      },
+    },
+  },
 } satisfies Prisma.PlaylistSelect;
 
 export const playlistTrackSelect = {
@@ -54,7 +63,7 @@ export type PlaylistRow = Prisma.PlaylistGetPayload<{
   select: typeof playlistSelect;
 }>;
 
-export type PlaylistSummary = Prisma.PlaylistGetPayload<{
+export type PlaylistSummaryRow = Prisma.PlaylistGetPayload<{
   select: typeof playlistSummarySelect;
 }>;
 
@@ -64,14 +73,18 @@ export type PlaylistTrackRow = Prisma.PlaylistTrackGetPayload<{
 
 export type PlaylistTracksRow = PlaylistRow['tracks'];
 
-export type Playlist = Omit<PlaylistRow, 'tracks'> & {
-  albumCoverUrls: string[];
-};
-
 type PlaylistTrackArtistRow =
   PlaylistTrackRow['track']['trackArtists'][number]['artist'];
 
 type PlaylistTrackAlbumRow = PlaylistTrackRow['track']['album'];
+
+export type Playlist = Omit<PlaylistRow, 'tracks'> & {
+  albumCoverUrls: string[];
+};
+
+export type PlaylistSummary = Omit<PlaylistSummaryRow, 'tracks'> & {
+  albumCoverUrls: string[];
+};
 
 export type PlaylistTrack = Omit<PlaylistTrackRow, 'track'> & {
   trackId: string;
