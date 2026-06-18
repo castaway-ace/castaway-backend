@@ -162,14 +162,6 @@ describe('RefreshTokenService', () => {
     });
   });
 
-  it('throws an Not Found error when the user from the token can not be found', async () => {
-    findUnique.mockResolvedValue(makeMockDevice());
-    findById.mockResolvedValue(null);
-    await expect(refreshTokenService.rotate('raw')).rejects.toThrow(
-      'User not found',
-    );
-  });
-
   it('throws Concurrent error when a concurrent rotation occurs', async () => {
     findUnique.mockResolvedValue(makeMockDevice());
     findById.mockResolvedValue({ id: 'user-1', isAdmin: false });

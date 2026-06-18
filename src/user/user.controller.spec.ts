@@ -13,7 +13,6 @@ const moduleMocker = new ModuleMocker(global);
 
 const user = {
   id: '1',
-  password: '1234',
 };
 
 describe('UserController', () => {
