@@ -1,4 +1,11 @@
-import { Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  HttpCode,
+  Param,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '../auth/guards/auth.guard.js';
 import { InteractionsService } from './interactions.service.js';
 import { CurrentUser } from '../auth/decorators/user.decorator.js';
@@ -15,26 +22,29 @@ export class InteractionsController {
   }
 
   @Post('/albums/:id')
+  @HttpCode(204)
   async createOrUpdateAlbum(
     @CurrentUser('sub') sub: string,
     @Param('id') id: string,
   ): Promise<void> {
-    return this.interactionsService.createOrUpdateAlbum(sub, id);
+    await this.interactionsService.createOrUpdateAlbum(sub, id);
   }
 
   @Post('/artists/:id')
+  @HttpCode(204)
   async createOrUpdateArtist(
     @CurrentUser('sub') sub: string,
     @Param('id') id: string,
   ): Promise<void> {
-    return this.interactionsService.createOrUpdateArtist(sub, id);
+    await this.interactionsService.createOrUpdateArtist(sub, id);
   }
 
   @Post('/playlists/:id')
+  @HttpCode(204)
   async createOrUpdatePlaylist(
     @CurrentUser('sub') sub: string,
     @Param('id') id: string,
   ): Promise<void> {
-    return this.interactionsService.createOrUpdatePlaylist(sub, id);
+    await this.interactionsService.createOrUpdatePlaylist(sub, id);
   }
 }
