@@ -21,7 +21,7 @@ export class SearchService {
   ) {}
 
   async find(userId: string, query: string): Promise<SearchResults> {
-    if (query.trim().length < 2) {
+    if (query.trim().length < 1) {
       return { artists: [], albums: [], tracks: [] };
     }
 
