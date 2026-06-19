@@ -103,12 +103,19 @@ export class ArtistsService {
       throw new NotFoundException('Artist Art does not exist');
     }
 
-    const result = await this.storageService.getPresignedUrl(
+    return this.storageService.getPresignedUrl(
       StorageBucket.ArtistArt,
       imageKey,
     );
+  }
 
-    return result;
+  async findArtistCover(id: string): Promise<string | null> {
+    const imageKey = await this.findArtistImageKey(id);
+    if (!imageKey) return null;
+    return this.storageService.getPresignedUrl(
+      StorageBucket.ArtistArt,
+      imageKey,
+    );
   }
 
   async updateStar(

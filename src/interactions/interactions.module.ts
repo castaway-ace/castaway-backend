@@ -1,14 +1,14 @@
 import { Module } from '@nestjs/common';
 import { InteractionsController } from './interactions.controller.js';
 import { InteractionsService } from './interactions.service.js';
-import { PrismaService } from '../prisma/prisma.service.js';
 import { GuardModule } from '../auth/guard.module.js';
 import { PlaylistsModule } from '../playlists/playlists.module.js';
-import { StorageService } from '../storage/storage.service.js';
+import { AlbumsModule } from '../albums/albums.module.js';
+import { ArtistsModule } from '../artists/artists.module.js';
 
 @Module({
-  imports: [GuardModule, PlaylistsModule],
+  imports: [GuardModule, PlaylistsModule, AlbumsModule, ArtistsModule],
   controllers: [InteractionsController],
-  providers: [InteractionsService, PrismaService, StorageService],
+  providers: [InteractionsService],
 })
 export class InteractionsModule {}

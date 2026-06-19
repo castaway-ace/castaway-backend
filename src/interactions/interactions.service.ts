@@ -8,15 +8,16 @@ import {
   playlistInteractionSelect,
 } from '../types/interactions.js';
 import { PlaylistsService } from '../playlists/playlists.service.js';
-import { StorageService } from '../storage/storage.service.js';
-import { StorageBucket } from '../types/storage.js';
+import { ArtistsService } from '../artists/artists.service.js';
+import { AlbumsService } from '../albums/albums.service.js';
 
 @Injectable()
 export class InteractionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly playlistService: PlaylistsService,
-    private readonly storageService: StorageService,
+    private readonly artistService: ArtistsService,
+    private readonly albumService: AlbumsService,
   ) {}
 
   async findAll(userId: string, limit = 20): Promise<Interaction[]> {
@@ -25,16 +26,19 @@ export class InteractionsService {
         this.prisma.artistInteraction.findMany({
           where: { userId },
           select: artistInteractionSelect,
+          orderBy: { updatedAt: 'desc' },
           take: limit,
         }),
         this.prisma.playlistInteraction.findMany({
           where: { userId },
           select: playlistInteractionSelect,
+          orderBy: { updatedAt: 'desc' },
           take: limit,
         }),
         this.prisma.albumInteraction.findMany({
           where: { userId },
           select: albumInteractionSelect,
+          orderBy: { updatedAt: 'desc' },
           take: limit,
         }),
       ]);
@@ -69,12 +73,7 @@ export class InteractionsService {
               ...rest,
               type: InteractionType.ARTIST,
               name: artist.name,
-              coverUrl: artist.imageKey
-                ? await this.storageService.getPresignedUrl(
-                    StorageBucket.ArtistArt,
-                    artist.imageKey,
-                  )
-                : null,
+              coverUrl: await this.artistService.findArtistCover(artist.id),
             };
           }
           case InteractionType.ALBUM: {
@@ -84,22 +83,19 @@ export class InteractionsService {
               type: InteractionType.ALBUM,
               title: album.title,
               artists: album.albumArtists.map((aa) => aa.artist),
-              coverUrl: album.imageKey
-                ? await this.storageService.getPresignedUrl(
-                    StorageBucket.AlbumArt,
-                    album.imageKey,
-                  )
-                : null,
+              coverUrl: await this.albumService.findAlbumCoverUrl(album.id),
             };
           }
           case InteractionType.PLAYLIST: {
             const { playlist, ...rest } = candidate.raw;
-            const found = await this.playlistService.find(playlist.id);
+            const covers = await this.playlistService.findPlaylistCovers(
+              playlist.id,
+            );
             return {
               ...rest,
               type: InteractionType.PLAYLIST,
-              name: found.name,
-              coverUrls: found.albumCoverUrls,
+              name: playlist.name,
+              coverUrls: covers,
             };
           }
         }

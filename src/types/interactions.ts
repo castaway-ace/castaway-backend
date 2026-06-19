@@ -10,7 +10,7 @@ export const artistInteractionSelect = {
   id: true,
   userId: true,
   updatedAt: true,
-  artist: { select: { name: true, id: true, imageKey: true } },
+  artist: { select: { name: true, id: true } },
 } satisfies Prisma.ArtistInteractionSelect;
 
 export const playlistInteractionSelect = {
@@ -28,7 +28,6 @@ export const albumInteractionSelect = {
     select: {
       id: true,
       title: true,
-      imageKey: true,
       albumArtists: {
         select: { artist: { select: { name: true, id: true } } },
       },

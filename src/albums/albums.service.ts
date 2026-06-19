@@ -126,12 +126,19 @@ export class AlbumsService {
       throw new NotFoundException('Album Art does not exist');
     }
 
-    const result = await this.storageService.getPresignedUrl(
+    return this.storageService.getPresignedUrl(
       StorageBucket.AlbumArt,
       imageKey,
     );
+  }
 
-    return result;
+  async findAlbumCoverUrl(id: string): Promise<string | null> {
+    const imageKey = await this.findAlbumImageKey(id);
+    if (!imageKey) return null;
+    return this.storageService.getPresignedUrl(
+      StorageBucket.AlbumArt,
+      imageKey,
+    );
   }
 
   async findAlbumCoverMap(ids: string[]): Promise<Map<string, string>> {

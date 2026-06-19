@@ -157,6 +157,27 @@ export class PlaylistsService {
     });
   }
 
+  async findPlaylistCovers(id: string): Promise<string[]> {
+    const playlist = await this.prisma.playlist.findUnique({
+      where: { id },
+      select: {
+        tracks: {
+          select: { track: { select: { albumId: true } } },
+        },
+      },
+    });
+
+    if (!playlist) {
+      return [];
+    }
+
+    const uniqueAlbumIds = this.getUniqueAlbumIds(playlist.tracks);
+    const albumCoverUrls =
+      await this.albumService.findAlbumCoverMap(uniqueAlbumIds);
+
+    return [...albumCoverUrls.values()];
+  }
+
   async update(userId: string, id: string, name: string): Promise<void> {
     const result = await this.prisma.playlist.updateMany({
       where: { id, ownerId: userId },
