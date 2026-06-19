@@ -8,12 +8,12 @@ import {
 import { TrackOrderOptions } from '../dto/track.dto.js';
 import {
   Track,
+  TrackCreateData,
   trackSelect,
   TrackSummary,
   trackSummarySelect,
 } from '../types/tracks.js';
 import { StorageBucket } from '../types/storage.js';
-import { Artist } from '../types/artists.js';
 import { PlaylistsService } from '../playlists/playlists.service.js';
 
 interface TrackFilters {
@@ -28,23 +28,6 @@ interface TrackQueryOptions {
   filters?: TrackFilters;
   orderOptions?: TrackOrderOptions;
   pagination?: { limit?: number; offset?: number };
-}
-
-interface CreateTrackItem {
-  title: string;
-  albumId: string;
-  fileKey: string;
-  trackNumber: number;
-  discNumber: number;
-  duration: number;
-  size: number;
-  suffix: string;
-  genres: string[];
-  bitRate: number;
-  sampleRate: number;
-  bitDepth: number;
-  releaseDate: Date;
-  artists: Artist[];
 }
 
 @Injectable()
@@ -70,7 +53,7 @@ export class TracksService {
     bitDepth,
     releaseDate,
     artists,
-  }: CreateTrackItem): Promise<PrismaTrack | null> {
+  }: TrackCreateData): Promise<PrismaTrack> {
     return this.prisma.track.create({
       data: {
         title,
@@ -153,20 +136,16 @@ export class TracksService {
       select: trackSummarySelect,
     });
 
-    const results = await Promise.all(
-      tracks.map(async ({ trackArtists, album, ...track }) => {
-        const starred = await this.prisma.trackAnnotation.findUnique({
-          where: { userId_trackId: { userId, trackId: track.id } },
-        });
+    const starredIds = new Set(await this.findStarredTrackIds(userId));
 
-        return {
-          ...track,
-          artists: trackArtists.map((ta) => ta.artist),
-          album: album,
-          starred: !!starred,
-        };
-      }),
-    );
+    const results = tracks.map(({ trackArtists, album, ...track }) => {
+      return {
+        ...track,
+        artists: trackArtists.map((ta) => ta.artist),
+        album: album,
+        starred: starredIds.has(track.id),
+      };
+    });
 
     return results;
   }
@@ -206,33 +185,42 @@ export class TracksService {
     trackId: string,
     starred: boolean,
   ): Promise<void> {
-    await this.prisma.trackAnnotation.upsert({
-      where: {
-        userId_trackId: { userId, trackId },
-      },
-      create: {
+    await this.prisma.$transaction(async (tx) => {
+      const likedPlaylist = await this.playlistService.findLikedRecord(
         userId,
-        trackId,
-        starred,
-        starredAt: starred ? new Date() : null,
-      },
-      update: {
-        starred,
-        starredAt: starred ? new Date() : null,
-      },
+        tx,
+      );
+
+      await tx.trackAnnotation.upsert({
+        where: { userId_trackId: { userId, trackId } },
+        create: {
+          userId,
+          trackId,
+          starred,
+          starredAt: starred ? new Date() : null,
+        },
+        update: {
+          starred,
+          starredAt: starred ? new Date() : null,
+        },
+      });
+
+      if (starred) {
+        await this.playlistService.addTrack(
+          userId,
+          likedPlaylist.id,
+          trackId,
+          tx,
+        );
+      } else {
+        await this.playlistService.deleteTrack(
+          userId,
+          likedPlaylist.id,
+          trackId,
+          tx,
+        );
+      }
     });
-
-    const likedPlaylist = await this.playlistService.findLiked(userId);
-
-    if (!likedPlaylist) {
-      throw new NotFoundException('Liked Playlist not found');
-    }
-
-    if (starred) {
-      await this.playlistService.addTrack(userId, likedPlaylist.id, trackId);
-    } else {
-      await this.playlistService.deleteTrack(userId, likedPlaylist.id, trackId);
-    }
   }
 
   private buildWhere(

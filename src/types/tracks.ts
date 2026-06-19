@@ -1,4 +1,5 @@
 import { Prisma } from 'generated/prisma/client.js';
+import { Artist } from './artists.js';
 
 export const trackSelect = {
   id: true,
@@ -58,4 +59,23 @@ export type Track = Omit<TrackRow, 'trackArtists'> & {
 export type TrackSummary = Omit<TrackSummaryRow, 'trackArtists'> & {
   artists: TrackArtistRow[];
   starred: boolean;
+};
+
+export type TrackCreateData = Pick<
+  Prisma.TrackUncheckedCreateInput,
+  | 'title'
+  | 'albumId'
+  | 'fileKey'
+  | 'trackNumber'
+  | 'discNumber'
+  | 'duration'
+  | 'size'
+  | 'suffix'
+  | 'genres'
+  | 'bitRate'
+  | 'sampleRate'
+  | 'bitDepth'
+  | 'releaseDate'
+> & {
+  artists: Pick<Artist, 'id'>[];
 };

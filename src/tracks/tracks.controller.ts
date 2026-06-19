@@ -4,7 +4,6 @@ import {
   Delete,
   Get,
   HttpCode,
-  NotFoundException,
   Param,
   Post,
   Query,
@@ -46,17 +45,13 @@ export class TracksController {
   }
 
   @Get('starred')
-  async getStarred(@CurrentUser() user: { id: string }): Promise<string[]> {
-    return this.trackService.findStarredTrackIds(user.id);
+  async getStarred(@CurrentUser('sub') sub: string): Promise<string[]> {
+    return this.trackService.findStarredTrackIds(sub);
   }
 
   @Get(':id')
   async find(@Param('id') id: string): Promise<Track> {
     const track = await this.trackService.find(id);
-
-    if (!track) {
-      throw new NotFoundException('Track not found');
-    }
 
     return track;
   }

@@ -3,6 +3,9 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { PlaylistType, Prisma } from '../../generated/prisma/client.js';
 import {
   Playlist,
+  PlaylistIdentity,
+  playlistIdentitySelect,
+  PlaylistRow,
   playlistSelect,
   PlaylistSummary,
   playlistSummarySelect,
@@ -36,7 +39,6 @@ export class PlaylistsService {
         ownerId: userId,
         name,
       },
-      select: playlistSelect,
     });
   }
 
@@ -50,6 +52,40 @@ export class PlaylistsService {
     });
   }
 
+  async findPlaylistRecord(
+    id: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<PlaylistIdentity> {
+    const client = tx ?? this.prisma;
+    const playlist = await client.playlist.findUnique({
+      where: { id },
+      select: playlistIdentitySelect,
+    });
+
+    if (!playlist) {
+      throw new NotFoundException('Playlist not found');
+    }
+
+    return playlist;
+  }
+
+  async findLikedRecord(
+    userId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<PlaylistIdentity> {
+    const client = tx ?? this.prisma;
+    const playlist = await client.playlist.findFirst({
+      where: { ownerId: userId, type: PlaylistType.LIKED },
+      select: playlistIdentitySelect,
+    });
+
+    if (!playlist) {
+      throw new NotFoundException('Playlist not found');
+    }
+
+    return playlist;
+  }
+
   async find(id: string): Promise<Playlist> {
     const playlist = await this.prisma.playlist.findUnique({
       where: { id },
@@ -60,19 +96,7 @@ export class PlaylistsService {
       throw new NotFoundException('Playlist not found');
     }
 
-    const uniqueAlbumIds = this.getUniqueAlbumIds(playlist.tracks);
-
-    const albumCoverUrls =
-      await this.albumService.findAlbumCoverMap(uniqueAlbumIds);
-
-    return {
-      id: playlist.id,
-      name: playlist.name,
-      description: playlist.description,
-      ownerId: playlist.ownerId,
-      type: playlist.type,
-      albumCoverUrls: [...albumCoverUrls.values()],
-    };
+    return this.enrichWithCovers(playlist);
   }
 
   async findLiked(userId: string): Promise<Playlist> {
@@ -85,19 +109,7 @@ export class PlaylistsService {
       throw new NotFoundException('Playlist not found');
     }
 
-    const uniqueAlbumIds = this.getUniqueAlbumIds(playlist.tracks);
-
-    const albumCoverUrls =
-      await this.albumService.findAlbumCoverMap(uniqueAlbumIds);
-
-    return {
-      id: playlist.id,
-      name: playlist.name,
-      description: playlist.description,
-      ownerId: playlist.ownerId,
-      type: playlist.type,
-      albumCoverUrls: [...albumCoverUrls.values()],
-    };
+    return this.enrichWithCovers(playlist);
   }
 
   async findAll(
@@ -166,14 +178,20 @@ export class PlaylistsService {
     }
   }
 
-  async addTrack(userId: string, id: string, trackId: string): Promise<void> {
-    const playlist = await this.find(id);
+  async addTrack(
+    userId: string,
+    id: string,
+    trackId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    const client = tx ?? this.prisma;
+    const playlist = await this.findPlaylistRecord(id, tx);
 
-    if (!playlist || playlist.ownerId !== userId) {
+    if (playlist.ownerId !== userId) {
       throw new NotFoundException('Playlist not found');
     }
 
-    const track = await this.prisma.track.findUnique({
+    const track = await client.track.findUnique({
       where: { id: trackId },
       select: { id: true },
     });
@@ -182,7 +200,7 @@ export class PlaylistsService {
       throw new NotFoundException('Track not found');
     }
 
-    const lastPlaylist = await this.prisma.playlistTrack.findFirst({
+    const lastPlaylist = await client.playlistTrack.findFirst({
       where: { playlistId: playlist.id },
       orderBy: { position: 'desc' },
       select: { position: true },
@@ -190,7 +208,7 @@ export class PlaylistsService {
 
     const nextPosition = lastPlaylist ? lastPlaylist.position + 1 : 0;
 
-    await this.prisma.playlistTrack.create({
+    await client.playlistTrack.create({
       data: {
         playlistId: playlist.id,
         trackId: track.id,
@@ -203,9 +221,9 @@ export class PlaylistsService {
     userId: string,
     playlistId: string,
   ): Promise<PlaylistTrack[]> {
-    const playlist = await this.find(playlistId);
+    const playlist = await this.findPlaylistRecord(playlistId);
 
-    if (!playlist || playlist.ownerId !== userId) {
+    if (playlist.ownerId !== userId) {
       throw new NotFoundException('Playlist not found');
     }
 
@@ -230,14 +248,16 @@ export class PlaylistsService {
     userId: string,
     playlistId: string,
     trackId: string,
+    tx?: Prisma.TransactionClient,
   ): Promise<PlaylistTrack> {
-    const playlist = await this.find(playlistId);
+    const client = tx ?? this.prisma;
+    const playlist = await this.findPlaylistRecord(playlistId, tx);
 
-    if (!playlist || playlist.ownerId !== userId) {
+    if (playlist.ownerId !== userId) {
       throw new NotFoundException('Playlist not found');
     }
 
-    const playlistTrack = await this.prisma.playlistTrack.findFirst({
+    const playlistTrack = await client.playlistTrack.findFirst({
       where: { playlistId, trackId },
       select: playlistTrackSelect,
     });
@@ -260,12 +280,29 @@ export class PlaylistsService {
     userId: string,
     id: string,
     trackId: string,
+    tx?: Prisma.TransactionClient,
   ): Promise<void> {
-    const playlistTrack = await this.findTrack(userId, id, trackId);
+    const client = tx ?? this.prisma;
+    const playlistTrack = await this.findTrack(userId, id, trackId, tx);
 
-    await this.prisma.playlistTrack.delete({
+    await client.playlistTrack.delete({
       where: { id: playlistTrack.id },
     });
+  }
+
+  private async enrichWithCovers(playlist: PlaylistRow): Promise<Playlist> {
+    const uniqueAlbumIds = this.getUniqueAlbumIds(playlist.tracks);
+    const albumCoverUrls =
+      await this.albumService.findAlbumCoverMap(uniqueAlbumIds);
+
+    return {
+      id: playlist.id,
+      name: playlist.name,
+      description: playlist.description,
+      ownerId: playlist.ownerId,
+      type: playlist.type,
+      albumCoverUrls: [...albumCoverUrls.values()],
+    };
   }
 
   private buildWhere(

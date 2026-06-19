@@ -1,5 +1,11 @@
 import { Prisma } from 'generated/prisma/client.js';
 
+export const playlistIdentitySelect = {
+  id: true,
+  ownerId: true,
+  type: true,
+} satisfies Prisma.PlaylistSelect;
+
 export const playlistSelect = {
   id: true,
   name: true,
@@ -92,3 +98,7 @@ export type PlaylistTrack = Omit<PlaylistTrackRow, 'track'> & {
   album: PlaylistTrackAlbumRow;
   artists: PlaylistTrackArtistRow[];
 };
+
+export type PlaylistIdentity = Prisma.PlaylistGetPayload<{
+  select: typeof playlistIdentitySelect;
+}>;

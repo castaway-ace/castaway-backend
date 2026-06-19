@@ -12,6 +12,9 @@ const configValues: Readonly<Record<string, unknown>> = {
   STORAGE_REGION: 'us-east-1',
   STORAGE_ACCESS_KEY: 'access-key',
   STORAGE_SECRET_ACCESS_KEY: 'secret-access-key',
+  STORAGE_TRACKS_BUCKET: 'storage-tracks-bucket',
+  STORAGE_ALBUM_ART_BUCKET: 'storage-album-art-bucket',
+  STORAGE_ARTIST_IMAGE_BUCKET: 'storage-artist-image-bucket',
 };
 
 describe('StorageService', () => {

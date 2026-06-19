@@ -32,7 +32,7 @@ export class PlaylistsController {
   ): Promise<Playlist> {
     const playlist = await this.playlistService.find(id);
 
-    if (!playlist || playlist.ownerId !== sub) {
+    if (playlist.ownerId !== sub) {
       throw new NotFoundException('Playlist not found');
     }
     return playlist;
@@ -90,10 +90,6 @@ export class PlaylistsController {
       id,
       trackId,
     );
-
-    if (!playlistTrack) {
-      throw new NotFoundException('Playlist tracks not found');
-    }
     return playlistTrack;
   }
 
