@@ -3,7 +3,6 @@ import {
   Delete,
   Get,
   HttpCode,
-  NotFoundException,
   Param,
   Post,
   Query,
@@ -45,10 +44,6 @@ export class AlbumsController {
     @Param('id') id: string,
   ): Promise<Album & { starred: boolean }> {
     const album = await this.albumService.findWithStarred(sub, id);
-
-    if (!album) {
-      throw new NotFoundException('Album not found');
-    }
 
     return album;
   }

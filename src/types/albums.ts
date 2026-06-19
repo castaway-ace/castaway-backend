@@ -33,12 +33,6 @@ export const albumSelect = {
       trackArtists: {
         select: { artist: { select: { name: true, id: true } } },
       },
-      album: {
-        select: {
-          id: true,
-          title: true,
-        },
-      },
     },
   },
 } satisfies Prisma.AlbumSelect;
@@ -47,10 +41,9 @@ export const albumSummarySelect = {
   id: true,
   title: true,
   releaseDate: true,
-  imageKey: true,
   genres: true,
   albumArtists: {
-    include: {
+    select: {
       artist: {
         select: {
           name: true,

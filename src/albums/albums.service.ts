@@ -266,22 +266,6 @@ export class AlbumsService {
     return where;
   }
 
-  private readonly imageMimeByExt: Record<string, string> = {
-    jpg: 'image/jpeg',
-    jpeg: 'image/jpeg',
-    png: 'image/png',
-    webp: 'image/webp',
-    gif: 'image/gif',
-  };
-
-  private resolveImageContentType(key: string, fromStorage?: string): string {
-    if (fromStorage && fromStorage !== 'application/octet-stream') {
-      return fromStorage;
-    }
-    const ext = key.split('.').pop()?.toLowerCase() ?? '';
-    return this.imageMimeByExt[ext] ?? 'application/octet-stream';
-  }
-
   private static readonly SORT_FIELD_MAP: Record<
     AlbumOrderOptions['order'],
     (direction: Prisma.SortOrder) => Prisma.AlbumOrderByWithRelationInput
