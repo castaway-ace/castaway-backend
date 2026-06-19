@@ -10,7 +10,6 @@ import {
   AlbumSummary,
 } from '../types/albums.js';
 import { StorageBucket } from '../types/storage.js';
-import { ArtistAlbum } from '../types/artists.js';
 
 interface AlbumFilters {
   artistIds?: string[];
@@ -158,19 +157,6 @@ export class AlbumsService {
     return new Map(
       entries.filter((entry): entry is [string, string] => entry !== null),
     );
-  }
-
-  async findAlbumsByArtist(artistId: string): Promise<ArtistAlbum[]> {
-    return this.prisma.album.findMany({
-      where: { albumArtists: { some: { artistId } } },
-      select: {
-        id: true,
-        title: true,
-        releaseDate: true,
-        imageKey: true,
-      },
-      orderBy: { releaseDate: 'desc' },
-    });
   }
 
   async updateStar(

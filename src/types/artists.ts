@@ -1,16 +1,37 @@
-import {
-  Artist as PrismaArtist,
-  Album as PrismaAlbum,
-} from 'generated/prisma/client.js';
+import { Prisma } from 'generated/prisma/client.js';
 
-export type Artist = Omit<PrismaArtist, 'createdAt' | 'updatedAt' | 'imageKey'>;
+export const artistSelect = {
+  name: true,
+  id: true,
+  bio: true,
+  albumArtists: {
+    select: {
+      album: {
+        select: {
+          id: true,
+          title: true,
+        },
+      },
+    },
+  },
+} satisfies Prisma.ArtistSelect;
 
-export type ArtistSummary = Omit<
-  PrismaArtist,
-  'createdAt' | 'updatedAt' | 'imageKey' | 'bio'
->;
+export const artistSummarySelect = {
+  name: true,
+  id: true,
+} satisfies Prisma.ArtistSelect;
 
-export type ArtistAlbum = Omit<
-  PrismaAlbum,
-  'createdAt' | 'updatedAt' | 'compilation' | 'genres'
->;
+export type ArtistRow = Prisma.ArtistGetPayload<{
+  select: typeof artistSelect;
+}>;
+type AlbumRow = ArtistRow['albumArtists'][number]['album'];
+
+type ArtistSummaryRow = Prisma.ArtistGetPayload<{
+  select: typeof artistSummarySelect;
+}>;
+
+export type Artist = Omit<ArtistRow, 'albumArtists'> & {
+  albums: AlbumRow[];
+};
+
+export type ArtistSummary = Omit<ArtistSummaryRow, 'albumArtists'>;

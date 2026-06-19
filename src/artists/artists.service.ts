@@ -1,17 +1,18 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { StorageService } from '../storage/storage.service.js';
-import {
-  Prisma,
-  Artist as PrismaArtist,
-} from '../../generated/prisma/client.js';
+import { Prisma } from '../../generated/prisma/client.js';
 import { ArtistOrderOptions } from '../dto/artist.dto.js';
-import { Artist, ArtistAlbum, ArtistSummary } from '../types/artists.js';
+import {
+  Artist,
+  ArtistRow,
+  artistSelect,
+  ArtistSummary,
+  artistSummarySelect,
+} from '../types/artists.js';
 import { StorageBucket } from '../types/storage.js';
-import { AlbumsService } from '../albums/albums.service.js';
 
 interface ArtistFilters {
-  genres?: string[];
   starred?: boolean;
   search?: string;
 }
@@ -26,36 +27,26 @@ interface ArtistQueryOptions {
 export class ArtistsService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly albumService: AlbumsService,
     private readonly storageService: StorageService,
   ) {}
 
-  async find(id: string): Promise<Artist & { albums: ArtistAlbum[] }> {
+  async find(id: string): Promise<Artist> {
     const artist = await this.prisma.artist.findUnique({
       where: { id },
-      select: {
-        id: true,
-        name: true,
-        bio: true,
-      },
+      select: artistSelect,
     });
 
     if (!artist) {
       throw new NotFoundException('Artist does not exist');
     }
 
-    const albums = await this.albumService.findAlbumsByArtist(artist.id);
-
-    return {
-      ...artist,
-      albums,
-    };
+    return this.toArtist(artist);
   }
 
   async findWithStarred(
     userId: string,
     id: string,
-  ): Promise<Artist & { albums: ArtistAlbum[]; starred: boolean }> {
+  ): Promise<Artist & { starred: boolean }> {
     const artist = await this.find(id);
 
     const annotation = await this.prisma.artistAnnotation.findUnique({
@@ -81,11 +72,7 @@ export class ArtistsService {
       take,
       skip,
       where,
-      select: {
-        id: true,
-        name: true,
-        imageKey: true,
-      },
+      select: artistSummarySelect,
     });
   }
 
@@ -97,16 +84,16 @@ export class ArtistsService {
   }
 
   async findArtistImageKey(id: string): Promise<string | null> {
-    const track = await this.prisma.artist.findUnique({
+    const artist = await this.prisma.artist.findUnique({
       where: { id },
       select: {
         imageKey: true,
       },
     });
 
-    if (!track) return null;
+    if (!artist) return null;
 
-    return track.imageKey;
+    return artist.imageKey;
   }
 
   async findArtistImage(id: string): Promise<string> {
@@ -142,22 +129,39 @@ export class ArtistsService {
     }
   }
 
-  async findOrCreateArtist(name: string): Promise<PrismaArtist> {
+  async findOrCreateArtist(name: string): Promise<Artist> {
     try {
-      return await this.prisma.artist.upsert({
+      const artist = await this.prisma.artist.upsert({
         where: { name },
         create: { name },
         update: {},
+        select: artistSelect,
       });
+
+      return this.toArtist(artist);
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
-        return this.prisma.artist.findUniqueOrThrow({ where: { name } });
+        const artist = await this.prisma.artist.findUniqueOrThrow({
+          where: { name },
+          select: artistSelect,
+        });
+
+        return this.toArtist(artist);
       }
       throw error;
     }
+  }
+
+  private toArtist(row: ArtistRow): Artist {
+    return {
+      id: row.id,
+      name: row.name,
+      bio: row.bio,
+      albums: row.albumArtists.map((albumArtist) => albumArtist.album),
+    };
   }
 
   private buildWhere(
@@ -176,22 +180,6 @@ export class ArtistsService {
     }
 
     return where;
-  }
-
-  private readonly imageMimeByExt: Record<string, string> = {
-    jpg: 'image/jpeg',
-    jpeg: 'image/jpeg',
-    png: 'image/png',
-    webp: 'image/webp',
-    gif: 'image/gif',
-  };
-
-  private resolveImageContentType(key: string, fromStorage?: string): string {
-    if (fromStorage && fromStorage !== 'application/octet-stream') {
-      return fromStorage;
-    }
-    const ext = key.split('.').pop()?.toLowerCase() ?? '';
-    return this.imageMimeByExt[ext] ?? 'application/octet-stream';
   }
 
   private static readonly SORT_FIELD_MAP: Record<

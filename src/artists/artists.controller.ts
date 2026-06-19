@@ -3,7 +3,6 @@ import {
   Delete,
   Get,
   HttpCode,
-  NotFoundException,
   Param,
   Post,
   Query,
@@ -13,7 +12,7 @@ import { AuthGuard } from '../auth/guards/auth.guard.js';
 import { ArtistsService } from './artists.service.js';
 import { CurrentUser } from '../auth/decorators/user.decorator.js';
 import { ArtistQueryDto } from '../dto/artist.dto.js';
-import { Artist, ArtistAlbum, ArtistSummary } from '../types/artists.js';
+import { Artist, ArtistSummary } from '../types/artists.js';
 
 @Controller('artists')
 @UseGuards(AuthGuard)
@@ -41,12 +40,8 @@ export class ArtistsController {
   async find(
     @CurrentUser('sub') sub: string,
     @Param('id') id: string,
-  ): Promise<Artist & { albums: ArtistAlbum[]; starred: boolean }> {
+  ): Promise<Artist & { starred: boolean }> {
     const artist = await this.artistService.findWithStarred(sub, id);
-
-    if (!artist) {
-      throw new NotFoundException('Artist not found');
-    }
 
     return artist;
   }

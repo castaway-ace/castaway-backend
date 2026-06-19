@@ -9,8 +9,9 @@ import { IAudioMetadata, IPicture, parseBuffer } from 'music-metadata';
 import { TracksService } from '../tracks/tracks.service.js';
 import { ArtistsService } from '../artists/artists.service.js';
 import { AlbumsService } from '../albums/albums.service.js';
-import { Album, Artist, Track } from 'generated/prisma/client.js';
+import { Album, Track } from 'generated/prisma/client.js';
 import { StorageBucket } from '../types/storage.js';
+import { Artist } from '../types/artists.js';
 
 interface MetadataTags {
   title: string;
