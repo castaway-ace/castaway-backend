@@ -49,3 +49,10 @@ export class ArtistQueryDto {
   @ToInt()
   offset?: number;
 }
+
+export class CreateArtistDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  name!: string;
+}

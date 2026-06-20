@@ -30,6 +30,18 @@ export class ArtistsService {
     private readonly storageService: StorageService,
   ) {}
 
+  async create(name: string): Promise<void> {
+    await this.prisma.artist.create({
+      data: { name },
+    });
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.prisma.artist.delete({
+      where: { id },
+    });
+  }
+
   async find(id: string): Promise<Artist> {
     const artist = await this.prisma.artist.findUnique({
       where: { id },
@@ -41,6 +53,14 @@ export class ArtistsService {
     }
 
     return this.toArtist(artist);
+  }
+
+  async findIdsByNames(names: string[]): Promise<Map<string, string>> {
+    const artists = await this.prisma.artist.findMany({
+      where: { name: { in: names } },
+      select: { name: true, id: true },
+    });
+    return new Map(artists.map((artist) => [artist.name, artist.id]));
   }
 
   async findWithStarred(
@@ -116,6 +136,37 @@ export class ArtistsService {
       StorageBucket.ArtistArt,
       imageKey,
     );
+  }
+
+  async setArtistArt(
+    artistId: string,
+    file: Express.Multer.File,
+  ): Promise<void> {
+    const fileKey = `${artistId}/cover.jpg`;
+
+    await this.storageService.putObject(
+      StorageBucket.ArtistArt,
+      fileKey,
+      file.buffer,
+      {
+        contentType: file.mimetype,
+        size: file.size,
+        metadata: { originalName: file.originalname },
+      },
+    );
+
+    try {
+      await this.updateArtist(artistId, fileKey);
+    } catch (error) {
+      await this.storageService.deleteObject(StorageBucket.ArtistArt, fileKey);
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
+        throw new NotFoundException('Artist not found');
+      }
+      throw error;
+    }
   }
 
   async updateStar(

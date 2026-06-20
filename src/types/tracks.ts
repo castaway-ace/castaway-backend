@@ -1,6 +1,4 @@
 import { Prisma } from 'generated/prisma/client.js';
-import { Artist } from './artists.js';
-
 export const trackSelect = {
   id: true,
   title: true,
@@ -77,5 +75,5 @@ export type TrackCreateData = Pick<
   | 'bitDepth'
   | 'releaseDate'
 > & {
-  artists: Pick<Artist, 'id'>[];
+  artistIds: string[];
 };

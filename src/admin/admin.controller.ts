@@ -1,5 +1,7 @@
 import {
+  Body,
   Controller,
+  Delete,
   Param,
   Post,
   UploadedFile,
@@ -11,18 +13,16 @@ import { AdminGuard } from '../auth/guards/admin.guard.js';
 import { AuthGuard } from '../auth/guards/auth.guard.js';
 import { AdminService } from './admin.service.js';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
+import { CreateArtistDto } from '../dto/artist.dto.js';
 
 @Controller('admin')
 @UseGuards(AuthGuard, AdminGuard)
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
-  @Post('upload/album')
-  @UseInterceptors(FilesInterceptor('files'))
-  async uploadAlbum(
-    @UploadedFiles() files: Express.Multer.File[],
-  ): Promise<void> {
-    await this.adminService.uploadAlbum(files);
+  @Post('upload/artist')
+  async createArtist(@Body() artistDto: CreateArtistDto): Promise<void> {
+    await this.adminService.createArtist(artistDto.name);
   }
 
   @Post('upload/artist-art/:id')
@@ -32,5 +32,23 @@ export class AdminController {
     @Param('id') id: string,
   ): Promise<void> {
     await this.adminService.uploadArtistArt(id, file);
+  }
+
+  @Delete('delete/artist/:id')
+  async deleteArtist(@Param('id') id: string): Promise<void> {
+    await this.adminService.deleteArtist(id);
+  }
+
+  @Post('upload/album')
+  @UseInterceptors(FilesInterceptor('files'))
+  async uploadAlbum(
+    @UploadedFiles() files: Express.Multer.File[],
+  ): Promise<void> {
+    await this.adminService.uploadAlbum(files);
+  }
+
+  @Delete('delete/album/:id')
+  async deleteAlbum(@Param('id') id: string): Promise<void> {
+    await this.adminService.deleteAlbum(id);
   }
 }

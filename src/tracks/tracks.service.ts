@@ -15,6 +15,7 @@ import {
 } from '../types/tracks.js';
 import { StorageBucket } from '../types/storage.js';
 import { PlaylistsService } from '../playlists/playlists.service.js';
+import { MetadataTags } from '../types/admin.js';
 
 interface TrackFilters {
   artistIds?: string[];
@@ -38,7 +39,7 @@ export class TracksService {
     private readonly storageService: StorageService,
   ) {}
 
-  async createTrack({
+  async create({
     title,
     albumId,
     fileKey,
@@ -52,7 +53,7 @@ export class TracksService {
     sampleRate,
     bitDepth,
     releaseDate,
-    artists,
+    artistIds,
   }: TrackCreateData): Promise<PrismaTrack> {
     return this.prisma.track.create({
       data: {
@@ -70,7 +71,7 @@ export class TracksService {
         bitDepth,
         releaseDate,
         trackArtists: {
-          create: artists.map((artist) => ({ artistId: artist.id })),
+          create: artistIds.map((artistId) => ({ artistId })),
         },
       },
     });
@@ -178,6 +179,55 @@ export class TracksService {
       ...result,
       contentType: this.resolveContentType(fileKey, result.contentType),
     };
+  }
+
+  async setTrack(
+    file: Express.Multer.File,
+    tags: MetadataTags,
+    suffix: string,
+    albumId: string,
+    artistIds: string[],
+  ): Promise<void> {
+    const fileKey = `${albumId}/${tags.discNumber}-${String(tags.trackNumber).padStart(2, '0')}.${suffix}`;
+
+    await this.storageService.putObject(
+      StorageBucket.Tracks,
+      fileKey,
+      file.buffer,
+      {
+        contentType: file.mimetype,
+        size: file.size,
+        metadata: { originalName: file.originalname },
+      },
+    );
+
+    try {
+      await this.create({
+        title: tags.title,
+        albumId: albumId,
+        fileKey,
+        trackNumber: tags.trackNumber,
+        discNumber: tags.discNumber,
+        duration: tags.duration,
+        size: file.size,
+        suffix,
+        genres: tags.genres,
+        bitRate: tags.bitRate,
+        sampleRate: tags.sampleRate,
+        bitDepth: tags.bitDepth,
+        releaseDate: tags.date,
+        artistIds,
+      });
+    } catch (error) {
+      await this.storageService.deleteObject(StorageBucket.Tracks, fileKey);
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
+        throw new NotFoundException('Track not found');
+      }
+      throw error;
+    }
   }
 
   async updateStar(

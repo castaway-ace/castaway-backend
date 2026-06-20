@@ -10,6 +10,7 @@ import {
   AlbumSummary,
 } from '../types/albums.js';
 import { StorageBucket } from '../types/storage.js';
+import { IPicture } from 'music-metadata';
 
 interface AlbumFilters {
   artistIds?: string[];
@@ -30,6 +31,30 @@ export class AlbumsService {
     private readonly prisma: PrismaService,
     private readonly storageService: StorageService,
   ) {}
+
+  async create(
+    title: string,
+    artistIds: string[],
+    releaseDate: Date,
+  ): Promise<PrismaAlbum> {
+    const album = await this.prisma.album.create({
+      data: {
+        title,
+        releaseDate,
+        albumArtists: {
+          create: artistIds.map((artistId) => ({ artistId })),
+        },
+      },
+    });
+
+    return album;
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.prisma.album.delete({
+      where: { id },
+    });
+  }
 
   async find(id: string): Promise<Album> {
     const album = await this.prisma.album.findUnique({
@@ -132,6 +157,35 @@ export class AlbumsService {
     );
   }
 
+  async setAlbumCover(albumId: string, picture: IPicture): Promise<void> {
+    const fileKey = `${albumId}/cover.jpg`;
+    const coverBuffer = Buffer.from(picture.data);
+
+    await this.storageService.putObject(
+      StorageBucket.AlbumArt,
+      fileKey,
+      coverBuffer,
+      {
+        contentType: picture.format,
+        size: coverBuffer.length,
+        metadata: { source: 'embedded' },
+      },
+    );
+
+    try {
+      await this.updateAlbum(albumId, fileKey);
+    } catch (error) {
+      await this.storageService.deleteObject(StorageBucket.AlbumArt, fileKey);
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
+        throw new NotFoundException('Album not found');
+      }
+      throw error;
+    }
+  }
+
   async findAlbumCoverUrl(id: string): Promise<string | null> {
     const imageKey = await this.findAlbumImageKey(id);
     if (!imageKey) return null;
@@ -181,56 +235,6 @@ export class AlbumsService {
       await this.prisma.albumAnnotation.deleteMany({
         where: { userId, albumId },
       });
-    }
-  }
-
-  async findOrCreateAlbum(
-    title: string,
-    artistIds: string[],
-    releaseDate: Date,
-  ): Promise<PrismaAlbum> {
-    const existing = await this.prisma.album.findFirst({
-      where: {
-        title,
-        AND: artistIds.map((artistId) => ({
-          albumArtists: { some: { artistId } },
-        })),
-      },
-    });
-
-    if (existing) return existing;
-
-    try {
-      return await this.prisma.album.create({
-        data: {
-          title,
-          releaseDate,
-          albumArtists: {
-            create: artistIds.map((artistId) => ({ artistId })),
-          },
-        },
-      });
-    } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
-        const album = await this.prisma.album.findFirst({
-          where: {
-            title,
-            AND: artistIds.map((artistId) => ({
-              albumArtists: { some: { artistId } },
-            })),
-          },
-        });
-        if (!album) {
-          throw new Error(
-            `Album "${title}" had unique conflict but could not be re-fetched`,
-          );
-        }
-        return album;
-      }
-      throw error;
     }
   }
 
