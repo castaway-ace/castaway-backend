@@ -91,6 +91,7 @@ export type PlaylistSummary = Omit<PlaylistSummaryRow, 'tracks'> & {
 
 export type PlaylistTrack = Omit<PlaylistTrackRow, 'track' | 'position'> & {
   id: string;
+  trackId: string;
   genres: string[];
   duration: number;
   trackNumber: number;

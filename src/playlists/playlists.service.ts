@@ -201,12 +201,12 @@ export class PlaylistsService {
 
   async addTrack(
     userId: string,
-    id: string,
+    playlist_id: string,
     trackId: string,
     tx?: Prisma.TransactionClient,
   ): Promise<void> {
     const client = tx ?? this.prisma;
-    const playlist = await this.findPlaylistRecord(id, tx);
+    const playlist = await this.findPlaylistRecord(playlist_id, tx);
 
     if (playlist.ownerId !== userId) {
       throw new NotFoundException('Playlist not found');
@@ -221,13 +221,13 @@ export class PlaylistsService {
       throw new NotFoundException('Track not found');
     }
 
-    const lastPlaylist = await client.playlistTrack.findFirst({
+    const lastPlaylistTrack = await client.playlistTrack.findFirst({
       where: { playlistId: playlist.id },
       orderBy: { position: 'desc' },
       select: { position: true },
     });
 
-    const nextPosition = lastPlaylist ? lastPlaylist.position + 1 : 0;
+    const nextPosition = lastPlaylistTrack ? lastPlaylistTrack.position + 1 : 0;
 
     await client.playlistTrack.create({
       data: {
@@ -254,9 +254,10 @@ export class PlaylistsService {
       orderBy: { position: 'asc' },
     });
 
-    return playlistTracks.map(({ track }) => {
+    return playlistTracks.map(({ track, id }) => {
       return {
-        id: track.id,
+        id,
+        trackId: track.id,
         genres: track.genres,
         duration: track.duration,
         trackNumber: track.trackNumber,
@@ -293,7 +294,8 @@ export class PlaylistsService {
     const track = playlistTrack.track;
 
     return {
-      id: track.id,
+      id: playlistTrack.id,
+      trackId: track.id,
       title: track.title,
       genres: track.genres,
       duration: track.duration,
@@ -306,12 +308,12 @@ export class PlaylistsService {
 
   async deleteTrack(
     userId: string,
-    id: string,
+    playlistId: string,
     trackId: string,
     tx?: Prisma.TransactionClient,
   ): Promise<void> {
     const client = tx ?? this.prisma;
-    const playlistTrack = await this.findTrack(userId, id, trackId, tx);
+    const playlistTrack = await this.findTrack(userId, playlistId, trackId, tx);
 
     await client.playlistTrack.delete({
       where: { id: playlistTrack.id },

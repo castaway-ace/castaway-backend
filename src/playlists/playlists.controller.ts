@@ -104,18 +104,18 @@ export class PlaylistsController {
   @Post('/:id/tracks/:trackId')
   async addTrack(
     @CurrentUser('sub') sub: string,
-    @Param('id') id: string,
+    @Param('id') playlist_id: string,
     @Param('trackId') trackId: string,
   ): Promise<void> {
-    await this.playlistService.addTrack(sub, id, trackId);
+    await this.playlistService.addTrack(sub, playlist_id, trackId);
   }
 
   @Delete('/:id/tracks/:trackId')
   async deleteTrack(
     @CurrentUser('sub') sub: string,
-    @Param('id') id: string,
+    @Param('id') playlist_id: string,
     @Param('trackId') trackId: string,
   ): Promise<void> {
-    await this.playlistService.deleteTrack(sub, id, trackId);
+    await this.playlistService.deleteTrack(sub, playlist_id, trackId);
   }
 }
