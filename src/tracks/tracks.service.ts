@@ -341,9 +341,15 @@ export class TracksService {
     wav: 'audio/wav',
   };
 
+  private readonly mimeAliases: Record<string, string> = {
+    'audio/x-flac': 'audio/flac',
+    'audio/x-wav': 'audio/wav',
+    'audio/x-m4a': 'audio/mp4',
+  };
+
   private resolveContentType(key: string, fromStorage?: string): string {
     if (fromStorage && fromStorage !== 'application/octet-stream') {
-      return fromStorage;
+      return this.mimeAliases[fromStorage] ?? fromStorage;
     }
     const ext = key.split('.').pop()?.toLowerCase() ?? '';
     return this.mimeByExt[ext] ?? 'application/octet-stream';
