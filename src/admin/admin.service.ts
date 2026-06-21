@@ -14,7 +14,7 @@ export class AdminService {
     private readonly albumService: AlbumsService,
   ) {}
 
-  async createArtist(name: string) {
+  async uploadArtist(name: string) {
     await this.artistService.create(name);
   }
 

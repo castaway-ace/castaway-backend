@@ -21,8 +21,8 @@ export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
   @Post('upload/artist')
-  async createArtist(@Body() artistDto: CreateArtistDto): Promise<void> {
-    await this.adminService.createArtist(artistDto.name);
+  async uploadArtist(@Body() artistDto: CreateArtistDto): Promise<void> {
+    await this.adminService.uploadArtist(artistDto.name);
   }
 
   @Post('upload/artist-art/:id')

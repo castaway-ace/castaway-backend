@@ -30,6 +30,12 @@ export const albumSelect = {
       trackNumber: true,
       discNumber: true,
       size: true,
+      album: {
+        select: {
+          id: true,
+          title: true,
+        },
+      },
       trackArtists: {
         select: { artist: { select: { name: true, id: true } } },
       },

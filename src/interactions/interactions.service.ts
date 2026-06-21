@@ -68,12 +68,12 @@ export class InteractionsService {
       survivors.map(async (candidate): Promise<Interaction> => {
         switch (candidate.kind) {
           case InteractionType.ARTIST: {
-            const { artist, ...rest } = candidate.raw;
             return {
-              ...rest,
+              ...candidate.raw,
               type: InteractionType.ARTIST,
-              name: artist.name,
-              coverUrl: await this.artistService.findArtistCover(artist.id),
+              coverUrl: await this.artistService.findArtistCover(
+                candidate.raw.artist.id,
+              ),
             };
           }
           case InteractionType.ALBUM: {
@@ -81,20 +81,21 @@ export class InteractionsService {
             return {
               ...rest,
               type: InteractionType.ALBUM,
-              title: album.title,
+              album: {
+                id: album.id,
+                title: album.title,
+              },
               artists: album.albumArtists.map((aa) => aa.artist),
               coverUrl: await this.albumService.findAlbumCoverUrl(album.id),
             };
           }
           case InteractionType.PLAYLIST: {
-            const { playlist, ...rest } = candidate.raw;
             const covers = await this.playlistService.findPlaylistCovers(
-              playlist.id,
+              candidate.raw.playlist.id,
             );
             return {
-              ...rest,
+              ...candidate.raw,
               type: InteractionType.PLAYLIST,
-              name: playlist.name,
               coverUrls: covers,
             };
           }

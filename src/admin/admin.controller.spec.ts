@@ -15,6 +15,7 @@ describe('AuthController', () => {
     uploadAlbum: jest.fn<AdminService['uploadAlbum']>(),
     uploadArtistArt: jest.fn<AdminService['uploadArtistArt']>(),
     deleteArtist: jest.fn<AdminService['deleteArtist']>(),
+    uploadArtist: jest.fn<AdminService['uploadArtist']>(),
     deleteAlbum: jest.fn<AdminService['deleteAlbum']>(),
   };
 
@@ -87,6 +88,14 @@ describe('AuthController', () => {
         'artist-id',
         mockFile,
       );
+    });
+  });
+
+  describe('uploadArtist', () => {
+    it('passes the files array to the service', async () => {
+      await adminController.uploadArtist({ name: 'test' });
+
+      expect(mockAdminService.uploadArtist).toHaveBeenCalledWith('test');
     });
   });
 

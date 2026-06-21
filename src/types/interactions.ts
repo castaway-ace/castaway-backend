@@ -48,23 +48,24 @@ type AlbumInteractionRow = Prisma.AlbumInteractionGetPayload<{
 type AlbumArtistRow =
   AlbumInteractionRow['album']['albumArtists'][number]['artist'];
 
-export type ArtistInteraction = Omit<ArtistInteractionRow, 'artist'> & {
+export type ArtistInteraction = ArtistInteractionRow & {
   type: InteractionType.ARTIST;
-  name: string;
   coverUrl: string | null;
 };
 
-export type PlaylistInteraction = Omit<PlaylistInteractionRow, 'playlist'> & {
+export type PlaylistInteraction = PlaylistInteractionRow & {
   type: InteractionType.PLAYLIST;
   coverUrls: string[];
-  name: string;
 };
 
 export type AlbumInteraction = Omit<AlbumInteractionRow, 'album'> & {
   type: InteractionType.ALBUM;
-  title: string;
   coverUrl: string | null;
   artists: AlbumArtistRow[];
+  album: {
+    title: string;
+    id: string;
+  };
 };
 
 export type Interaction =
