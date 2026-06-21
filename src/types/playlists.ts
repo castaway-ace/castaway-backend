@@ -43,23 +43,20 @@ export const playlistTrackSelect = {
   position: true,
   track: {
     select: {
-      title: true,
       id: true,
-      trackArtists: {
-        select: {
-          artist: {
-            select: {
-              name: true,
-              id: true,
-            },
-          },
-        },
-      },
+      title: true,
+      genres: true,
+      duration: true,
+      trackNumber: true,
+      discNumber: true,
       album: {
         select: {
-          title: true,
           id: true,
+          title: true,
         },
+      },
+      trackArtists: {
+        select: { artist: { select: { name: true, id: true } } },
       },
     },
   },
@@ -92,8 +89,12 @@ export type PlaylistSummary = Omit<PlaylistSummaryRow, 'tracks'> & {
   albumCoverUrls: string[];
 };
 
-export type PlaylistTrack = Omit<PlaylistTrackRow, 'track'> & {
-  trackId: string;
+export type PlaylistTrack = Omit<PlaylistTrackRow, 'track' | 'position'> & {
+  id: string;
+  genres: string[];
+  duration: number;
+  trackNumber: number;
+  discNumber: number;
   title: string;
   album: PlaylistTrackAlbumRow;
   artists: PlaylistTrackArtistRow[];

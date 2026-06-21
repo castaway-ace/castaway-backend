@@ -22,14 +22,8 @@ export const albumSelect = {
       title: true,
       genres: true,
       duration: true,
-      releaseDate: true,
-      suffix: true,
-      bitRate: true,
-      sampleRate: true,
-      bitDepth: true,
       trackNumber: true,
       discNumber: true,
-      size: true,
       album: {
         select: {
           id: true,

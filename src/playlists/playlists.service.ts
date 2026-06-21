@@ -254,10 +254,13 @@ export class PlaylistsService {
       orderBy: { position: 'asc' },
     });
 
-    return playlistTracks.map(({ track, ...playlistTrack }) => {
+    return playlistTracks.map(({ track }) => {
       return {
-        ...playlistTrack,
-        trackId: track.id,
+        id: track.id,
+        genres: track.genres,
+        duration: track.duration,
+        trackNumber: track.trackNumber,
+        discNumber: track.discNumber,
         title: track.title,
         artists: track.trackArtists.map((ta) => ta.artist),
         album: track.album,
@@ -287,13 +290,17 @@ export class PlaylistsService {
       throw new NotFoundException('Playlist track not found');
     }
 
+    const track = playlistTrack.track;
+
     return {
-      id: playlistTrack.id,
-      position: playlistTrack.position,
-      trackId: playlistTrack.track.id,
-      title: playlistTrack.track.title,
-      artists: playlistTrack.track.trackArtists.map((ta) => ta.artist),
-      album: playlistTrack.track.album,
+      id: track.id,
+      title: track.title,
+      genres: track.genres,
+      duration: track.duration,
+      trackNumber: track.trackNumber,
+      discNumber: track.discNumber,
+      artists: track.trackArtists.map((ta) => ta.artist),
+      album: track.album,
     };
   }
 
