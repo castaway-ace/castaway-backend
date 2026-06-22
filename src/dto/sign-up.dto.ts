@@ -25,7 +25,7 @@ export class SignUpDto {
   readonly password!: string;
 
   @IsString()
-  @MinLength(12)
+  @MinLength(8)
   readonly referralCode!: string;
 
   @ValidateNested()
