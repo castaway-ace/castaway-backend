@@ -105,6 +105,7 @@ model Album {
   releaseDate DateTime @map("release_date") @db.Date
   compilation Boolean  @default(false)
   imageKey    String?  @map("image_key")
+  identityKey String   @unique @map("identity_key")
   genres      String[]
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")

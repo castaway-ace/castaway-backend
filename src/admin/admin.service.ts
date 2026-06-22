@@ -5,6 +5,7 @@ import { TracksService } from '../tracks/tracks.service.js';
 import { ArtistsService } from '../artists/artists.service.js';
 import { AlbumsService } from '../albums/albums.service.js';
 import { MetadataTags, ParsedFile } from '../types/admin.js';
+import { buildAlbumIdentity } from '../utils/album-identity.js';
 
 @Injectable()
 export class AdminService {
@@ -48,9 +49,9 @@ export class AdminService {
 
     const parsedFiles = await this.parseFiles(files);
 
-    this.validateSingleAlbum(parsedFiles);
-
     const artistMap = await this.resolveArtistMap(parsedFiles);
+
+    this.validateSingleAlbum(parsedFiles, artistMap);
 
     const firstTags = parsedFiles[0].tags;
     const albumArtistIds = this.resolveArtistIds(
@@ -165,11 +166,19 @@ export class AdminService {
     });
   }
 
-  private validateSingleAlbum(parsedFiles: ParsedFile[]): void {
-    const identityOf = (tags: MetadataTags): string =>
-      `${tags.albumTitle}::${[...tags.albumArtistNames].sort().join('\u0000')}`;
-
-    const identities = new Set(parsedFiles.map(({ tags }) => identityOf(tags)));
+  private validateSingleAlbum(
+    parsedFiles: ParsedFile[],
+    artistMap: Map<string, string>,
+  ): void {
+    const identities = new Set(
+      parsedFiles.map(({ tags }) => {
+        const albumArtistIds = this.resolveArtistIds(
+          tags.albumArtistNames,
+          artistMap,
+        );
+        return buildAlbumIdentity(tags.albumTitle, albumArtistIds);
+      }),
+    );
 
     if (identities.size > 1) {
       const found = [

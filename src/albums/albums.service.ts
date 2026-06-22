@@ -11,6 +11,7 @@ import {
 } from '../types/albums.js';
 import { StorageBucket } from '../types/storage.js';
 import { IPicture } from 'music-metadata';
+import { buildAlbumIdentity } from '../utils/album-identity.js';
 
 interface AlbumFilters {
   artistIds?: string[];
@@ -37,10 +38,12 @@ export class AlbumsService {
     artistIds: string[],
     releaseDate: Date,
   ): Promise<PrismaAlbum> {
+    const identityKey = buildAlbumIdentity(title, artistIds);
     const album = await this.prisma.album.create({
       data: {
         title,
         releaseDate,
+        identityKey,
         albumArtists: {
           create: artistIds.map((artistId) => ({ artistId })),
         },
