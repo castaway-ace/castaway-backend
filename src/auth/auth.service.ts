@@ -12,7 +12,7 @@ import { AuthTokens } from '../types/auth.js';
 import { DeviceInfoDto } from '../dto/device.dto.js';
 import { DeviceService } from '../device/device.service.js';
 import { randomUUID } from 'crypto';
-import { Prisma } from '../../generated/prisma/client.js';
+import { PlaylistType } from '../../generated/prisma/client.js';
 import { PlaylistsService } from '../playlists/playlists.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { User } from '../types/users.js';
@@ -39,34 +39,37 @@ export class AuthService {
   }
 
   async signUp(signUpDto: SignUpDto): Promise<AuthTokens> {
-    const { email, userName, password, deviceInfo } = signUpDto;
+    const { email, userName, password, deviceInfo, referralCode } = signUpDto;
 
     const passwordHash = await this.hashPassword(password);
 
-    let newUser: User;
-
-    try {
-      newUser = await this.prisma.$transaction(async (tx) => {
-        const user = await this.userService.create(
-          {
-            email,
-            userName,
-            passwordHash,
-          },
-          tx,
-        );
-        await this.playlistService.createLiked(user.id, tx);
-        return user;
+    const newUser = await this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          email,
+          userName,
+          passwordHash,
+        },
       });
-    } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
-        throw new BadRequestException('User already exists');
+
+      const claim = await tx.referralCode.updateMany({
+        where: { code: referralCode, usedAt: null },
+        data: { usedAt: new Date(), usedById: user.id },
+      });
+
+      if (claim.count === 0) {
+        throw new BadRequestException('Invalid or already used referral code');
       }
-      throw error;
-    }
+
+      await tx.playlist.create({
+        data: {
+          ownerId: user.id,
+          name: 'Liked Songs',
+          type: PlaylistType.LIKED,
+        },
+      });
+      return user;
+    });
 
     return this.issueTokensForDevice(newUser, deviceInfo);
   }

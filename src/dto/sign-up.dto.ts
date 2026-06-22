@@ -24,6 +24,10 @@ export class SignUpDto {
   @Matches(/[0-9]/, { message: 'Password must contain a number' })
   readonly password!: string;
 
+  @IsString()
+  @MinLength(12)
+  readonly referralCode!: string;
+
   @ValidateNested()
   @Type(() => DeviceInfoDto)
   @IsNotEmpty()

@@ -45,16 +45,6 @@ export class PlaylistsService {
     return playlist;
   }
 
-  async createLiked(
-    userId: string,
-    tx?: Prisma.TransactionClient,
-  ): Promise<void> {
-    const client = tx ?? this.prisma;
-    await client.playlist.create({
-      data: { ownerId: userId, name: 'Liked Songs', type: PlaylistType.LIKED },
-    });
-  }
-
   async findPlaylistRecord(
     id: string,
     tx?: Prisma.TransactionClient,

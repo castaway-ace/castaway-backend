@@ -1,5 +1,4 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from 'generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   User,
@@ -33,12 +32,8 @@ export class UserService {
     return user;
   }
 
-  async create(
-    user: UserCreateData,
-    tx?: Prisma.TransactionClient,
-  ): Promise<User> {
-    const client = tx ?? this.prisma;
-    return client.user.create({
+  async create(user: UserCreateData): Promise<User> {
+    return this.prisma.user.create({
       data: user,
     });
   }
