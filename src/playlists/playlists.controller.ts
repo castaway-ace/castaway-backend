@@ -16,6 +16,7 @@ import { PlaylistsService } from './playlists.service.js';
 import { PlaylistDto, PlaylistQueryDto } from '../dto/playlist.dto.js';
 import {
   Playlist,
+  PlaylistIdentity,
   PlaylistSummary,
   PlaylistTrack,
 } from '../types/playlists.js';
@@ -58,8 +59,8 @@ export class PlaylistsController {
   async create(
     @CurrentUser('sub') sub: string,
     @Body() playlistDto: PlaylistDto,
-  ): Promise<void> {
-    await this.playlistService.create(sub, playlistDto.name);
+  ): Promise<PlaylistIdentity> {
+    return this.playlistService.create(sub, playlistDto.name);
   }
 
   @Patch('/:id')

@@ -1,7 +1,7 @@
-export const buildAlbumIdentity = (
+export function buildAlbumIdentity(
   title: string,
   albumArtistIds: string[],
-): string => {
+): string {
   const sortedIds = [...albumArtistIds].sort();
-  return `${title}\u0000${sortedIds.join('\u0000')}`;
-};
+  return [title, ...sortedIds].join('|');
+}

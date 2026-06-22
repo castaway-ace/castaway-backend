@@ -33,13 +33,16 @@ export class PlaylistsService {
     private readonly albumService: AlbumsService,
   ) {}
 
-  async create(userId: string, name: string): Promise<void> {
-    await this.prisma.playlist.create({
+  async create(userId: string, name: string): Promise<PlaylistIdentity> {
+    const playlist = await this.prisma.playlist.create({
       data: {
         ownerId: userId,
         name,
       },
+      select: playlistIdentitySelect,
     });
+
+    return playlist;
   }
 
   async createLiked(
