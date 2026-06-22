@@ -17,6 +17,7 @@ describe('AuthController', () => {
     deleteArtist: jest.fn<AdminService['deleteArtist']>(),
     uploadArtist: jest.fn<AdminService['uploadArtist']>(),
     deleteAlbum: jest.fn<AdminService['deleteAlbum']>(),
+    createReferralCode: jest.fn<AdminService['createReferralCode']>(),
   };
 
   const mockFile = {
@@ -112,6 +113,16 @@ describe('AuthController', () => {
       await adminController.deleteAlbum('album-id');
 
       expect(mockAdminService.deleteAlbum).toHaveBeenCalledWith('album-id');
+    });
+  });
+
+  describe('createReferralCode', () => {
+    it('passes the id to the service', async () => {
+      await adminController.createReferralCode('user-id');
+
+      expect(mockAdminService.createReferralCode).toHaveBeenCalledWith(
+        'user-id',
+      );
     });
   });
 });

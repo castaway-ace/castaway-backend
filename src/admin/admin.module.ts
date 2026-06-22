@@ -5,9 +5,16 @@ import { AlbumsModule } from '../albums/albums.module.js';
 import { ArtistsModule } from '../artists/artists.module.js';
 import { TracksModule } from '../tracks/tracks.module.js';
 import { GuardModule } from '../auth/guard.module.js';
+import { ReferralCodeModule } from '../referral-code/referral-code.module.js';
 
 @Module({
-  imports: [TracksModule, AlbumsModule, ArtistsModule, GuardModule],
+  imports: [
+    TracksModule,
+    AlbumsModule,
+    ArtistsModule,
+    GuardModule,
+    ReferralCodeModule,
+  ],
   controllers: [AdminController],
   providers: [AdminService],
   exports: [AdminService],

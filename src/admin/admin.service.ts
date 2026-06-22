@@ -6,6 +6,7 @@ import { ArtistsService } from '../artists/artists.service.js';
 import { AlbumsService } from '../albums/albums.service.js';
 import { MetadataTags, ParsedFile } from '../types/admin.js';
 import { buildAlbumIdentity } from '../utils/album-identity.js';
+import { ReferralCodeService } from '../referral-code/referral-code.service.js';
 
 @Injectable()
 export class AdminService {
@@ -13,6 +14,7 @@ export class AdminService {
     private readonly trackService: TracksService,
     private readonly artistService: ArtistsService,
     private readonly albumService: AlbumsService,
+    private readonly referralCodeService: ReferralCodeService,
   ) {}
 
   async uploadArtist(name: string) {
@@ -25,6 +27,10 @@ export class AdminService {
 
   async deleteAlbum(id: string) {
     await this.albumService.delete(id);
+  }
+
+  async createReferralCode(user_id: string) {
+    await this.referralCodeService.create(user_id);
   }
 
   async uploadArtistArt(

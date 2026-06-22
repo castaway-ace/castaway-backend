@@ -14,6 +14,7 @@ import { AuthGuard } from '../auth/guards/auth.guard.js';
 import { AdminService } from './admin.service.js';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { CreateArtistDto } from '../dto/artist.dto.js';
+import { CurrentUser } from '../auth/decorators/user.decorator.js';
 
 @Controller('admin')
 @UseGuards(AuthGuard, AdminGuard)
@@ -50,5 +51,10 @@ export class AdminController {
   @Delete('delete/album/:id')
   async deleteAlbum(@Param('id') id: string): Promise<void> {
     await this.adminService.deleteAlbum(id);
+  }
+
+  @Post('create/referral-code')
+  async createReferralCode(@CurrentUser('sub') sub: string): Promise<void> {
+    await this.adminService.createReferralCode(sub);
   }
 }
