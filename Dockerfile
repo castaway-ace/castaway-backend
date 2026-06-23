@@ -12,6 +12,7 @@
    COPY package*.json ./
    COPY --from=development /usr/src/app/node_modules ./node_modules
    COPY . .
+   RUN npx prisma generate
    RUN npm run build
    ENV NODE_ENV production
    RUN npm ci --only=production && npm cache clean --force
