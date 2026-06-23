@@ -5,6 +5,11 @@ export type UserCreateData = Pick<
   'userName' | 'email' | 'passwordHash'
 >;
 
+export type AdminUserCreateData = Pick<
+  Prisma.UserCreateInput,
+  'userName' | 'email' | 'passwordHash' | 'isAdmin'
+>;
+
 export const userSelect = {
   id: true,
   email: true,

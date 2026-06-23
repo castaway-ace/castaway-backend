@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
+  AdminUserCreateData,
   User,
   UserCreateData,
   userSelect,
@@ -34,6 +35,12 @@ export class UserService {
 
   async create(user: UserCreateData): Promise<User> {
     return this.prisma.user.create({
+      data: user,
+    });
+  }
+
+  async createAdmin(user: AdminUserCreateData): Promise<void> {
+    await this.prisma.user.create({
       data: user,
     });
   }

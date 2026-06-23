@@ -13,7 +13,6 @@ import { DeviceInfoDto } from '../dto/device.dto.js';
 import { DeviceService } from '../device/device.service.js';
 import { randomUUID } from 'crypto';
 import { PlaylistType } from '../../generated/prisma/client.js';
-import { PlaylistsService } from '../playlists/playlists.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { User } from '../types/users.js';
 
@@ -21,7 +20,6 @@ import { User } from '../types/users.js';
 export class AuthService {
   constructor(
     private readonly userService: UserService,
-    private readonly playlistService: PlaylistsService,
     private readonly refreshTokenService: RefreshTokenService,
     private readonly deviceService: DeviceService,
     private readonly prisma: PrismaService,
@@ -41,7 +39,7 @@ export class AuthService {
   async signUp(signUpDto: SignUpDto): Promise<AuthTokens> {
     const { email, userName, password, deviceInfo, referralCode } = signUpDto;
 
-    const passwordHash = await this.hashPassword(password);
+    const passwordHash = await argon2.hash(password);
 
     const newUser = await this.prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
@@ -80,10 +78,6 @@ export class AuthService {
 
   async logout(refreshToken: string): Promise<void> {
     await this.refreshTokenService.revokeByToken(refreshToken);
-  }
-
-  async hashPassword(data: string): Promise<string> {
-    return await argon2.hash(data);
   }
 
   private async issueTokensForDevice(
