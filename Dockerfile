@@ -12,6 +12,9 @@
    COPY package*.json ./
    COPY --from=development /usr/src/app/node_modules ./node_modules
    COPY . .
+
+   COPY prisma ./prisma
+
    RUN npx prisma generate
    RUN npm run build
    ENV NODE_ENV production
@@ -23,4 +26,5 @@
    WORKDIR /usr/src/app
    COPY --from=build /usr/src/app/node_modules ./node_modules
    COPY --from=build /usr/src/app/dist ./dist
+   COPY --from=build /usr/src/app/prisma ./prisma
    CMD ["node", "dist/main.js"]
