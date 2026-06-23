@@ -39,9 +39,6 @@ services:
         condition: service_healthy
       storage:
         condition: service_healthy
-    volumes:
-      - .:/usr/src/app
-      - /usr/src/app/node_modules
     command: npm run start:prod
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/health"]
