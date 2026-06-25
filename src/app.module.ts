@@ -17,6 +17,7 @@ import { RefreshTokenModule } from './refresh-token/refresh-token.module.js';
 import { InteractionsModule } from './interactions/interactions.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { ReferralCodeModule } from './referral-code/referral-code.module.js';
+import { OpenApiModule } from './openapi/openapi.module.js';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { ReferralCodeModule } from './referral-code/referral-code.module.js';
     RefreshTokenModule,
     InteractionsModule,
     ReferralCodeModule,
+    OpenApiModule,
   ],
   controllers: [AppController],
   providers: [AppService],

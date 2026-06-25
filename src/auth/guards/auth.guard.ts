@@ -31,7 +31,7 @@ export class AuthGuard implements CanActivate {
           secret: this.configService.get<string>('JWT_ACCESS_SECRET'),
         },
       );
-      request['user'] = payload;
+      request.user = payload;
     } catch {
       throw new UnauthorizedException();
     }
