@@ -9,6 +9,7 @@ import {
   Min,
 } from 'class-validator';
 import { ToBoolean, ToInt } from '../utils/dto-transforms.js';
+import { ApiProperty } from '@nestjs/swagger';
 
 export interface PlaylistOrderOptions {
   order: 'name' | 'added';
@@ -44,6 +45,7 @@ export class PlaylistQueryDto {
 }
 
 export class PlaylistDto {
+  @ApiProperty()
   @IsString()
   @IsNotEmpty()
   readonly name!: string;

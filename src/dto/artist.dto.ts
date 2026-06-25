@@ -10,6 +10,7 @@ import {
   IsString,
 } from 'class-validator';
 import { ToBoolean, ToInt } from '../utils/dto-transforms.js';
+import { ApiProperty } from '@nestjs/swagger';
 
 export interface ArtistOrderOptions {
   order: 'name';
@@ -51,6 +52,7 @@ export class ArtistQueryDto {
 }
 
 export class CreateArtistDto {
+  @ApiProperty()
   @IsString()
   @MinLength(1)
   @MaxLength(100)
