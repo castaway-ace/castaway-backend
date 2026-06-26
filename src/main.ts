@@ -24,7 +24,7 @@ const bootstrap = async () => {
     const swaggerPassword = process.env.SWAGGER_PASSWORD as string;
 
     app.use(
-      ['/docs', '/docs-json'],
+      ['/docs', '/docs-json', '/docs-yaml'],
       basicAuth({
         challenge: true,
         users: {
