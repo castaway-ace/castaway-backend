@@ -2,7 +2,9 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { OpenApiService } from './openapi/openapi.service.js';
+import basicAuth from 'express-basic-auth';
+
+const ENVS = ['development'];
 
 const bootstrap = async () => {
   const app = await NestFactory.create(AppModule);
@@ -15,26 +17,38 @@ const bootstrap = async () => {
     }),
   );
 
-  const port = process.env.PORT ?? 3000;
+  const env = process.env.NODE_ENV as string;
 
-  const config = new DocumentBuilder()
-    .setTitle('Castaway')
-    .setDescription('Castaway API')
-    .setVersion('0.1')
-    .addBearerAuth()
-    .build();
+  if (ENVS.includes(env)) {
+    const swaggerUsername = process.env.SWAGGER_USERNAME as string;
+    const swaggerPassword = process.env.SWAGGER_PASSWORD as string;
 
-  const document = SwaggerModule.createDocument(app, config);
+    app.use(
+      ['/docs', '/docs-json'],
+      basicAuth({
+        challenge: true,
+        users: {
+          [swaggerUsername]: swaggerPassword,
+        },
+      }),
+    );
 
-  app.get(OpenApiService).setDocument(document);
+    const config = new DocumentBuilder()
+      .setTitle('Castaway')
+      .setDescription('The API documentation')
+      .setVersion('0.1')
+      .addBearerAuth()
+      .build();
 
-  if (process.env.NODE_ENV !== 'production') {
-    SwaggerModule.setup('api', app, document);
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('docs', app, document);
   }
 
-  await app.listen(port);
+  const PORT = process.env.PORT ?? 3000;
 
-  console.log(`Castaway running on http://localhost:${port}`);
+  await app.listen(PORT);
+
+  console.log(`Castaway running on http://localhost:${PORT}`);
 };
 
 await bootstrap();
