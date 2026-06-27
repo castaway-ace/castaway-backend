@@ -4,7 +4,7 @@ import { AlbumsService } from '../albums/albums.service.js';
 import { TracksService } from '../tracks/tracks.service.js';
 import { TrackSummary } from '../types/tracks.js';
 import { AlbumSummary } from '../albums/albums.types.js';
-import { ArtistSummary } from '../types/artists.js';
+import { ArtistSummary } from '../artists/artists.types.js';
 
 export interface SearchResults {
   artists: ArtistSummary[];

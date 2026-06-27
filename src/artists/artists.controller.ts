@@ -12,7 +12,8 @@ import { AuthGuard } from '../auth/guards/auth.guard.js';
 import { ArtistsService } from './artists.service.js';
 import { CurrentUser } from '../auth/decorators/user.decorator.js';
 import { ArtistQueryDto } from '../dto/artist.dto.js';
-import { Artist, ArtistSummary } from '../types/artists.js';
+import { ApiOkResponse } from '@nestjs/swagger';
+import { ArtistEntity, ArtistSummaryEntity } from './artists.entity.js';
 
 @Controller('artists')
 @UseGuards(AuthGuard)
@@ -20,10 +21,11 @@ export class ArtistsController {
   constructor(private readonly artistService: ArtistsService) {}
 
   @Get()
+  @ApiOkResponse({ type: ArtistSummaryEntity, isArray: true })
   async findAll(
     @CurrentUser('sub') sub: string,
     @Query() query: ArtistQueryDto,
-  ): Promise<ArtistSummary[]> {
+  ): Promise<ArtistSummaryEntity[]> {
     return this.artistService.findAll(sub, {
       filters: {
         starred: query.starred,
@@ -37,11 +39,12 @@ export class ArtistsController {
   }
 
   @Get(':id')
+  @ApiOkResponse({ type: ArtistEntity })
   async find(
     @CurrentUser('sub') sub: string,
     @Param('id') id: string,
-  ): Promise<Artist & { starred: boolean }> {
-    const artist = await this.artistService.findWithStarred(sub, id);
+  ): Promise<ArtistEntity> {
+    const artist = await this.artistService.find(sub, id);
 
     return artist;
   }

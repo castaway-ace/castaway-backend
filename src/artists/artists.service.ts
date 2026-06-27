@@ -9,8 +9,9 @@ import {
   artistSelect,
   ArtistSummary,
   artistSummarySelect,
-} from '../types/artists.js';
+} from './artists.types.js';
 import { StorageBucket } from '../types/storage.js';
+import { ArtistEntity } from './artists.entity.js';
 
 interface ArtistFilters {
   starred?: boolean;
@@ -42,7 +43,7 @@ export class ArtistsService {
     });
   }
 
-  async find(id: string): Promise<Artist> {
+  async find(userId: string, id: string): Promise<ArtistEntity> {
     const artist = await this.prisma.artist.findUnique({
       where: { id },
       select: artistSelect,
@@ -52,7 +53,13 @@ export class ArtistsService {
       throw new NotFoundException('Artist does not exist');
     }
 
-    return this.toArtist(artist);
+    const annotation = await this.prisma.artistAnnotation.findUnique({
+      where: { userId_artistId: { userId, artistId: id } },
+    });
+
+    const adjustedArtist = this.toArtist(artist);
+
+    return { ...adjustedArtist, starred: !!annotation };
   }
 
   async findIdsByNames(names: string[]): Promise<Map<string, string>> {
@@ -61,19 +68,6 @@ export class ArtistsService {
       select: { name: true, id: true },
     });
     return new Map(artists.map((artist) => [artist.name, artist.id]));
-  }
-
-  async findWithStarred(
-    userId: string,
-    id: string,
-  ): Promise<Artist & { starred: boolean }> {
-    const artist = await this.find(id);
-
-    const annotation = await this.prisma.artistAnnotation.findUnique({
-      where: { userId_artistId: { userId, artistId: id } },
-    });
-
-    return { ...artist, starred: !!annotation };
   }
 
   async findAll(
