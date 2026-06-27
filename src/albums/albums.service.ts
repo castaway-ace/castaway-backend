@@ -9,7 +9,7 @@ import {
   albumSummarySelect,
   AlbumSummary,
 } from './albums.types.js';
-import { StorageBucket } from '../types/storage.js';
+import { StorageBucket } from '../storage/storage.types.js';
 import { IPicture } from 'music-metadata';
 import { buildAlbumIdentity } from '../utils/album-identity.js';
 

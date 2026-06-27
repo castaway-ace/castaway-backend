@@ -10,7 +10,7 @@ import {
   ArtistSummary,
   artistSummarySelect,
 } from './artists.types.js';
-import { StorageBucket } from '../types/storage.js';
+import { StorageBucket } from '../storage/storage.types.js';
 import { ArtistEntity } from './artists.entity.js';
 
 interface ArtistFilters {

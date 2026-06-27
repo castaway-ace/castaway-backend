@@ -13,7 +13,7 @@ import {
   TrackSummary,
   trackSummarySelect,
 } from '../types/tracks.js';
-import { StorageBucket } from '../types/storage.js';
+import { StorageBucket } from '../storage/storage.types.js';
 import { PlaylistsService } from '../playlists/playlists.service.js';
 import { MetadataTags } from '../types/admin.js';
 
