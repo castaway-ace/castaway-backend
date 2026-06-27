@@ -3,7 +3,7 @@ import { ArtistsService } from '../artists/artists.service.js';
 import { AlbumsService } from '../albums/albums.service.js';
 import { TracksService } from '../tracks/tracks.service.js';
 import { TrackSummary } from '../types/tracks.js';
-import { AlbumSummary } from '../types/albums.js';
+import { AlbumSummary } from '../albums/albums.types.js';
 import { ArtistSummary } from '../types/artists.js';
 
 export interface SearchResults {

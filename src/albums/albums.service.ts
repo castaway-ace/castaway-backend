@@ -8,7 +8,7 @@ import {
   albumSelect,
   albumSummarySelect,
   AlbumSummary,
-} from '../types/albums.js';
+} from './albums.types.js';
 import { StorageBucket } from '../types/storage.js';
 import { IPicture } from 'music-metadata';
 import { buildAlbumIdentity } from '../utils/album-identity.js';
