@@ -9,7 +9,7 @@ import request from 'supertest';
 import { App } from 'supertest/types.js';
 import { MockMetadata, ModuleMocker } from 'jest-mock';
 import { AuthController } from './auth.controller.js';
-import { AuthTokens } from '../types/auth.js';
+import { AuthTokens } from './auth.types.js';
 import { AuthService } from './auth.service.js';
 import { AuthGuard } from './guards/auth.guard.js';
 

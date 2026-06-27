@@ -10,7 +10,7 @@ import { AuthService } from './auth.service.js';
 import { LoginDto } from '../dto/login.dto.js';
 import { SignUpDto } from '../dto/sign-up.dto.js';
 import { AuthGuard } from './guards/auth.guard.js';
-import { AuthTokens } from '../types/auth.js';
+import { AuthTokens } from './auth.types.js';
 import { RefreshTokenDto } from '../dto/refresh-token.dto.js';
 
 @Controller('auth')

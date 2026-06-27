@@ -13,7 +13,7 @@ import {
 } from './tracks.types.js';
 import { StorageBucket } from '../storage/storage.types.js';
 import { PlaylistsService } from '../playlists/playlists.service.js';
-import { MetadataTags } from '../types/admin.js';
+import { MetadataTags } from '../admin/admin.types.js';
 import { TrackEntity, TrackSummaryEntity } from './tracks.entity.js';
 
 interface TrackFilters {

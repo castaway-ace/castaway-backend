@@ -1,10 +1,10 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { mimeToSuffix } from '../types/constants.js';
+import { mimeToSuffix } from '../common/constants.js';
 import { IAudioMetadata, parseBuffer } from 'music-metadata';
 import { TracksService } from '../tracks/tracks.service.js';
 import { ArtistsService } from '../artists/artists.service.js';
 import { AlbumsService } from '../albums/albums.service.js';
-import { MetadataTags, ParsedFile } from '../types/admin.js';
+import { MetadataTags, ParsedFile } from './admin.types.js';
 import { buildAlbumIdentity } from '../utils/album-identity.js';
 import { ReferralCodeService } from '../referral-code/referral-code.service.js';
 

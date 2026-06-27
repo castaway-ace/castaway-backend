@@ -1,6 +1,6 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { AuthTokens, RefreshTokenInput, TokenPayload } from '../types/auth.js';
+import { AuthTokens, RefreshTokenInput, TokenPayload } from '../auth/auth.types.js';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { type StringValue } from 'ms';
