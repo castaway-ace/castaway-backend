@@ -9,7 +9,7 @@ export class ArtistEntity implements Artist {
   @ApiProperty()
   name!: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: String, nullable: true })
   bio!: string | null;
 
   @ApiProperty()

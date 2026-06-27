@@ -9,14 +9,45 @@ import {
 import { AuthGuard } from '../auth/guards/auth.guard.js';
 import { InteractionsService } from './interactions.service.js';
 import { CurrentUser } from '../auth/decorators/user.decorator.js';
-import { Interaction } from '../types/interactions.js';
+import { Interaction } from './interactions.types.js';
+import { ApiExtraModels, ApiOkResponse, getSchemaPath } from '@nestjs/swagger';
+import {
+  ArtistInteractionEntity,
+  PlaylistInteractionEntity,
+  AlbumInteractionEntity,
+} from './interactions.entity.js';
 
 @Controller('interactions')
+@ApiExtraModels(
+  ArtistInteractionEntity,
+  PlaylistInteractionEntity,
+  AlbumInteractionEntity,
+)
 @UseGuards(AuthGuard)
 export class InteractionsController {
   constructor(private readonly interactionsService: InteractionsService) {}
 
   @Get()
+  @ApiOkResponse({
+    schema: {
+      type: 'array',
+      items: {
+        oneOf: [
+          { $ref: getSchemaPath(ArtistInteractionEntity) },
+          { $ref: getSchemaPath(PlaylistInteractionEntity) },
+          { $ref: getSchemaPath(AlbumInteractionEntity) },
+        ],
+        discriminator: {
+          propertyName: 'type',
+          mapping: {
+            artist: getSchemaPath(ArtistInteractionEntity),
+            playlist: getSchemaPath(PlaylistInteractionEntity),
+            album: getSchemaPath(AlbumInteractionEntity),
+          },
+        },
+      },
+    },
+  })
   async findAll(@CurrentUser('sub') sub: string): Promise<Interaction[]> {
     return this.interactionsService.findAll(sub);
   }

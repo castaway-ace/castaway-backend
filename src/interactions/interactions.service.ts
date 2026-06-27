@@ -6,7 +6,7 @@ import {
   Interaction,
   InteractionType,
   playlistInteractionSelect,
-} from '../types/interactions.js';
+} from './interactions.types.js';
 import { PlaylistsService } from '../playlists/playlists.service.js';
 import { ArtistsService } from '../artists/artists.service.js';
 import { AlbumsService } from '../albums/albums.service.js';

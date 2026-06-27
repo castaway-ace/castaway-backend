@@ -8,21 +8,18 @@ export enum InteractionType {
 
 export const artistInteractionSelect = {
   id: true,
-  userId: true,
   updatedAt: true,
   artist: { select: { name: true, id: true } },
 } satisfies Prisma.ArtistInteractionSelect;
 
 export const playlistInteractionSelect = {
   id: true,
-  userId: true,
   updatedAt: true,
   playlist: { select: { name: true, id: true } },
 } satisfies Prisma.PlaylistInteractionSelect;
 
 export const albumInteractionSelect = {
   id: true,
-  userId: true,
   updatedAt: true,
   album: {
     select: {
