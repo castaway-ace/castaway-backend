@@ -3,6 +3,7 @@ services:
     image: postgres:16-alpine
     ports:
       - "5432:5432"
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
@@ -19,6 +20,7 @@ services:
     build:
       context: .
       target: production
+    restart: unless-stopped
     ports:
       - "3000:3000"
     environment:
@@ -53,6 +55,7 @@ services:
 
   storage:
     image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    restart: unless-stopped
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -70,6 +73,7 @@ services:
   
   cloudflared:
     image: cloudflare/cloudflared:latest
+    restart: unless-stopped
     command: tunnel --no-autoupdate run
     environment:
       - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
