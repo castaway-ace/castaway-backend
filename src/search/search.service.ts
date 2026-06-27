@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ArtistsService } from '../artists/artists.service.js';
 import { AlbumsService } from '../albums/albums.service.js';
 import { TracksService } from '../tracks/tracks.service.js';
-import { TrackSummary } from '../types/tracks.js';
+import { TrackSummary } from '../tracks/tracks.types.js';
 import { AlbumSummary } from '../albums/albums.types.js';
 import { ArtistSummary } from '../artists/artists.types.js';
 

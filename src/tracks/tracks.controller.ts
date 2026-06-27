@@ -16,8 +16,9 @@ import { AuthGuard } from '../auth/guards/auth.guard.js';
 import { TracksService } from './tracks.service.js';
 import { CurrentUser } from '../auth/decorators/user.decorator.js';
 import { TrackQueryDto } from '../dto/track.dto.js';
-import { Track, TrackSummary } from '../types/tracks.js';
 import type { Response } from 'express';
+import { ApiOkResponse } from '@nestjs/swagger';
+import { TrackEntity, TrackSummaryEntity } from './tracks.entity.js';
 
 @Controller('tracks')
 @UseGuards(AuthGuard)
@@ -25,10 +26,11 @@ export class TracksController {
   constructor(private readonly trackService: TracksService) {}
 
   @Get()
+  @ApiOkResponse({ type: TrackSummaryEntity, isArray: true })
   async findAll(
     @CurrentUser('sub') sub: string,
     @Query() query: TrackQueryDto,
-  ): Promise<TrackSummary[]> {
+  ): Promise<TrackSummaryEntity[]> {
     return this.trackService.findAll(sub, {
       filters: {
         artistIds: query.artistIds,
@@ -50,7 +52,8 @@ export class TracksController {
   }
 
   @Get(':id')
-  async find(@Param('id') id: string): Promise<Track> {
+  @ApiOkResponse({ type: TrackEntity })
+  async find(@Param('id') id: string): Promise<TrackEntity> {
     const track = await this.trackService.find(id);
 
     return track;

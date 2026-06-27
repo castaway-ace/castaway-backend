@@ -7,15 +7,14 @@ import {
 } from '../storage/storage.service.js';
 import { TrackOrderOptions } from '../dto/track.dto.js';
 import {
-  Track,
   TrackCreateData,
   trackSelect,
-  TrackSummary,
   trackSummarySelect,
-} from '../types/tracks.js';
+} from './tracks.types.js';
 import { StorageBucket } from '../storage/storage.types.js';
 import { PlaylistsService } from '../playlists/playlists.service.js';
 import { MetadataTags } from '../types/admin.js';
+import { TrackEntity, TrackSummaryEntity } from './tracks.entity.js';
 
 interface TrackFilters {
   artistIds?: string[];
@@ -77,7 +76,7 @@ export class TracksService {
     });
   }
 
-  async find(id: string): Promise<Track> {
+  async find(id: string): Promise<TrackEntity> {
     const track = await this.prisma.track.findUnique({
       where: { id },
       select: trackSelect,
@@ -117,7 +116,7 @@ export class TracksService {
   async findAll(
     userId: string,
     options: TrackQueryOptions,
-  ): Promise<TrackSummary[]> {
+  ): Promise<TrackSummaryEntity[]> {
     const where = this.buildWhere(options.filters, userId);
     const orderBy = this.buildOrderBy(options?.orderOptions);
 
