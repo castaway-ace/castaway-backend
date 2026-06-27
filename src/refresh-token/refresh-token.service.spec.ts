@@ -3,7 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { MockMetadata, ModuleMocker } from 'jest-mock';
 import { RefreshTokenService } from './refresh-token.service.js';
 import { ConfigService } from '@nestjs/config';
-import { RefreshTokenWithDevice } from '../types/refresh-token.js';
+import { RefreshTokenWithDevice } from './refresh-token.types.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { UserService } from '../user/user.service.js';
 
