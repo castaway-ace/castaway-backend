@@ -13,7 +13,7 @@ import { AlbumsService } from './albums.service.js';
 import { CurrentUser } from '../auth/decorators/user.decorator.js';
 import { AlbumQueryDto } from '../dto/album.dto.js';
 import { ApiOkResponse } from '@nestjs/swagger';
-import { AlbumEntity, AlbumSummaryEntity } from './album.entity.js';
+import { AlbumEntity, AlbumSummaryEntity } from './albums.entity.js';
 
 @Controller('albums')
 @UseGuards(AuthGuard)
