@@ -14,7 +14,7 @@ import { DeviceService } from '../device/device.service.js';
 import { randomUUID } from 'crypto';
 import { PlaylistType } from '../../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { User } from '../types/users.js';
+import { User } from '../user/users.types.js';
 
 @Injectable()
 export class AuthService {

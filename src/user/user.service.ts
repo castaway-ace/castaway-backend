@@ -2,12 +2,12 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   AdminUserCreateData,
-  User,
   UserCreateData,
   userSelect,
   UserWithPassword,
   userWithPasswordSelect,
-} from '../types/users.js';
+} from './users.types.js';
+import { UserEntity } from './user.entity.js';
 
 @Injectable()
 export class UserService {
@@ -20,7 +20,7 @@ export class UserService {
     });
   }
 
-  async findById(id: string): Promise<User> {
+  async findById(id: string): Promise<UserEntity> {
     const user = await this.prisma.user.findUnique({
       where: { id },
       select: userSelect,
@@ -33,7 +33,7 @@ export class UserService {
     return user;
   }
 
-  async create(user: UserCreateData): Promise<User> {
+  async create(user: UserCreateData): Promise<UserEntity> {
     return this.prisma.user.create({
       data: user,
     });
