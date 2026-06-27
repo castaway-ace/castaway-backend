@@ -1,20 +1,19 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { PlaylistType, Prisma } from '../../generated/prisma/client.js';
+import { PlaylistOrderOptions } from '../dto/playlist.dto.js';
+import { AlbumsService } from '../albums/albums.service.js';
+import { PlaylistEntity, PlaylistTrackEntity } from './playlist.entity.js';
 import {
-  Playlist,
   PlaylistIdentity,
   playlistIdentitySelect,
-  PlaylistRow,
   playlistSelect,
   PlaylistSummary,
   playlistSummarySelect,
-  PlaylistTrack,
   playlistTrackSelect,
+  PlaylistRow,
   PlaylistTracksRow,
-} from '../types/playlists.js';
-import { PlaylistOrderOptions } from '../dto/playlist.dto.js';
-import { AlbumsService } from '../albums/albums.service.js';
+} from './playlists.types.js';
 
 interface PlaylistFilters {
   onlyUser?: boolean;
@@ -79,7 +78,7 @@ export class PlaylistsService {
     return playlist;
   }
 
-  async find(id: string): Promise<Playlist> {
+  async find(id: string): Promise<PlaylistEntity> {
     const playlist = await this.prisma.playlist.findUnique({
       where: { id },
       select: playlistSelect,
@@ -92,7 +91,7 @@ export class PlaylistsService {
     return this.enrichWithCovers(playlist);
   }
 
-  async findLiked(userId: string): Promise<Playlist> {
+  async findLiked(userId: string): Promise<PlaylistEntity> {
     const playlist = await this.prisma.playlist.findFirst({
       where: { ownerId: userId, type: PlaylistType.LIKED },
       select: playlistSelect,
@@ -234,7 +233,7 @@ export class PlaylistsService {
   async findTracks(
     userId: string,
     playlistId: string,
-  ): Promise<PlaylistTrack[]> {
+  ): Promise<PlaylistTrackEntity[]> {
     const playlist = await this.findPlaylistRecord(playlistId);
 
     if (playlist.ownerId !== userId) {
@@ -267,7 +266,7 @@ export class PlaylistsService {
     playlistId: string,
     trackId: string,
     tx?: Prisma.TransactionClient,
-  ): Promise<PlaylistTrack> {
+  ): Promise<PlaylistTrackEntity> {
     const client = tx ?? this.prisma;
     const playlist = await this.findPlaylistRecord(playlistId, tx);
 
@@ -313,7 +312,9 @@ export class PlaylistsService {
     });
   }
 
-  private async enrichWithCovers(playlist: PlaylistRow): Promise<Playlist> {
+  private async enrichWithCovers(
+    playlist: PlaylistRow,
+  ): Promise<PlaylistEntity> {
     const uniqueAlbumIds = this.getUniqueAlbumIds(playlist.tracks);
     const albumCoverUrls =
       await this.albumService.findAlbumCoverMap(uniqueAlbumIds);

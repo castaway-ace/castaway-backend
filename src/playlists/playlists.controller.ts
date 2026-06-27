@@ -14,12 +14,13 @@ import { AuthGuard } from '../auth/guards/auth.guard.js';
 import { CurrentUser } from '../auth/decorators/user.decorator.js';
 import { PlaylistsService } from './playlists.service.js';
 import { PlaylistDto, PlaylistQueryDto } from '../dto/playlist.dto.js';
+import { PlaylistIdentity } from './playlists.types.js';
 import {
-  Playlist,
-  PlaylistIdentity,
-  PlaylistSummary,
-  PlaylistTrack,
-} from '../types/playlists.js';
+  PlaylistEntity,
+  PlaylistSummaryEntity,
+  PlaylistTrackEntity,
+} from './playlist.entity.js';
+import { ApiOkResponse } from '@nestjs/swagger';
 
 @Controller('playlists')
 @UseGuards(AuthGuard)
@@ -27,10 +28,11 @@ export class PlaylistsController {
   constructor(private readonly playlistService: PlaylistsService) {}
 
   @Get('/:id')
+  @ApiOkResponse({ type: PlaylistEntity })
   async find(
     @CurrentUser('sub') sub: string,
     @Param('id') id: string,
-  ): Promise<Playlist> {
+  ): Promise<PlaylistEntity> {
     const playlist = await this.playlistService.find(id);
 
     if (playlist.ownerId !== sub) {
@@ -40,10 +42,11 @@ export class PlaylistsController {
   }
 
   @Get('')
+  @ApiOkResponse({ type: PlaylistSummaryEntity, isArray: true })
   async findAll(
     @CurrentUser('sub') sub: string,
     @Query() query: PlaylistQueryDto,
-  ): Promise<PlaylistSummary[]> {
+  ): Promise<PlaylistSummaryEntity[]> {
     return await this.playlistService.findAll(sub, {
       filters: {
         onlyUser: query.onlyUser,
@@ -85,7 +88,7 @@ export class PlaylistsController {
     @CurrentUser('sub') sub: string,
     @Param('id') id: string,
     @Param('trackId') trackId: string,
-  ): Promise<PlaylistTrack> {
+  ): Promise<PlaylistTrackEntity> {
     const playlistTrack = await this.playlistService.findTrack(
       sub,
       id,
@@ -95,10 +98,11 @@ export class PlaylistsController {
   }
 
   @Get('/:id/tracks')
+  @ApiOkResponse({ type: PlaylistTrackEntity, isArray: true })
   async findTracks(
     @CurrentUser('sub') sub: string,
     @Param('id') id: string,
-  ): Promise<PlaylistTrack[]> {
+  ): Promise<PlaylistTrackEntity[]> {
     return await this.playlistService.findTracks(sub, id);
   }
 
