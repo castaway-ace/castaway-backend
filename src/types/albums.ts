@@ -68,6 +68,7 @@ export type AlbumTrack = Omit<AlbumTrackRow, 'trackArtists'> & {
 export type Album = Omit<AlbumRow, 'albumArtists' | 'tracks'> & {
   artists: AlbumArtistRow[];
   tracks: AlbumTrack[];
+  starred: boolean;
 };
 
 export type AlbumSummary = Omit<AlbumSummaryRow, 'albumArtists'> & {

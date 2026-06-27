@@ -33,7 +33,7 @@ export class SignUpDto {
   @MinLength(8)
   readonly referralCode!: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: () => DeviceInfoDto })
   @ValidateNested()
   @Type(() => DeviceInfoDto)
   @IsNotEmpty()

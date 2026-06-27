@@ -59,7 +59,7 @@ export class AlbumsService {
     });
   }
 
-  async find(id: string): Promise<Album> {
+  async find(userId: string, id: string): Promise<Album> {
     const album = await this.prisma.album.findUnique({
       where: { id },
       select: albumSelect,
@@ -78,28 +78,20 @@ export class AlbumsService {
         (a, b) => a.discNumber - b.discNumber || a.trackNumber - b.trackNumber,
       );
 
+    const annotation = await this.prisma.albumAnnotation.findUnique({
+      where: { userId_albumId: { userId, albumId: id } },
+    });
+
     return {
       id: album.id,
       title: album.title,
       releaseDate: album.releaseDate,
       compilation: album.compilation,
       genres: album.genres,
+      starred: !!annotation,
       artists: album.albumArtists.map((ta) => ta.artist),
       tracks,
     };
-  }
-
-  async findWithStarred(
-    userId: string,
-    id: string,
-  ): Promise<Album & { starred: boolean }> {
-    const album = await this.find(id);
-
-    const annotation = await this.prisma.albumAnnotation.findUnique({
-      where: { userId_albumId: { userId, albumId: id } },
-    });
-
-    return { ...album, starred: !!annotation };
   }
 
   async findAll(

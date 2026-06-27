@@ -23,7 +23,7 @@ export class LoginDto {
   @Matches(/[0-9]/, { message: 'Password must contain a number' })
   readonly password!: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: () => DeviceInfoDto })
   @ValidateNested()
   @Type(() => DeviceInfoDto)
   @IsNotEmpty()
