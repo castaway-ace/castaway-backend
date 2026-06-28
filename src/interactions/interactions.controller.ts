@@ -10,7 +10,13 @@ import { AuthGuard } from '../auth/guards/auth.guard.js';
 import { InteractionsService } from './interactions.service.js';
 import { CurrentUser } from '../auth/decorators/user.decorator.js';
 import { Interaction } from './interactions.types.js';
-import { ApiExtraModels, ApiOkResponse, getSchemaPath } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiExtraModels,
+  ApiOkResponse,
+  ApiTags,
+  getSchemaPath,
+} from '@nestjs/swagger';
 import {
   ArtistInteractionEntity,
   PlaylistInteractionEntity,
@@ -24,6 +30,8 @@ import {
   AlbumInteractionEntity,
 )
 @UseGuards(AuthGuard)
+@ApiBearerAuth()
+@ApiTags('Interactions')
 export class InteractionsController {
   constructor(private readonly interactionsService: InteractionsService) {}
 
