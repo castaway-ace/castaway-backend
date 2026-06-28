@@ -11,12 +11,14 @@ import {
 import { AuthGuard } from '../auth/guards/auth.guard.js';
 import { AlbumsService } from './albums.service.js';
 import { CurrentUser } from '../auth/decorators/user.decorator.js';
-import { AlbumQueryDto } from '../dto/album.dto.js';
-import { ApiOkResponse } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { AlbumEntity, AlbumSummaryEntity } from './albums.entity.js';
+import { AlbumQueryDto } from './dto/album-query.dto.js';
 
 @Controller('albums')
 @UseGuards(AuthGuard)
+@ApiBearerAuth()
+@ApiTags('Albums')
 export class AlbumsController {
   constructor(private readonly albumService: AlbumsService) {}
 
@@ -33,7 +35,7 @@ export class AlbumsController {
         starred: query.starred,
         search: query.search,
       },
-      orderOptions: query.order
+      sortOptions: query.order
         ? { order: query.order, orderBy: query.orderBy ?? 'asc' }
         : undefined,
       pagination: { limit: query.limit, offset: query.offset },

@@ -1,5 +1,4 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { AlbumSortOptions as AlbumOrderOptions } from '../dto/album.dto.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { StorageService } from '../storage/storage.service.js';
 import { Prisma, Album as PrismaAlbum } from '../../generated/prisma/client.js';
@@ -12,6 +11,7 @@ import {
 import { StorageBucket } from '../storage/storage.types.js';
 import { IPicture } from 'music-metadata';
 import { buildAlbumIdentity } from '../utils/album-identity.js';
+import { AlbumSortOptions, AlbumSortOrder } from './dto/album-query.dto.js';
 
 interface AlbumFilters {
   artistIds?: string[];
@@ -22,7 +22,7 @@ interface AlbumFilters {
 
 interface AlbumQueryOptions {
   filters?: AlbumFilters;
-  orderOptions?: AlbumOrderOptions;
+  sortOptions?: AlbumSortOptions;
   pagination?: { limit?: number; offset?: number };
 }
 
@@ -99,7 +99,7 @@ export class AlbumsService {
     options: AlbumQueryOptions,
   ): Promise<AlbumSummary[]> {
     const where = this.buildWhere(options.filters, userId);
-    const orderBy = this.buildOrderBy(options?.orderOptions);
+    const orderBy = this.buildOrderBy(options?.sortOptions);
 
     const requestedLimit = options.pagination?.limit ?? 100;
     const take = Math.min(Math.max(requestedLimit, 1), 200);
@@ -273,7 +273,7 @@ export class AlbumsService {
   }
 
   private static readonly SORT_FIELD_MAP: Record<
-    AlbumOrderOptions['order'],
+    AlbumSortOrder,
     (direction: Prisma.SortOrder) => Prisma.AlbumOrderByWithRelationInput
   > = {
     title: (direction) => ({ title: direction }),
@@ -282,7 +282,7 @@ export class AlbumsService {
   };
 
   private buildOrderBy(
-    orderOptions?: AlbumOrderOptions,
+    orderOptions?: AlbumSortOptions,
   ): Prisma.AlbumOrderByWithRelationInput {
     const ordering = orderOptions ?? { order: 'title', orderBy: 'asc' };
     const orderBy = AlbumsService.SORT_FIELD_MAP[ordering.order];
