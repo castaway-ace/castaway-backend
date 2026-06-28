@@ -1,37 +1,28 @@
 import { Type } from 'class-transformer';
 import {
   IsString,
-  IsEmail,
   IsNotEmpty,
   MinLength,
+  MaxLength,
   ValidateNested,
+  IsEmail,
   Matches,
 } from 'class-validator';
-import { DeviceDto } from '../device/dto/device.dto.js';
 import { ApiProperty } from '@nestjs/swagger';
+import { DeviceDto } from '../../device/dto/device.dto.js';
 
-export class SignUpDto {
-  @ApiProperty()
-  @IsString()
-  @IsNotEmpty()
-  readonly userName!: string;
-
-  @ApiProperty()
+export class LoginDto {
+  @ApiProperty({ format: 'email', maxLength: 254 })
   @IsEmail()
-  @IsNotEmpty()
+  @MaxLength(254)
   readonly email!: string;
 
-  @ApiProperty()
+  @ApiProperty({ format: 'password', minLength: 12 })
   @IsString()
   @MinLength(12)
   @Matches(/[A-Z]/, { message: 'Password must contain an uppercase letter' })
   @Matches(/[0-9]/, { message: 'Password must contain a number' })
   readonly password!: string;
-
-  @ApiProperty()
-  @IsString()
-  @MinLength(8)
-  readonly referralCode!: string;
 
   @ApiProperty({ type: () => DeviceDto })
   @ValidateNested()

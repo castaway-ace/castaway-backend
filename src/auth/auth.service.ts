@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { UserService } from '../user/user.service.js';
 import * as argon2 from 'argon2';
-import { SignUpDto } from '../dto/sign-up.dto.js';
+import { SignUpDto } from './dto/sign-up.dto.js';
 import { RefreshTokenService } from '../refresh-token/refresh-token.service.js';
 import { LoginDto } from '../dto/login.dto.js';
 import { AuthTokens } from './auth.types.js';
