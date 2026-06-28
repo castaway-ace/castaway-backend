@@ -21,7 +21,7 @@ import { AuthGuard } from './guards/auth.guard.js';
 import { LoginDto } from './dto/login.dto.js';
 import { SignUpDto } from './dto/sign-up.dto.js';
 import { AuthTokensEntity } from './entities/auth-tokens.entity.js';
-import { RefreshTokenDto } from '../dto/refresh-token.dto.js';
+import { RefreshTokenDto } from './dto/refresh-token.dto.js';
 
 @Controller('auth')
 @ApiTags('Auth')

@@ -1,17 +1,26 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { AuthTokens, RefreshTokenInput, TokenPayload } from '../auth/auth.types.js';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { type StringValue } from 'ms';
 import ms from 'ms';
 import { createHash, randomBytes } from 'crypto';
 import { UserService } from '../user/user.service.js';
+import { AuthTokensEntity } from '../auth/entities/auth-tokens.entity.js';
+import { RefreshTokenInput, TokenPayload } from './refresh-token.types.js';
 
 interface JwtConfig {
   accessSecret: string;
   accessExpiresIn: StringValue;
+  accessExpiresInMs: number;
   refreshExpiresIn: StringValue;
+  refreshExpiresInMs: number;
+}
+
+interface IssuedTokens {
+  accessToken: string;
+  refreshToken: string;
+  refreshExpiresAt: Date;
 }
 
 @Injectable()
@@ -31,7 +40,7 @@ export class RefreshTokenService {
     await this.prisma.refreshToken.create({ data: input });
   }
 
-  async rotate(rawRefreshToken: string): Promise<AuthTokens> {
+  async rotate(rawRefreshToken: string): Promise<AuthTokensEntity> {
     const tokenHash = this.hashToken(rawRefreshToken);
 
     const existingRefreshToken = await this.prisma.refreshToken.findUnique({
@@ -39,34 +48,34 @@ export class RefreshTokenService {
       include: { device: true },
     });
 
-    if (!existingRefreshToken)
+    if (!existingRefreshToken) {
       throw new UnauthorizedException('Invalid refresh token');
-    if (existingRefreshToken.expiresAt < new Date()) {
-      throw new UnauthorizedException('Refresh token expired');
     }
+
     if (existingRefreshToken.invalidatedAt !== null) {
       throw new UnauthorizedException('Refresh token invalidated');
     }
+
     if (existingRefreshToken.usedAt !== null) {
       await this.revokeFamily(existingRefreshToken.familyId);
       throw new UnauthorizedException('Refresh token reuse detected');
+    }
+
+    if (existingRefreshToken.expiresAt < new Date()) {
+      throw new UnauthorizedException('Refresh token expired');
     }
 
     const user = await this.userService.findById(
       existingRefreshToken.device.userId,
     );
 
-    const {
-      accessToken,
-      refreshToken: newRawRefreshToken,
-      refreshExpiresAt,
-    } = await this.generateTokens({
+    const issued = await this.generateTokens({
       sub: user.id,
       deviceId: existingRefreshToken.deviceId,
       isAdmin: user.isAdmin,
     });
 
-    const newTokenHash = this.hashToken(newRawRefreshToken);
+    const newTokenHash = this.hashToken(issued.refreshToken);
 
     const claimed = await this.prisma.$transaction(async (tx) => {
       const claim = await tx.refreshToken.updateMany({
@@ -87,7 +96,7 @@ export class RefreshTokenService {
           deviceId: existingRefreshToken.deviceId,
           familyId: existingRefreshToken.familyId,
           tokenHash: newTokenHash,
-          expiresAt: refreshExpiresAt,
+          expiresAt: issued.refreshExpiresAt,
         },
       });
 
@@ -105,15 +114,36 @@ export class RefreshTokenService {
     });
 
     if (!claimed) {
-      throw new UnauthorizedException('Concurrent rotation detected');
+      await this.handleFailedClaim(existingRefreshToken.id);
+      throw new UnauthorizedException('Refresh token reuse detected');
     }
 
-    return { accessToken, refreshToken: newRawRefreshToken };
+    return {
+      accessToken: issued.accessToken,
+      refreshToken: issued.refreshToken,
+    };
   }
 
-  async generateTokens(
-    payload: TokenPayload,
-  ): Promise<AuthTokens & { refreshExpiresAt: Date }> {
+  private async handleFailedClaim(tokenId: string): Promise<void> {
+    const current = await this.prisma.refreshToken.findUnique({
+      where: { id: tokenId },
+      select: { usedAt: true, invalidatedAt: true, familyId: true },
+    });
+
+    if (!current) {
+      return;
+    }
+
+    if (current.invalidatedAt !== null) {
+      return;
+    }
+
+    if (current.usedAt !== null) {
+      await this.revokeFamily(current.familyId);
+    }
+  }
+
+  async generateTokens(payload: TokenPayload): Promise<IssuedTokens> {
     const accessToken = await this.jwtService.signAsync(payload, {
       secret: this.jwtConfig.accessSecret,
       expiresIn: this.jwtConfig.accessExpiresIn,
@@ -121,7 +151,7 @@ export class RefreshTokenService {
 
     const refreshToken = randomBytes(32).toString('base64url');
     const refreshExpiresAt = new Date(
-      Date.now() + ms(this.jwtConfig.refreshExpiresIn),
+      Date.now() + this.jwtConfig.refreshExpiresInMs,
     );
 
     return { accessToken, refreshToken, refreshExpiresAt };
@@ -149,7 +179,7 @@ export class RefreshTokenService {
     });
   }
 
-  hashToken(token: string): string {
+  private hashToken(token: string): string {
     return createHash('sha256').update(token).digest('hex');
   }
 
@@ -164,10 +194,27 @@ export class RefreshTokenService {
       throw new Error('JWT configuration is incomplete');
     }
 
+    const accessExpiresInMs = ms(accessExpiresIn as StringValue);
+    const refreshExpiresInMs = ms(refreshExpiresIn as StringValue);
+
+    if (!Number.isFinite(accessExpiresInMs) || accessExpiresInMs <= 0) {
+      throw new Error(
+        `JWT_ACCESS_EXPIRATION is not a valid duration: ${accessExpiresIn}`,
+      );
+    }
+
+    if (!Number.isFinite(refreshExpiresInMs) || refreshExpiresInMs <= 0) {
+      throw new Error(
+        `JWT_REFRESH_EXPIRATION is not a valid duration: ${refreshExpiresIn}`,
+      );
+    }
+
     return {
       accessSecret,
       accessExpiresIn: accessExpiresIn as StringValue,
+      accessExpiresInMs,
       refreshExpiresIn: refreshExpiresIn as StringValue,
+      refreshExpiresInMs,
     };
   }
 }
