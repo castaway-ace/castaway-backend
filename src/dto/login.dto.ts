@@ -7,7 +7,7 @@ import {
   IsEmail,
   Matches,
 } from 'class-validator';
-import { DeviceInfoDto } from './device.dto.js';
+import { DeviceDto } from '../device/dto/device.dto.js';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class LoginDto {
@@ -23,9 +23,9 @@ export class LoginDto {
   @Matches(/[0-9]/, { message: 'Password must contain a number' })
   readonly password!: string;
 
-  @ApiProperty({ type: () => DeviceInfoDto })
+  @ApiProperty({ type: () => DeviceDto })
   @ValidateNested()
-  @Type(() => DeviceInfoDto)
+  @Type(() => DeviceDto)
   @IsNotEmpty()
-  readonly deviceInfo!: DeviceInfoDto;
+  readonly deviceInfo!: DeviceDto;
 }

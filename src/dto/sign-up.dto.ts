@@ -7,7 +7,7 @@ import {
   ValidateNested,
   Matches,
 } from 'class-validator';
-import { DeviceInfoDto } from './device.dto.js';
+import { DeviceDto } from '../device/dto/device.dto.js';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class SignUpDto {
@@ -33,9 +33,9 @@ export class SignUpDto {
   @MinLength(8)
   readonly referralCode!: string;
 
-  @ApiProperty({ type: () => DeviceInfoDto })
+  @ApiProperty({ type: () => DeviceDto })
   @ValidateNested()
-  @Type(() => DeviceInfoDto)
+  @Type(() => DeviceDto)
   @IsNotEmpty()
-  readonly deviceInfo!: DeviceInfoDto;
+  readonly deviceInfo!: DeviceDto;
 }

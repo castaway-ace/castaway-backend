@@ -1,18 +1,18 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
 
-export class DeviceInfoDto {
-  @ApiProperty()
+export class DeviceDto {
+  @ApiProperty({ format: 'uuid' })
   @IsNotEmpty()
   @IsUUID()
   readonly clientId!: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   readonly name?: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   readonly model?: string;
