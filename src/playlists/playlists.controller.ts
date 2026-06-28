@@ -3,6 +3,8 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   NotFoundException,
   Param,
   Patch,
@@ -13,33 +15,30 @@ import {
 import { AuthGuard } from '../auth/guards/auth.guard.js';
 import { CurrentUser } from '../auth/decorators/user.decorator.js';
 import { PlaylistsService } from './playlists.service.js';
-import { PlaylistDto, PlaylistQueryDto } from '../dto/playlist.dto.js';
 import { PlaylistIdentity } from './playlists.types.js';
 import {
   PlaylistEntity,
   PlaylistSummaryEntity,
   PlaylistTrackEntity,
 } from './playlist.entity.js';
-import { ApiOkResponse } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiNoContentResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import { PlaylistQueryDto } from './dto/playlist-query.dto.js';
+import { CreatePlaylistDto } from './dto/create-playlist.dto.js';
+import { PlaylistRef } from '../common/entities/references.entity.js';
 
 @Controller('playlists')
 @UseGuards(AuthGuard)
+@ApiBearerAuth()
+@ApiTags('Playlists')
 export class PlaylistsController {
   constructor(private readonly playlistService: PlaylistsService) {}
-
-  @Get('/:id')
-  @ApiOkResponse({ type: PlaylistEntity })
-  async find(
-    @CurrentUser('sub') sub: string,
-    @Param('id') id: string,
-  ): Promise<PlaylistEntity> {
-    const playlist = await this.playlistService.find(id);
-
-    if (playlist.ownerId !== sub) {
-      throw new NotFoundException('Playlist not found');
-    }
-    return playlist;
-  }
 
   @Get('')
   @ApiOkResponse({ type: PlaylistSummaryEntity, isArray: true })
@@ -58,24 +57,45 @@ export class PlaylistsController {
     });
   }
 
+  @Get('/:id')
+  @ApiOkResponse({ type: PlaylistEntity })
+  async find(
+    @CurrentUser('sub') sub: string,
+    @Param('id') id: string,
+  ): Promise<PlaylistEntity> {
+    const playlist = await this.playlistService.find(id);
+
+    if (playlist.ownerId !== sub) {
+      throw new NotFoundException('Playlist not found');
+    }
+    return playlist;
+  }
+
   @Post('')
+  @ApiCreatedResponse({ type: PlaylistRef })
   async create(
     @CurrentUser('sub') sub: string,
-    @Body() playlistDto: PlaylistDto,
+    @Body() playlistDto: CreatePlaylistDto,
   ): Promise<PlaylistIdentity> {
     return this.playlistService.create(sub, playlistDto.name);
   }
 
   @Patch('/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContentResponse()
+  @ApiNotFoundResponse({ description: 'Playlist not found.' })
   async update(
     @CurrentUser('sub') sub: string,
     @Param('id') id: string,
-    @Body() playlistDto: PlaylistDto,
+    @Body() playlistDto: CreatePlaylistDto,
   ): Promise<void> {
     await this.playlistService.update(sub, id, playlistDto.name);
   }
 
   @Delete('/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContentResponse()
+  @ApiNotFoundResponse({ description: 'Playlist not found.' })
   async delete(
     @CurrentUser('sub') sub: string,
     @Param('id') id: string,
@@ -83,7 +103,19 @@ export class PlaylistsController {
     await this.playlistService.delete(sub, id);
   }
 
+  @Get('/:id/tracks')
+  @ApiOkResponse({ type: PlaylistTrackEntity, isArray: true })
+  @ApiNotFoundResponse({ description: 'Playlist not found.' })
+  async findTracks(
+    @CurrentUser('sub') sub: string,
+    @Param('id') id: string,
+  ): Promise<PlaylistTrackEntity[]> {
+    return await this.playlistService.findTracks(sub, id);
+  }
+
   @Get('/:id/tracks/:trackId')
+  @ApiOkResponse({ type: PlaylistTrackEntity })
+  @ApiNotFoundResponse({ description: 'Playlist or track not found.' })
   async findTrack(
     @CurrentUser('sub') sub: string,
     @Param('id') id: string,
@@ -97,16 +129,10 @@ export class PlaylistsController {
     return playlistTrack;
   }
 
-  @Get('/:id/tracks')
-  @ApiOkResponse({ type: PlaylistTrackEntity, isArray: true })
-  async findTracks(
-    @CurrentUser('sub') sub: string,
-    @Param('id') id: string,
-  ): Promise<PlaylistTrackEntity[]> {
-    return await this.playlistService.findTracks(sub, id);
-  }
-
   @Post('/:id/tracks/:trackId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContentResponse()
+  @ApiNotFoundResponse({ description: 'Playlist or track not found.' })
   async addTrack(
     @CurrentUser('sub') sub: string,
     @Param('id') playlist_id: string,
@@ -116,6 +142,9 @@ export class PlaylistsController {
   }
 
   @Delete('/:id/tracks/:trackId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContentResponse()
+  @ApiNotFoundResponse({ description: 'Playlist or track not found.' })
   async deleteTrack(
     @CurrentUser('sub') sub: string,
     @Param('id') playlist_id: string,
