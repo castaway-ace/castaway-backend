@@ -9,7 +9,7 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
-import { ToBoolean, ToInt, ToStringArray } from '../utils/dto-transforms.js';
+import { ToBoolean, ToInt, ToStringArray } from '../../utils/dto-transforms.js';
 
 export interface TrackOrderOptions {
   order: 'title' | 'album' | 'year' | 'added';

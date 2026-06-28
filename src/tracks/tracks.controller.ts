@@ -15,18 +15,29 @@ import {
 import { AuthGuard } from '../auth/guards/auth.guard.js';
 import { TracksService } from './tracks.service.js';
 import { CurrentUser } from '../auth/decorators/user.decorator.js';
-import { TrackQueryDto } from '../dto/track.dto.js';
+import { TrackQueryDto } from './dto/track-query.dto.js';
 import type { Response } from 'express';
-import { ApiOkResponse } from '@nestjs/swagger';
+import {
+  ApiBadRequestResponse,
+  ApiBearerAuth,
+  ApiNoContentResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiProduces,
+  ApiTags,
+} from '@nestjs/swagger';
 import { TrackEntity, TrackSummaryEntity } from './tracks.entity.js';
 
 @Controller('tracks')
 @UseGuards(AuthGuard)
+@ApiBearerAuth()
+@ApiTags('Tracks')
 export class TracksController {
   constructor(private readonly trackService: TracksService) {}
 
   @Get()
   @ApiOkResponse({ type: TrackSummaryEntity, isArray: true })
+  @ApiBadRequestResponse({ description: 'Invalid query parameters.' })
   async findAll(
     @CurrentUser('sub') sub: string,
     @Query() query: TrackQueryDto,
@@ -47,12 +58,14 @@ export class TracksController {
   }
 
   @Get('starred')
+  @ApiOkResponse({ type: String, isArray: true })
   async getStarred(@CurrentUser('sub') sub: string): Promise<string[]> {
     return this.trackService.findStarredTrackIds(sub);
   }
 
   @Get(':id')
   @ApiOkResponse({ type: TrackEntity })
+  @ApiNotFoundResponse({ description: 'Track not found.' })
   async find(@Param('id') id: string): Promise<TrackEntity> {
     const track = await this.trackService.find(id);
 
@@ -60,6 +73,11 @@ export class TracksController {
   }
 
   @Get(':id/stream')
+  @ApiProduces('audio/mpeg', 'audio/flac', 'audio/ogg', 'audio/wav')
+  @ApiOkResponse({
+    description: 'Audio stream. Returns 206 Partial Content when Range is set.',
+  })
+  @ApiNotFoundResponse({ description: 'Track not found.' })
   async findTrackStream(
     @Param('id') id: string,
     @Res({ passthrough: true }) res: Response,
@@ -83,6 +101,8 @@ export class TracksController {
 
   @Post(':id/star')
   @HttpCode(204)
+  @ApiNoContentResponse()
+  @ApiNotFoundResponse({ description: 'Track not found.' })
   async star(
     @CurrentUser('sub') sub: string,
     @Param('id') id: string,
@@ -92,6 +112,8 @@ export class TracksController {
 
   @Delete(':id/star')
   @HttpCode(204)
+  @ApiNoContentResponse()
+  @ApiNotFoundResponse({ description: 'Track not found.' })
   async unStar(
     @CurrentUser('sub') sub: string,
     @Param('id') id: string,
