@@ -13,8 +13,8 @@ import { AdminGuard } from '../auth/guards/admin.guard.js';
 import { AuthGuard } from '../auth/guards/auth.guard.js';
 import { AdminService } from './admin.service.js';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
-import { CreateArtistDto } from '../dto/artist.dto.js';
 import { CurrentUser } from '../auth/decorators/user.decorator.js';
+import { CreateArtistDto } from '../artists/dto/artist-query.dto.js';
 
 @Controller('admin')
 @UseGuards(AuthGuard, AdminGuard)

@@ -4,10 +4,10 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { type StringValue } from 'ms';
 import ms from 'ms';
-import { createHash, randomBytes } from 'crypto';
+import { createHash, randomBytes, randomUUID } from 'crypto';
 import { UserService } from '../user/user.service.js';
 import { AuthTokensEntity } from '../auth/entities/auth-tokens.entity.js';
-import { RefreshTokenInput, TokenPayload } from './refresh-token.types.js';
+import { TokenPayload } from './refresh-token.types.js';
 
 interface JwtConfig {
   accessSecret: string;
@@ -34,10 +34,6 @@ export class RefreshTokenService {
     private readonly configService: ConfigService,
   ) {
     this.jwtConfig = this.loadJwtConfig(configService);
-  }
-
-  async issue(input: RefreshTokenInput): Promise<void> {
-    await this.prisma.refreshToken.create({ data: input });
   }
 
   async rotate(rawRefreshToken: string): Promise<AuthTokensEntity> {
@@ -170,6 +166,24 @@ export class RefreshTokenService {
     }
 
     await this.revokeFamily(token.familyId);
+  }
+
+  async issueForDevice(payload: TokenPayload): Promise<AuthTokensEntity> {
+    const issued = await this.generateTokens(payload);
+
+    await this.prisma.refreshToken.create({
+      data: {
+        deviceId: payload.deviceId,
+        familyId: randomUUID(),
+        tokenHash: this.hashToken(issued.refreshToken),
+        expiresAt: issued.refreshExpiresAt,
+      },
+    });
+
+    return {
+      accessToken: issued.accessToken,
+      refreshToken: issued.refreshToken,
+    };
   }
 
   private async revokeFamily(familyId: string): Promise<void> {
