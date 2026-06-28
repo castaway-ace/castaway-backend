@@ -11,12 +11,11 @@ import {
 } from 'class-validator';
 import { ToStringArray, ToBoolean, ToInt } from '../../utils/dto-transforms.js';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { SORT_DIRECTIONS, type SortDirection } from '../../common/dto/sort.js';
 
 export const ALBUM_SORT_ORDERS = ['title', 'year', 'added'] as const;
-export const SORT_DIRECTIONS = ['asc', 'desc'] as const;
 
 export type AlbumSortOrder = (typeof ALBUM_SORT_ORDERS)[number];
-export type SortDirection = (typeof SORT_DIRECTIONS)[number];
 
 export interface AlbumSortOptions {
   order: AlbumSortOrder;

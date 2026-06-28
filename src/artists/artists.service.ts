@@ -2,7 +2,6 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { StorageService } from '../storage/storage.service.js';
 import { Prisma } from '../../generated/prisma/client.js';
-import { ArtistOrderOptions } from '../dto/artist.dto.js';
 import {
   Artist,
   ArtistRow,
@@ -12,6 +11,7 @@ import {
 } from './artists.types.js';
 import { StorageBucket } from '../storage/storage.types.js';
 import { ArtistEntity } from './artists.entity.js';
+import { ArtistOrderOptions, ArtistSortOrder } from './dto/artist-query.dto.js';
 
 interface ArtistFilters {
   starred?: boolean;
@@ -20,7 +20,7 @@ interface ArtistFilters {
 
 interface ArtistQueryOptions {
   filters?: ArtistFilters;
-  orderOptions?: ArtistOrderOptions;
+  sortOptions?: ArtistOrderOptions;
   pagination?: { limit?: number; offset?: number };
 }
 
@@ -75,7 +75,7 @@ export class ArtistsService {
     options: ArtistQueryOptions,
   ): Promise<ArtistSummary[]> {
     const where = this.buildWhere(options.filters, userId);
-    const orderBy = this.buildOrderBy(options?.orderOptions);
+    const orderBy = this.buildOrderBy(options?.sortOptions);
 
     const requestedLimit = options.pagination?.limit ?? 100;
     const take = Math.min(Math.max(requestedLimit, 1), 200);
@@ -235,7 +235,7 @@ export class ArtistsService {
   }
 
   private static readonly SORT_FIELD_MAP: Record<
-    ArtistOrderOptions['order'],
+    ArtistSortOrder,
     (direction: Prisma.SortOrder) => Prisma.ArtistOrderByWithRelationInput
   > = {
     name: (direction) => ({ name: direction }),

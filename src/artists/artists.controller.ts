@@ -11,12 +11,14 @@ import {
 import { AuthGuard } from '../auth/guards/auth.guard.js';
 import { ArtistsService } from './artists.service.js';
 import { CurrentUser } from '../auth/decorators/user.decorator.js';
-import { ArtistQueryDto } from '../dto/artist.dto.js';
-import { ApiOkResponse } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { ArtistEntity, ArtistSummaryEntity } from './artists.entity.js';
+import { ArtistQueryDto } from './dto/artist-query.dto.js';
 
 @Controller('artists')
 @UseGuards(AuthGuard)
+@ApiBearerAuth()
+@ApiTags('Artists')
 export class ArtistsController {
   constructor(private readonly artistService: ArtistsService) {}
 
@@ -31,7 +33,7 @@ export class ArtistsController {
         starred: query.starred,
         search: query.search,
       },
-      orderOptions: query.order
+      sortOptions: query.order
         ? { order: query.order, orderBy: query.orderBy ?? 'asc' }
         : undefined,
       pagination: { limit: query.limit, offset: query.offset },
