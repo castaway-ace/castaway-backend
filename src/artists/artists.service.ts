@@ -12,6 +12,8 @@ import {
 import { StorageBucket } from '../storage/storage.types.js';
 import { ArtistEntity } from './artists.entity.js';
 import { ArtistOrderOptions, ArtistSortOrder } from './dto/artist-query.dto.js';
+import { ArtistRef } from '../common/entities/references.entity.js';
+import { createReadStream } from 'fs';
 
 interface ArtistFilters {
   starred?: boolean;
@@ -31,9 +33,10 @@ export class ArtistsService {
     private readonly storageService: StorageService,
   ) {}
 
-  async create(name: string): Promise<void> {
-    await this.prisma.artist.create({
+  create(name: string): Promise<ArtistRef> {
+    return this.prisma.artist.create({
       data: { name },
+      select: { id: true, name: true },
     });
   }
 
@@ -132,7 +135,7 @@ export class ArtistsService {
     );
   }
 
-  async setArtistArt(
+  async setArtistImage(
     artistId: string,
     file: Express.Multer.File,
   ): Promise<void> {
@@ -141,7 +144,7 @@ export class ArtistsService {
     await this.storageService.putObject(
       StorageBucket.ArtistArt,
       fileKey,
-      file.buffer,
+      createReadStream(file.path),
       {
         contentType: file.mimetype,
         size: file.size,

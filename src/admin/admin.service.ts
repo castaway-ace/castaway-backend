@@ -1,15 +1,21 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { mimeToSuffix } from '../common/constants.js';
-import { IAudioMetadata, parseBuffer } from 'music-metadata';
+import { IAudioMetadata, parseFile } from 'music-metadata';
+import { unlink } from 'fs/promises';
 import { TracksService } from '../tracks/tracks.service.js';
 import { ArtistsService } from '../artists/artists.service.js';
 import { AlbumsService } from '../albums/albums.service.js';
 import { MetadataTags, ParsedFile } from './admin.types.js';
 import { buildAlbumIdentity } from '../utils/album-identity.js';
 import { ReferralCodeService } from '../referral-code/referral-code.service.js';
+import { ArtistRef } from '../common/entities/references.entity.js';
+import { ReferralCodeEntity } from '../referral-code/referral-code.entity.js';
+
+const TRACK_UPLOAD_CONCURRENCY = 4;
 
 @Injectable()
 export class AdminService {
+  private readonly logger = new Logger(AdminService.name);
   constructor(
     private readonly trackService: TracksService,
     private readonly artistService: ArtistsService,
@@ -17,23 +23,23 @@ export class AdminService {
     private readonly referralCodeService: ReferralCodeService,
   ) {}
 
-  async uploadArtist(name: string) {
-    await this.artistService.create(name);
+  uploadArtist(name: string): Promise<ArtistRef> {
+    return this.artistService.create(name);
   }
 
-  async deleteArtist(id: string) {
+  async deleteArtist(id: string): Promise<void> {
     await this.artistService.delete(id);
   }
 
-  async deleteAlbum(id: string) {
+  async deleteAlbum(id: string): Promise<void> {
     await this.albumService.delete(id);
   }
 
-  async createReferralCode(user_id: string) {
-    await this.referralCodeService.create(user_id);
+  async createReferralCode(userId: string): Promise<ReferralCodeEntity> {
+    return this.referralCodeService.create(userId);
   }
 
-  async uploadArtistArt(
+  async uploadArtistImage(
     artistId: string,
     file: Express.Multer.File,
   ): Promise<void> {
@@ -41,11 +47,15 @@ export class AdminService {
       throw new BadRequestException('No file provided');
     }
 
-    if (!file.mimetype.startsWith('image/')) {
-      throw new BadRequestException('Artist art must be an image');
-    }
+    try {
+      if (!file.mimetype.startsWith('image/')) {
+        throw new BadRequestException('Artist art must be an image');
+      }
 
-    await this.artistService.setArtistArt(artistId, file);
+      await this.artistService.setArtistImage(artistId, file);
+    } finally {
+      await this.cleanupFile(file);
+    }
   }
 
   async uploadAlbum(files: Express.Multer.File[]): Promise<void> {
@@ -53,65 +63,117 @@ export class AdminService {
       throw new BadRequestException('No files provided');
     }
 
-    const parsedFiles = await this.parseFiles(files);
+    try {
+      const parsedFiles = await this.parseFiles(files);
+      const artistMap = await this.resolveArtistMap(parsedFiles);
+      this.validateSingleAlbum(parsedFiles, artistMap);
 
-    const artistMap = await this.resolveArtistMap(parsedFiles);
+      const firstTags = parsedFiles[0].tags;
+      const albumArtistIds = this.resolveArtistIds(
+        firstTags.albumArtistNames,
+        artistMap,
+      );
 
-    this.validateSingleAlbum(parsedFiles, artistMap);
+      const album = await this.albumService.create(
+        firstTags.albumTitle,
+        albumArtistIds,
+        firstTags.date,
+      );
 
-    const firstTags = parsedFiles[0].tags;
-    const albumArtistIds = this.resolveArtistIds(
-      firstTags.albumArtistNames,
-      artistMap,
-    );
+      const picture = firstTags.picture;
+      if (!album.imageKey && picture && picture.format.startsWith('image/')) {
+        await this.albumService.createAlbumCover(album.id, picture);
+      }
 
-    const album = await this.albumService.create(
-      firstTags.albumTitle,
-      albumArtistIds,
-      firstTags.date,
-    );
+      const results = await this.uploadTracksWithConcurrency(
+        parsedFiles,
+        album.id,
+        artistMap,
+      );
 
-    const picture = firstTags.picture;
+      const failures = results.flatMap((result, index) =>
+        result.status === 'rejected'
+          ? [
+              {
+                trackTitle: parsedFiles[index].tags.title,
+                reason:
+                  result.reason instanceof Error
+                    ? result.reason.message
+                    : String(result.reason),
+              },
+            ]
+          : [],
+      );
 
-    if (!album.imageKey && picture && picture.format.startsWith('image/')) {
-      await this.albumService.setAlbumCover(album.id, picture);
+      if (failures.length > 0) {
+        throw new BadRequestException({
+          message: `${failures.length} of ${parsedFiles.length} tracks failed to upload`,
+          failures,
+        });
+      }
+    } finally {
+      await this.cleanupFiles(files);
     }
+  }
 
-    const results = await Promise.allSettled(
-      parsedFiles.map(({ file, tags, suffix }) => {
-        const trackArtistIds = this.resolveArtistIds(
-          tags.trackArtistNames,
-          artistMap,
-        );
-        return this.trackService.setTrack(
-          file,
-          tags,
-          suffix,
-          album.id,
-          trackArtistIds,
-        );
+  private async uploadTracksWithConcurrency(
+    parsedFiles: ParsedFile[],
+    albumId: string,
+    artistMap: Map<string, string>,
+  ): Promise<PromiseSettledResult<void>[]> {
+    const results: PromiseSettledResult<void>[] = Array.from(
+      { length: parsedFiles.length },
+      (): PromiseSettledResult<void> => ({
+        status: 'rejected',
+        reason: new Error('Track upload did not run'),
       }),
     );
+    let nextIndex = 0;
 
-    const failures = results.flatMap((result, index) =>
-      result.status === 'rejected'
-        ? [
-            {
-              trackTitle: parsedFiles[index].tags.title,
-              reason:
-                result.reason instanceof Error
-                  ? result.reason.message
-                  : String(result.reason),
-            },
-          ]
-        : [],
-    );
+    const worker = async (): Promise<void> => {
+      while (true) {
+        const index = nextIndex++;
+        if (index >= parsedFiles.length) return;
 
-    if (failures.length > 0) {
-      throw new BadRequestException({
-        message: `${failures.length} of ${parsedFiles.length} tracks failed to upload`,
-        failures,
-      });
+        const { file, tags, suffix } = parsedFiles[index];
+        try {
+          const trackArtistIds = this.resolveArtistIds(
+            tags.trackArtistNames,
+            artistMap,
+          );
+          await this.trackService.createTrack(
+            file,
+            tags,
+            suffix,
+            albumId,
+            trackArtistIds,
+          );
+          results[index] = { status: 'fulfilled', value: undefined };
+        } catch (reason) {
+          results[index] = { status: 'rejected', reason };
+        }
+      }
+    };
+
+    const workerCount = Math.min(TRACK_UPLOAD_CONCURRENCY, parsedFiles.length);
+    await Promise.all(Array.from({ length: workerCount }, () => worker()));
+    return results;
+  }
+
+  private async cleanupFiles(files: Express.Multer.File[]): Promise<void> {
+    await Promise.all(files.map((file) => this.cleanupFile(file)));
+  }
+
+  private async cleanupFile(file: Express.Multer.File): Promise<void> {
+    if (!file.path) return;
+    try {
+      await unlink(file.path);
+    } catch (error) {
+      this.logger.warn(
+        `Failed to clean up upload file ${file.path}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
     }
   }
 
@@ -128,9 +190,7 @@ export class AdminService {
         }
         return {
           file,
-          tags: this.extractRequiredTags(
-            await parseBuffer(file.buffer, file.mimetype),
-          ),
+          tags: this.extractRequiredTags(await parseFile(file.path)),
           suffix,
         };
       }),

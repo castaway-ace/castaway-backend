@@ -9,7 +9,7 @@ import {
   MaxLength,
   IsString,
 } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { ToBoolean, ToInt } from '../../utils/dto-transforms.js';
 import { SORT_DIRECTIONS, type SortDirection } from '../../common/dto/sort.js';
 
@@ -62,12 +62,4 @@ export class ArtistQueryDto {
   @Min(0)
   @ToInt()
   offset?: number;
-}
-
-export class CreateArtistDto {
-  @ApiProperty({ minLength: 1, maxLength: 100 })
-  @IsString()
-  @MinLength(1)
-  @MaxLength(100)
-  name!: string;
 }

@@ -15,6 +15,7 @@ import { StorageBucket } from '../storage/storage.types.js';
 import { PlaylistsService } from '../playlists/playlists.service.js';
 import { MetadataTags } from '../admin/admin.types.js';
 import { TrackEntity, TrackSummaryEntity } from './tracks.entity.js';
+import { createReadStream } from 'fs';
 
 interface TrackFilters {
   artistIds?: string[];
@@ -176,7 +177,7 @@ export class TracksService {
     };
   }
 
-  async setTrack(
+  async createTrack(
     file: Express.Multer.File,
     tags: MetadataTags,
     suffix: string,
@@ -188,7 +189,7 @@ export class TracksService {
     await this.storageService.putObject(
       StorageBucket.Tracks,
       fileKey,
-      file.buffer,
+      createReadStream(file.path),
       {
         contentType: file.mimetype,
         size: file.size,

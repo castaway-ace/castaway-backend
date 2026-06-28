@@ -152,7 +152,7 @@ export class AlbumsService {
     );
   }
 
-  async setAlbumCover(albumId: string, picture: IPicture): Promise<void> {
+  async createAlbumCover(albumId: string, picture: IPicture): Promise<void> {
     const fileKey = `${albumId}/cover.jpg`;
     const coverBuffer = Buffer.from(picture.data);
 

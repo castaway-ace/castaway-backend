@@ -13,7 +13,7 @@ describe('AuthController', () => {
 
   const mockAdminService = {
     uploadAlbum: jest.fn<AdminService['uploadAlbum']>(),
-    uploadArtistArt: jest.fn<AdminService['uploadArtistArt']>(),
+    uploadArtistArt: jest.fn<AdminService['uploadArtistImage']>(),
     deleteArtist: jest.fn<AdminService['deleteArtist']>(),
     uploadArtist: jest.fn<AdminService['uploadArtist']>(),
     deleteAlbum: jest.fn<AdminService['deleteAlbum']>(),
@@ -83,7 +83,7 @@ describe('AuthController', () => {
     it('passes the id and file to the service', async () => {
       mockAdminService.uploadArtistArt.mockResolvedValue(undefined);
 
-      await adminController.uploadArtistArt(mockFile, 'artist-id');
+      await adminController.uploadArtistImage(mockFile, 'artist-id');
 
       expect(mockAdminService.uploadArtistArt).toHaveBeenCalledWith(
         'artist-id',
