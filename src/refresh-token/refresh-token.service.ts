@@ -5,7 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import { type StringValue } from 'ms';
 import ms from 'ms';
 import { createHash, randomBytes, randomUUID } from 'crypto';
-import { UserService } from '../user/user.service.js';
+import { UserService } from '../users/user.service.js';
 import { AuthTokensEntity } from '../auth/entities/auth-tokens.entity.js';
 import { TokenPayload } from './refresh-token.types.js';
 
