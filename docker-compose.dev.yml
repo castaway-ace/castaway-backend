@@ -50,6 +50,7 @@ services:
       - .:/usr/src/app
       - /usr/src/app/node_modules
       - /usr/src/app/temp
+      - castaway_tmp:/mnt/data/castaway/tmp
     command: npm run start:dev
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/health"]
@@ -95,8 +96,8 @@ services:
     depends_on:
       app:
         condition: service_healthy
-    restart: unless-stopped
 
 volumes:
   pgdata:
   storage_data:
+  castaway_tmp:
