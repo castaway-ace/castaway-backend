@@ -40,6 +40,5 @@ import { GuardModule } from '../auth/guard.module.js';
   ],
   controllers: [AdminController],
   providers: [AdminService],
-  exports: [AdminService],
 })
 export class AdminModule {}
