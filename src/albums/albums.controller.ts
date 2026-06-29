@@ -3,15 +3,24 @@ import {
   Delete,
   Get,
   HttpCode,
+  HttpStatus,
   Param,
   Post,
   Query,
   UseGuards,
 } from '@nestjs/common';
+import {
+  ApiBadRequestResponse,
+  ApiBearerAuth,
+  ApiNoContentResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
 import { AuthGuard } from '../auth/guards/auth.guard.js';
-import { AlbumsService } from './albums.service.js';
 import { CurrentUser } from '../auth/decorators/user.decorator.js';
-import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { AlbumsService } from './albums.service.js';
 import { AlbumEntity, AlbumSummaryEntity } from './albums.entity.js';
 import { AlbumQueryDto } from './dto/album-query.dto.js';
 
@@ -19,12 +28,14 @@ import { AlbumQueryDto } from './dto/album-query.dto.js';
 @UseGuards(AuthGuard)
 @ApiBearerAuth()
 @ApiTags('Albums')
+@ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
 export class AlbumsController {
   constructor(private readonly albumService: AlbumsService) {}
 
   @Get()
   @ApiOkResponse({ type: AlbumSummaryEntity, isArray: true })
-  async findAll(
+  @ApiBadRequestResponse({ description: 'Invalid query parameters.' })
+  findAll(
     @CurrentUser('sub') sub: string,
     @Query() query: AlbumQueryDto,
   ): Promise<AlbumSummaryEntity[]> {
@@ -35,33 +46,40 @@ export class AlbumsController {
         starred: query.starred,
         search: query.search,
       },
-      sortOptions: query.order
-        ? { order: query.order, orderBy: query.orderBy ?? 'asc' }
-        : undefined,
+      sortOptions:
+        query.order || query.orderBy
+          ? { order: query.order ?? 'title', orderBy: query.orderBy ?? 'asc' }
+          : undefined,
       pagination: { limit: query.limit, offset: query.offset },
     });
   }
 
   @Get(':id')
   @ApiOkResponse({ type: AlbumEntity })
-  async find(
+  @ApiNotFoundResponse({ description: 'Album not found.' })
+  find(
     @CurrentUser('sub') sub: string,
     @Param('id') id: string,
   ): Promise<AlbumEntity> {
-    const album = await this.albumService.find(sub, id);
-
-    return album;
+    return this.albumService.find(sub, id);
   }
 
   @Get(':id/cover')
-  async findAlbumCover(@Param('id') id: string): Promise<string> {
-    const url = await this.albumService.findAlbumCover(id);
-
-    return url;
+  @ApiOkResponse({
+    schema: {
+      type: 'string',
+      description: 'Presigned URL to the cover image.',
+    },
+  })
+  @ApiNotFoundResponse({ description: 'Album cover not found.' })
+  getAlbumCoverUrl(@Param('id') id: string): Promise<string> {
+    return this.albumService.getAlbumCoverUrl(id);
   }
 
   @Post(':id/star')
-  @HttpCode(204)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContentResponse()
+  @ApiNotFoundResponse({ description: 'Album not found.' })
   async star(
     @CurrentUser('sub') sub: string,
     @Param('id') id: string,
@@ -70,7 +88,9 @@ export class AlbumsController {
   }
 
   @Delete(':id/star')
-  @HttpCode(204)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContentResponse()
+  @ApiNotFoundResponse({ description: 'Album not found.' })
   async unStar(
     @CurrentUser('sub') sub: string,
     @Param('id') id: string,

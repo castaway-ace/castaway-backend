@@ -62,7 +62,14 @@ export class AlbumsService {
   async find(userId: string, id: string): Promise<Album> {
     const album = await this.prisma.album.findUnique({
       where: { id },
-      select: albumSelect,
+      select: {
+        ...albumSelect,
+        albumAnnotations: {
+          where: { userId },
+          select: { albumId: true },
+          take: 1,
+        },
+      },
     });
 
     if (!album) {
@@ -78,9 +85,7 @@ export class AlbumsService {
         (a, b) => a.discNumber - b.discNumber || a.trackNumber - b.trackNumber,
       );
 
-    const annotation = await this.prisma.albumAnnotation.findUnique({
-      where: { userId_albumId: { userId, albumId: id } },
-    });
+    const starred = album.albumAnnotations.length > 0;
 
     return {
       id: album.id,
@@ -88,7 +93,7 @@ export class AlbumsService {
       releaseDate: album.releaseDate,
       compilation: album.compilation,
       genres: album.genres,
-      starred: !!annotation,
+      starred,
       artists: album.albumArtists.map((ta) => ta.artist),
       tracks,
     };
@@ -139,7 +144,7 @@ export class AlbumsService {
     return album.imageKey;
   }
 
-  async findAlbumCover(id: string): Promise<string> {
+  async getAlbumCoverUrl(id: string): Promise<string> {
     const imageKey = await this.findAlbumImageKey(id);
 
     if (!imageKey) {

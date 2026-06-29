@@ -1,54 +1,68 @@
 import { jest } from '@jest/globals';
 import request from 'supertest';
 import { Test, TestingModule } from '@nestjs/testing';
-import { ExecutionContext, INestApplication } from '@nestjs/common';
+import {
+  ExecutionContext,
+  INestApplication,
+  ValidationPipe,
+} from '@nestjs/common';
+import type { App } from 'supertest/types.js';
+import type { Request } from 'express';
 import { AlbumsService } from './albums.service.js';
 import { AlbumsController } from './albums.controller.js';
-import { App } from 'supertest/types.js';
 import { AuthGuard } from '../auth/guards/auth.guard.js';
-import type { Request } from 'express';
+import { Album, AlbumSummary } from './albums.types.js';
 
-const album = {
-  id: '1',
+const releaseDate = new Date('2026-06-06T00:00:00.000Z');
+
+const artistRef = { id: 'artist-1', name: 'Test Artist' };
+
+const album: Album = {
+  id: 'album-1',
   title: 'test1',
-  releaseDate: '2026-06-06T00:00:00.000Z',
-  artists: ['test1'],
-  genres: ['test1'],
+  releaseDate,
   compilation: false,
+  genres: ['rock'],
+  starred: false,
+  artists: [artistRef],
+  tracks: [],
 };
 
-const albumSummaries = [
+const albumSummaries: AlbumSummary[] = [
   {
-    id: '1',
+    id: 'album-1',
     title: 'test1',
-    releaseDate: '2026-06-06T00:00:00.000Z',
-    artists: ['test1'],
-    genres: ['test1'],
+    releaseDate,
+    genres: ['rock'],
+    artists: [artistRef],
   },
 ];
 
-const albumCoverURL =
-  'http://localhost:9000/albums/1234/cover.jpg?X-Amz-Signature=test';
+const albumCoverUrl =
+  'http://localhost:9000/albums/album-1/cover.jpg?X-Amz-Signature=test';
+
+const toJson = <T>(value: T): unknown => JSON.parse(JSON.stringify(value));
 
 describe('AlbumsController', () => {
   let app: INestApplication<App>;
 
   const albumsService = {
-    findWithStarred: jest.fn().mockReturnValue(album),
-    findAll: jest.fn().mockReturnValue(albumSummaries),
-    findAlbumCover: jest.fn().mockReturnValue(albumCoverURL),
-    updateStar: jest.fn(),
+    find: jest.fn<AlbumsService['find']>().mockResolvedValue(album),
+    findAll: jest
+      .fn<AlbumsService['findAll']>()
+      .mockResolvedValue(albumSummaries),
+    getAlbumCoverUrl: jest
+      .fn<AlbumsService['getAlbumCoverUrl']>()
+      .mockResolvedValue(albumCoverUrl),
+    updateStar: jest.fn<AlbumsService['updateStar']>().mockResolvedValue(),
   };
 
   beforeEach(async () => {
+    jest.clearAllMocks();
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AlbumsController],
-      providers: [
-        {
-          provide: AlbumsService,
-          useValue: albumsService,
-        },
-      ],
+      providers: [{ provide: AlbumsService, useValue: albumsService }],
     })
       .overrideGuard(AuthGuard)
       .useValue({
@@ -61,60 +75,125 @@ describe('AlbumsController', () => {
       .compile();
 
     app = module.createNestApplication();
+    app.useGlobalPipes(
+      new ValidationPipe({
+        transform: true,
+        whitelist: true,
+        forbidNonWhitelisted: true,
+      }),
+    );
     await app.init();
   });
 
   afterEach(async () => {
-    jest.clearAllMocks();
     await app.close();
   });
 
-  describe('find', () => {
-    it('should return an album', async () => {
-      return request(app.getHttpServer())
-        .get('/albums/1234')
+  describe('GET /albums/:id', () => {
+    it('returns the album for the requesting user', async () => {
+      await request(app.getHttpServer())
+        .get('/albums/album-1')
         .expect(200)
-        .expect(album);
+        .expect(toJson(album) as object);
+
+      expect(albumsService.find).toHaveBeenCalledWith('test-user', 'album-1');
     });
   });
 
-  describe('findAll', () => {
-    it('should return an array of albums', async () => {
-      return request(app.getHttpServer())
+  describe('GET /albums', () => {
+    it('returns a list of album summaries', async () => {
+      await request(app.getHttpServer())
         .get('/albums')
         .expect(200)
-        .expect(albumSummaries);
-    });
-  });
+        .expect(toJson(albumSummaries) as object);
 
-  describe('findAlbumCover', () => {
-    it('should return the presigned url of an album cover', async () => {
+      expect(albumsService.findAll).toHaveBeenCalledWith('test-user', {
+        filters: {
+          artistIds: undefined,
+          genres: undefined,
+          starred: undefined,
+          search: undefined,
+        },
+        sortOptions: undefined,
+        pagination: { limit: undefined, offset: undefined },
+      });
+    });
+
+    it('passes filters, sort options, and pagination from the query string', async () => {
       await request(app.getHttpServer())
-        .get('/albums/1234/cover')
-        .expect(200)
-        .expect(albumCoverURL);
+        .get('/albums?starred=true&order=year&orderBy=desc&limit=10&offset=20')
+        .expect(200);
+
+      expect(albumsService.findAll).toHaveBeenCalledWith('test-user', {
+        filters: {
+          artistIds: undefined,
+          genres: undefined,
+          starred: true,
+          search: undefined,
+        },
+        sortOptions: { order: 'year', orderBy: 'desc' },
+        pagination: { limit: 10, offset: 20 },
+      });
+    });
+
+    it('defaults order to title when only orderBy is provided', async () => {
+      await request(app.getHttpServer())
+        .get('/albums?orderBy=desc')
+        .expect(200);
+
+      expect(albumsService.findAll).toHaveBeenCalledWith(
+        'test-user',
+        expect.objectContaining({
+          sortOptions: { order: 'title', orderBy: 'desc' },
+        }),
+      );
+    });
+
+    it('rejects unknown query parameters', async () => {
+      await request(app.getHttpServer())
+        .get('/albums?notARealField=1')
+        .expect(400);
+    });
+
+    it('rejects invalid order values', async () => {
+      await request(app.getHttpServer()).get('/albums?order=bogus').expect(400);
     });
   });
 
-  describe('star', () => {
-    it('calls updateStar with true', async () => {
-      await request(app.getHttpServer()).post('/albums/1234/star').expect(204);
+  describe('GET /albums/:id/cover', () => {
+    it('returns the cover url', async () => {
+      await request(app.getHttpServer())
+        .get('/albums/album-1/cover')
+        .expect(200)
+        .expect(albumCoverUrl);
+
+      expect(albumsService.getAlbumCoverUrl).toHaveBeenCalledWith('album-1');
+    });
+  });
+
+  describe('POST /albums/:id/star', () => {
+    it('stars the album for the requesting user', async () => {
+      await request(app.getHttpServer())
+        .post('/albums/album-1/star')
+        .expect(204);
+
       expect(albumsService.updateStar).toHaveBeenCalledWith(
         'test-user',
-        '1234',
+        'album-1',
         true,
       );
     });
   });
 
-  describe('unStar', () => {
-    it('calls updateStar with false', async () => {
+  describe('DELETE /albums/:id/star', () => {
+    it('unstars the album for the requesting user', async () => {
       await request(app.getHttpServer())
-        .delete('/albums/1234/star')
+        .delete('/albums/album-1/star')
         .expect(204);
+
       expect(albumsService.updateStar).toHaveBeenCalledWith(
         'test-user',
-        '1234',
+        'album-1',
         false,
       );
     });
