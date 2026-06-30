@@ -33,46 +33,6 @@ export class ArtistsService {
     private readonly storageService: StorageService,
   ) {}
 
-  create(name: string): Promise<ArtistRef> {
-    return this.prisma.artist.create({
-      data: { name },
-      select: { id: true, name: true },
-    });
-  }
-
-  async delete(id: string): Promise<void> {
-    await this.prisma.artist.delete({
-      where: { id },
-    });
-  }
-
-  async find(userId: string, id: string): Promise<ArtistEntity> {
-    const artist = await this.prisma.artist.findUnique({
-      where: { id },
-      select: artistSelect,
-    });
-
-    if (!artist) {
-      throw new NotFoundException('Artist does not exist');
-    }
-
-    const annotation = await this.prisma.artistAnnotation.findUnique({
-      where: { userId_artistId: { userId, artistId: id } },
-    });
-
-    const adjustedArtist = this.toArtist(artist);
-
-    return { ...adjustedArtist, starred: !!annotation };
-  }
-
-  async findIdsByNames(names: string[]): Promise<Map<string, string>> {
-    const artists = await this.prisma.artist.findMany({
-      where: { name: { in: names } },
-      select: { name: true, id: true },
-    });
-    return new Map(artists.map((artist) => [artist.name, artist.id]));
-  }
-
   async findAll(
     userId: string,
     options: ArtistQueryOptions,
@@ -93,14 +53,31 @@ export class ArtistsService {
     });
   }
 
-  async updateArtist(id: string, imageKey: string): Promise<void> {
-    await this.prisma.artist.update({
+  async find(userId: string, id: string): Promise<ArtistEntity> {
+    const artist = await this.prisma.artist.findUnique({
       where: { id },
-      data: { imageKey },
+      select: {
+        ...artistSelect,
+        artistAnnotations: {
+          where: { userId, starred: true },
+          select: { artistId: true },
+          take: 1,
+        },
+      },
     });
+
+    if (!artist) {
+      throw new NotFoundException('Artist does not exist');
+    }
+
+    const adjustedArtist = this.toArtist(artist);
+
+    const starred = artist.artistAnnotations.length > 0;
+
+    return { ...adjustedArtist, starred };
   }
 
-  async findArtistImageKey(id: string): Promise<string | null> {
+  async getArtistImageUrl(id: string): Promise<string> {
     const artist = await this.prisma.artist.findUnique({
       where: { id },
       select: {
@@ -108,34 +85,38 @@ export class ArtistsService {
       },
     });
 
-    if (!artist) return null;
-
-    return artist.imageKey;
-  }
-
-  async findArtistImage(id: string): Promise<string> {
-    const imageKey = await this.findArtistImageKey(id);
-
-    if (!imageKey) {
-      throw new NotFoundException('Artist Art does not exist');
+    if (!artist) {
+      throw new NotFoundException('Artist Image does not exist');
     }
 
     return this.storageService.getPresignedUrl(
       StorageBucket.ArtistArt,
-      imageKey,
+      artist.imageKey,
     );
   }
 
-  async findArtistCover(id: string): Promise<string | null> {
-    const imageKey = await this.findArtistImageKey(id);
-    if (!imageKey) return null;
-    return this.storageService.getPresignedUrl(
-      StorageBucket.ArtistArt,
-      imageKey,
-    );
+  create(name: string): Promise<ArtistRef> {
+    return this.prisma.artist.create({
+      data: { name },
+      select: { id: true, name: true },
+    });
   }
 
-  async setArtistImage(
+  async delete(id: string): Promise<void> {
+    await this.prisma.artist.delete({
+      where: { id },
+    });
+  }
+
+  async findIdsByNames(names: string[]): Promise<Map<string, string>> {
+    const artists = await this.prisma.artist.findMany({
+      where: { name: { in: names } },
+      select: { name: true, id: true },
+    });
+    return new Map(artists.map((artist) => [artist.name, artist.id]));
+  }
+
+  async createArtistImage(
     artistId: string,
     file: Express.Multer.File,
   ): Promise<void> {
@@ -153,7 +134,7 @@ export class ArtistsService {
     );
 
     try {
-      await this.updateArtist(artistId, fileKey);
+      await this.setImageKey(artistId, fileKey);
     } catch (error) {
       await this.storageService.deleteObject(StorageBucket.ArtistArt, fileKey);
       if (
@@ -210,6 +191,13 @@ export class ArtistsService {
     }
   }
 
+  private async setImageKey(id: string, imageKey: string): Promise<void> {
+    await this.prisma.artist.update({
+      where: { id },
+      data: { imageKey },
+    });
+  }
+
   private toArtist(row: ArtistRow): Artist {
     return {
       id: row.id,
@@ -227,7 +215,7 @@ export class ArtistsService {
     if (!filters) return where;
 
     if (filters.starred === true) {
-      where.artistAnnotations = { some: { userId } };
+      where.artistAnnotations = { some: { userId, starred: true } };
     }
 
     if (filters.search) {

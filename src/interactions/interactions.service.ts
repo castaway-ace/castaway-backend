@@ -68,12 +68,13 @@ export class InteractionsService {
       survivors.map(async (candidate): Promise<Interaction> => {
         switch (candidate.kind) {
           case InteractionType.ARTIST: {
+            const coverUrl = await this.artistService.getArtistImageUrl(
+              candidate.raw.artist.id,
+            );
             return {
               ...candidate.raw,
               type: InteractionType.ARTIST,
-              coverUrl: await this.artistService.findArtistCover(
-                candidate.raw.artist.id,
-              ),
+              coverUrl,
             };
           }
           case InteractionType.ALBUM: {

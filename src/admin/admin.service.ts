@@ -52,7 +52,7 @@ export class AdminService {
         throw new BadRequestException('Artist art must be an image');
       }
 
-      await this.artistService.setArtistImage(artistId, file);
+      await this.artistService.createArtistImage(artistId, file);
     } finally {
       await this.cleanupFile(file);
     }

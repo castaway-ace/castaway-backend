@@ -2,7 +2,11 @@ import { jest } from '@jest/globals';
 import { Test } from '@nestjs/testing';
 import { ArtistsController } from './artists.controller.js';
 import { ArtistsService } from './artists.service.js';
-import { ExecutionContext, INestApplication } from '@nestjs/common';
+import {
+  ExecutionContext,
+  INestApplication,
+  ValidationPipe,
+} from '@nestjs/common';
 import { App } from 'supertest/types.js';
 import { AuthGuard } from '../auth/guards/auth.guard.js';
 import type { Request } from 'express';
@@ -11,6 +15,9 @@ import request from 'supertest';
 const artist = {
   id: 'artist-1',
   name: 'Test Artist',
+  bio: '',
+  starred: false,
+  albums: [],
 };
 
 const artistSummaries = [
@@ -27,10 +34,14 @@ describe('ArtistsController', () => {
   let app: INestApplication<App>;
 
   const artistsService = {
-    findWithStarred: jest.fn().mockReturnValue(artist),
-    findAll: jest.fn().mockReturnValue(artistSummaries),
-    findArtistImage: jest.fn().mockReturnValue(artistImageURL),
-    updateStar: jest.fn(),
+    find: jest.fn<ArtistsService['find']>().mockResolvedValue(artist),
+    findAll: jest
+      .fn<ArtistsService['findAll']>()
+      .mockResolvedValue(artistSummaries),
+    getArtistImageUrl: jest
+      .fn<ArtistsService['getArtistImageUrl']>()
+      .mockResolvedValue(artistImageURL),
+    updateStar: jest.fn<ArtistsService['updateStar']>().mockResolvedValue(),
   };
 
   beforeEach(async () => {
@@ -54,6 +65,13 @@ describe('ArtistsController', () => {
       .compile();
 
     app = module.createNestApplication();
+    app.useGlobalPipes(
+      new ValidationPipe({
+        transform: true,
+        whitelist: true,
+        forbidNonWhitelisted: true,
+      }),
+    );
     await app.init();
   });
 
@@ -62,52 +80,69 @@ describe('ArtistsController', () => {
     await app.close();
   });
 
-  describe('find', () => {
-    it('should return an artist', async () => {
-      return request(app.getHttpServer())
-        .get('/artists/1234')
+  describe('GET /artists/:id', () => {
+    it('returns the artist for the requesting user', async () => {
+      await request(app.getHttpServer())
+        .get('/artists/artist-1')
         .expect(200)
         .expect(artist);
+
+      expect(artistsService.find).toHaveBeenCalledWith('test-user', 'artist-1');
     });
   });
 
-  describe('findAll', () => {
-    it('should return an array of artists', async () => {
+  describe('GET /artists', () => {
+    it('returns a list of artist summaries', async () => {
       return request(app.getHttpServer())
         .get('/artists')
         .expect(200)
         .expect(artistSummaries);
     });
-  });
 
-  describe('findArtistImage', () => {
-    it('should return the image of an artist', async () => {
+    it('forwards filters and pagination to the service', async () => {
       await request(app.getHttpServer())
-        .get('/artists/1234/image')
-        .expect(200)
-        .expect(artistImageURL);
+        .get('/artists?starred=true&search=foo&order=name&limit=50&offset=20')
+        .expect(200);
+
+      expect(artistsService.findAll).toHaveBeenCalledWith('test-user', {
+        filters: { starred: true, search: 'foo' },
+        sortOptions: { order: 'name', orderBy: 'asc' },
+        pagination: { limit: 50, offset: 20 },
+      });
     });
   });
 
-  describe('star', () => {
-    it('calls updateStar with true', async () => {
-      await request(app.getHttpServer()).post('/artists/1234/star').expect(204);
+  describe('GET /artists/:id/image', () => {
+    it('returns the image url', async () => {
+      await request(app.getHttpServer())
+        .get('/artists/artist-1/image')
+        .expect(200)
+        .expect(artistImageURL);
+      expect(artistsService.getArtistImageUrl).toHaveBeenCalledWith('artist-1');
+    });
+  });
+
+  describe('POST /artists/:id/star', () => {
+    it('stars the artist for the requesting user', async () => {
+      await request(app.getHttpServer())
+        .post('/artists/artist-1/star')
+        .expect(204);
       expect(artistsService.updateStar).toHaveBeenCalledWith(
         'test-user',
-        '1234',
+        'artist-1',
         true,
       );
     });
   });
 
-  describe('unStar', () => {
-    it('calls updateStar with false', async () => {
+  describe('DELETE /artists/:id/star', () => {
+    it('unstars the artist for the requesting user', async () => {
       await request(app.getHttpServer())
-        .delete('/artists/1234/star')
+        .delete('/artists/artist-1/star')
         .expect(204);
       expect(artistsService.updateStar).toHaveBeenCalledWith(
         'test-user',
-        '1234',
+        'artist-1',
         false,
       );
     });

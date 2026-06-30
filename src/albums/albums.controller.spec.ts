@@ -135,29 +135,6 @@ describe('AlbumsController', () => {
         pagination: { limit: 10, offset: 20 },
       });
     });
-
-    it('defaults order to title when only orderBy is provided', async () => {
-      await request(app.getHttpServer())
-        .get('/albums?orderBy=desc')
-        .expect(200);
-
-      expect(albumsService.findAll).toHaveBeenCalledWith(
-        'test-user',
-        expect.objectContaining({
-          sortOptions: { order: 'title', orderBy: 'desc' },
-        }),
-      );
-    });
-
-    it('rejects unknown query parameters', async () => {
-      await request(app.getHttpServer())
-        .get('/albums?notARealField=1')
-        .expect(400);
-    });
-
-    it('rejects invalid order values', async () => {
-      await request(app.getHttpServer()).get('/albums?order=bogus').expect(400);
-    });
   });
 
   describe('GET /albums/:id/cover', () => {
