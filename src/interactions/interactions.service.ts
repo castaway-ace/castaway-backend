@@ -78,6 +78,7 @@ export class InteractionsService {
           }
           case InteractionType.ALBUM: {
             const { album, ...rest } = candidate.raw;
+            const coverUrl = await this.albumService.getAlbumCoverUrl(album.id);
             return {
               ...rest,
               type: InteractionType.ALBUM,
@@ -86,7 +87,7 @@ export class InteractionsService {
                 title: album.title,
               },
               artists: album.albumArtists.map((aa) => aa.artist),
-              coverUrl: await this.albumService.findAlbumCoverUrl(album.id),
+              coverUrl,
             };
           }
           case InteractionType.PLAYLIST: {

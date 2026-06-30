@@ -33,30 +33,29 @@ export class AlbumsService {
     private readonly storageService: StorageService,
   ) {}
 
-  async create(
-    title: string,
-    artistIds: string[],
-    releaseDate: Date,
-  ): Promise<PrismaAlbum> {
-    const identityKey = buildAlbumIdentity(title, artistIds);
-    const album = await this.prisma.album.create({
-      data: {
-        title,
-        releaseDate,
-        identityKey,
-        albumArtists: {
-          create: artistIds.map((artistId) => ({ artistId })),
-        },
-      },
+  async findAll(
+    userId: string,
+    options: AlbumQueryOptions,
+  ): Promise<AlbumSummary[]> {
+    const where = this.buildWhere(options.filters, userId);
+    const orderBy = this.buildOrderBy(options?.sortOptions);
+
+    const requestedLimit = options.pagination?.limit ?? 100;
+    const take = Math.min(Math.max(requestedLimit, 1), 200);
+    const skip = Math.max(options.pagination?.offset ?? 0, 0);
+
+    const albums = await this.prisma.album.findMany({
+      orderBy,
+      take,
+      skip,
+      where,
+      select: albumSummarySelect,
     });
 
-    return album;
-  }
-
-  async delete(id: string): Promise<void> {
-    await this.prisma.album.delete({
-      where: { id },
-    });
+    return albums.map(({ albumArtists, ...album }) => ({
+      ...album,
+      artists: albumArtists.map((ta) => ta.artist),
+    }));
   }
 
   async find(userId: string, id: string): Promise<Album> {
@@ -65,7 +64,7 @@ export class AlbumsService {
       select: {
         ...albumSelect,
         albumAnnotations: {
-          where: { userId },
+          where: { userId, starred: true },
           select: { albumId: true },
           take: 1,
         },
@@ -99,39 +98,7 @@ export class AlbumsService {
     };
   }
 
-  async findAll(
-    userId: string,
-    options: AlbumQueryOptions,
-  ): Promise<AlbumSummary[]> {
-    const where = this.buildWhere(options.filters, userId);
-    const orderBy = this.buildOrderBy(options?.sortOptions);
-
-    const requestedLimit = options.pagination?.limit ?? 100;
-    const take = Math.min(Math.max(requestedLimit, 1), 200);
-    const skip = Math.max(options.pagination?.offset ?? 0, 0);
-
-    const albums = await this.prisma.album.findMany({
-      orderBy,
-      take,
-      skip,
-      where,
-      select: albumSummarySelect,
-    });
-
-    return albums.map(({ albumArtists, ...album }) => ({
-      ...album,
-      artists: albumArtists.map((ta) => ta.artist),
-    }));
-  }
-
-  async updateAlbum(id: string, imageKey: string): Promise<void> {
-    await this.prisma.album.update({
-      where: { id },
-      data: { imageKey },
-    });
-  }
-
-  async findAlbumImageKey(id: string): Promise<string | null> {
+  async getAlbumCoverUrl(id: string): Promise<string> {
     const album = await this.prisma.album.findUnique({
       where: { id },
       select: {
@@ -139,22 +106,40 @@ export class AlbumsService {
       },
     });
 
-    if (!album) return null;
-
-    return album.imageKey;
-  }
-
-  async getAlbumCoverUrl(id: string): Promise<string> {
-    const imageKey = await this.findAlbumImageKey(id);
-
-    if (!imageKey) {
+    if (!album) {
       throw new NotFoundException('Album Art does not exist');
     }
 
     return this.storageService.getPresignedUrl(
       StorageBucket.AlbumArt,
-      imageKey,
+      album.imageKey,
     );
+  }
+
+  async create(
+    title: string,
+    artistIds: string[],
+    releaseDate: Date,
+  ): Promise<PrismaAlbum> {
+    const identityKey = buildAlbumIdentity(title, artistIds);
+    const album = await this.prisma.album.create({
+      data: {
+        title,
+        releaseDate,
+        identityKey,
+        albumArtists: {
+          create: artistIds.map((artistId) => ({ artistId })),
+        },
+      },
+    });
+
+    return album;
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.prisma.album.delete({
+      where: { id },
+    });
   }
 
   async createAlbumCover(albumId: string, picture: IPicture): Promise<void> {
@@ -173,7 +158,7 @@ export class AlbumsService {
     );
 
     try {
-      await this.updateAlbum(albumId, fileKey);
+      await this.setImageKey(albumId, fileKey);
     } catch (error) {
       await this.storageService.deleteObject(StorageBucket.AlbumArt, fileKey);
       if (
@@ -184,15 +169,6 @@ export class AlbumsService {
       }
       throw error;
     }
-  }
-
-  async findAlbumCoverUrl(id: string): Promise<string | null> {
-    const imageKey = await this.findAlbumImageKey(id);
-    if (!imageKey) return null;
-    return this.storageService.getPresignedUrl(
-      StorageBucket.AlbumArt,
-      imageKey,
-    );
   }
 
   async findAlbumCoverMap(ids: string[]): Promise<Map<string, string>> {
@@ -238,6 +214,13 @@ export class AlbumsService {
     }
   }
 
+  private async setImageKey(id: string, imageKey: string): Promise<void> {
+    await this.prisma.album.update({
+      where: { id },
+      data: { imageKey },
+    });
+  }
+
   private buildWhere(
     filters: AlbumFilters | undefined,
     userId: string,
@@ -271,7 +254,7 @@ export class AlbumsService {
     }
 
     if (filters.starred === true) {
-      where.albumAnnotations = { some: { userId } };
+      where.albumAnnotations = { some: { userId, starred: true } };
     }
 
     return where;
