@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
 import { RefreshTokenService } from './refresh-token.service.js';
 import { JwtModule } from '@nestjs/jwt';
-import { UserModule } from '../users/user.module.js';
+import { UsersModule } from '../users/users.module.js';
 
 @Module({
-  imports: [JwtModule, UserModule],
+  imports: [JwtModule, UsersModule],
   providers: [RefreshTokenService],
   exports: [RefreshTokenService],
 })

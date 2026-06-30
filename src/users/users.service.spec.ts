@@ -1,15 +1,15 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { MockMetadata, ModuleMocker } from 'jest-mock';
-import { UserService } from './user.service.js';
+import { UsersService } from './users.service.js';
 
 const moduleMocker = new ModuleMocker(global);
 
-describe('UserService', () => {
-  let userService: UserService;
+describe('UsersService', () => {
+  let usersService: UsersService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [UserService],
+      providers: [UsersService],
     })
       .useMocker((token) => {
         if (typeof token === 'function') {
@@ -25,10 +25,10 @@ describe('UserService', () => {
       })
       .compile();
 
-    userService = module.get(UserService);
+    usersService = module.get(UsersService);
   });
 
   it('should be defined', () => {
-    expect(userService).toBeDefined();
+    expect(usersService).toBeDefined();
   });
 });

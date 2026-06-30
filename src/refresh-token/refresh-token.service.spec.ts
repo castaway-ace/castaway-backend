@@ -5,7 +5,7 @@ import { RefreshTokenService } from './refresh-token.service.js';
 import { ConfigService } from '@nestjs/config';
 import { RefreshTokenWithDevice } from './refresh-token.types.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { UserService } from '../users/user.service.js';
+import { UsersService } from '../users/users.service.js';
 
 const moduleMocker = new ModuleMocker(global);
 
@@ -91,7 +91,7 @@ describe('RefreshTokenService', () => {
             $transaction,
           },
         },
-        { provide: UserService, useValue: { findById } },
+        { provide: UsersService, useValue: { findById } },
       ],
     })
       .useMocker((token) => {

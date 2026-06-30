@@ -5,7 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import { type StringValue } from 'ms';
 import ms from 'ms';
 import { createHash, randomBytes, randomUUID } from 'crypto';
-import { UserService } from '../users/user.service.js';
+import { UsersService } from '../users/users.service.js';
 import { AuthTokensEntity } from '../auth/entities/auth-tokens.entity.js';
 import { TokenPayload } from './refresh-token.types.js';
 
@@ -30,7 +30,7 @@ export class RefreshTokenService {
   constructor(
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
-    private readonly userService: UserService,
+    private readonly userService: UsersService,
     private readonly configService: ConfigService,
   ) {
     this.jwtConfig = this.loadJwtConfig(configService);

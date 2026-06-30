@@ -7,10 +7,10 @@ import {
   UserWithPassword,
   userWithPasswordSelect,
 } from './users.types.js';
-import { UserEntity } from './user.entity.js';
+import { UserEntity } from './users.entity.js';
 
 @Injectable()
-export class UserService {
+export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findByEmail(email: string): Promise<UserWithPassword | null> {

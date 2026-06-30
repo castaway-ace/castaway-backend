@@ -5,7 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import * as argon2 from 'argon2';
-import { UserService } from '../users/user.service.js';
+import { UsersService } from '../users/users.service.js';
 import { RefreshTokenService } from '../refresh-token/refresh-token.service.js';
 import { DeviceService } from '../device/device.service.js';
 import { DeviceDto } from '../device/dto/device.dto.js';
@@ -19,7 +19,7 @@ import { AuthTokensEntity } from './entities/auth-tokens.entity.js';
 @Injectable()
 export class AuthService {
   constructor(
-    private readonly userService: UserService,
+    private readonly userService: UsersService,
     private readonly refreshTokenService: RefreshTokenService,
     private readonly deviceService: DeviceService,
     private readonly prisma: PrismaService,

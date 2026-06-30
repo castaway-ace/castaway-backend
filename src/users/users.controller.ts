@@ -1,14 +1,14 @@
 import { Controller, Delete, Get, UseGuards } from '@nestjs/common';
-import { UserService } from './user.service.js';
+import { UsersService } from './users.service.js';
 import { AuthGuard } from '../auth/guards/auth.guard.js';
 import { CurrentUser } from '../auth/decorators/user.decorator.js';
-import { UserEntity } from './user.entity.js';
+import { UserEntity } from './users.entity.js';
 import { ApiOkResponse } from '@nestjs/swagger';
 
 @Controller('user')
 @UseGuards(AuthGuard)
-export class UserController {
-  constructor(private readonly userService: UserService) {}
+export class UsersController {
+  constructor(private readonly userService: UsersService) {}
 
   @Get('me')
   @ApiOkResponse({ type: UserEntity })

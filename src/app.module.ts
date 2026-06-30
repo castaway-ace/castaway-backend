@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { HealthModule } from './health/health.module.js';
-import { UserModule } from './users/user.module.js';
+import { UsersModule } from './users/users.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { ConfigModule } from '@nestjs/config';
 import { TracksModule } from './tracks/tracks.module.js';
@@ -23,7 +23,7 @@ import { ReferralCodeModule } from './referral-code/referral-code.module.js';
     ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
     HealthModule,
-    UserModule,
+    UsersModule,
     AuthModule,
     TracksModule,
     AlbumsModule,

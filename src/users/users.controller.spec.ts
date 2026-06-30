@@ -1,8 +1,8 @@
 import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import { MockMetadata, ModuleMocker } from 'jest-mock';
-import { UserController } from './user.controller.js';
-import { UserService } from './user.service.js';
+import { UsersController } from './users.controller.js';
+import { UsersService } from './users.service.js';
 import { ExecutionContext, INestApplication } from '@nestjs/common';
 import { App } from 'supertest/types.js';
 import type { Request } from 'express';
@@ -18,18 +18,18 @@ const user = {
 describe('UserController', () => {
   let app: INestApplication<App>;
 
-  const userService = {
+  const usersService = {
     findById: jest.fn().mockReturnValue(user),
     delete: jest.fn(),
   };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      controllers: [UserController],
+      controllers: [UsersController],
       providers: [
         {
-          provide: UserService,
-          useValue: userService,
+          provide: UsersService,
+          useValue: usersService,
         },
       ],
     })
@@ -77,7 +77,7 @@ describe('UserController', () => {
     it('forwards the user id to the service', async () => {
       await request(app.getHttpServer()).delete('/user/me').expect(200);
 
-      expect(userService.delete).toHaveBeenCalledWith('sub');
+      expect(usersService.delete).toHaveBeenCalledWith('sub');
     });
   });
 });
