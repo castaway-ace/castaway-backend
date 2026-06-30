@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { Prisma, Track as PrismaTrack } from '../../generated/prisma/client.js';
+import { Prisma, Track as PrismaTrack } from '../generated/prisma/client.js';
 import {
   ObjectStreamResult,
   StorageService,

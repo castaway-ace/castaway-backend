@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { PlaylistType, Prisma } from '../../generated/prisma/client.js';
+import { PlaylistType, Prisma } from '../generated/prisma/client.js';
 import { AlbumsService } from '../albums/albums.service.js';
 import { PlaylistEntity, PlaylistTrackEntity } from './playlist.entity.js';
 import {

@@ -10,7 +10,7 @@ import { RefreshTokenService } from '../refresh-token/refresh-token.service.js';
 import { DeviceService } from '../device/device.service.js';
 import { DeviceDto } from '../device/dto/device.dto.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { Prisma, PlaylistType } from '../../generated/prisma/client.js';
+import { Prisma, PlaylistType } from '../generated/prisma/client.js';
 import { User } from '../users/users.types.js';
 import { SignUpDto } from './dto/sign-up.dto.js';
 import { LoginDto } from './dto/login.dto.js';

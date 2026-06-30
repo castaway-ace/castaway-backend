@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { StorageService } from '../storage/storage.service.js';
-import { Prisma } from '../../generated/prisma/client.js';
+import { Prisma } from '../generated/prisma/client.js';
 import {
   Artist,
   ArtistRow,

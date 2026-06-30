@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Playlist, PlaylistSummary, PlaylistTrack } from './playlists.types.js';
-import { PlaylistType } from '../../generated/prisma/enums.js';
+import { PlaylistType } from '../generated/prisma/enums.js';
 import { AlbumRef, ArtistRef } from '../common/entities/references.entity.js';
 
 export class PlaylistEntity implements Playlist {
