@@ -19,16 +19,16 @@ import { AuthTokensEntity } from './entities/auth-tokens.entity.js';
 @Injectable()
 export class AuthService {
   constructor(
-    private readonly userService: UsersService,
-    private readonly refreshTokenService: RefreshTokenService,
-    private readonly deviceService: DeviceService,
+    private readonly usersService: UsersService,
+    private readonly refreshTokensService: RefreshTokenService,
+    private readonly devicesService: DeviceService,
     private readonly prisma: PrismaService,
   ) {}
 
   async login(loginDto: LoginDto): Promise<AuthTokensEntity> {
     const { email, password, deviceInfo } = loginDto;
 
-    const user = await this.userService.findByEmail(email);
+    const user = await this.usersService.findByEmail(email);
 
     if (!user || !(await argon2.verify(user.passwordHash, password))) {
       throw new UnauthorizedException('Invalid credentials');
@@ -74,7 +74,7 @@ export class AuthService {
           error instanceof Prisma.PrismaClientKnownRequestError &&
           error.code === 'P2002'
         ) {
-          throw new ConflictException('Email already registered');
+          throw new ConflictException('Email or username already registered');
         }
         throw error;
       });
@@ -83,20 +83,20 @@ export class AuthService {
   }
 
   async refresh(refreshToken: string): Promise<AuthTokensEntity> {
-    return this.refreshTokenService.rotate(refreshToken);
+    return this.refreshTokensService.rotate(refreshToken);
   }
 
   async logout(refreshToken: string): Promise<void> {
-    await this.refreshTokenService.revokeByToken(refreshToken);
+    await this.refreshTokensService.revokeByToken(refreshToken);
   }
 
   private async issueTokensForDevice(
     user: User,
     deviceInfo: DeviceDto,
   ): Promise<AuthTokensEntity> {
-    const device = await this.deviceService.findOrCreate(user.id, deviceInfo);
+    const device = await this.devicesService.findOrCreate(user.id, deviceInfo);
 
-    return this.refreshTokenService.issueForDevice({
+    return this.refreshTokensService.issueForDevice({
       sub: user.id,
       deviceId: device.id,
       isAdmin: user.isAdmin,

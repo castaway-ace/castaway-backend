@@ -66,6 +66,4 @@ export type AlbumInteraction = Omit<AlbumInteractionRow, 'album'> & {
 };
 
 export type Interaction =
-  | AlbumInteraction
-  | ArtistInteraction
-  | PlaylistInteraction;
+  AlbumInteraction | ArtistInteraction | PlaylistInteraction;
