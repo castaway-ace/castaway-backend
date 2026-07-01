@@ -7,9 +7,7 @@ import {
   Param,
   Post,
   Query,
-  UseGuards,
 } from '@nestjs/common';
-import { AuthGuard } from '../auth/guards/auth.guard.js';
 import { ArtistsService } from './artists.service.js';
 import { CurrentUser } from '../auth/decorators/user.decorator.js';
 import {
@@ -25,7 +23,6 @@ import { ArtistEntity, ArtistSummaryEntity } from './artists.entity.js';
 import { ArtistQueryDto } from './dto/artist-query.dto.js';
 
 @Controller('artists')
-@UseGuards(AuthGuard)
 @ApiBearerAuth()
 @ApiTags('Artists')
 @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })

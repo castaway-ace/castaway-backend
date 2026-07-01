@@ -8,11 +8,9 @@ import {
   Post,
   Query,
   StreamableFile,
-  UseGuards,
   Res,
   HttpStatus,
 } from '@nestjs/common';
-import { AuthGuard } from '../auth/guards/auth.guard.js';
 import { TracksService } from './tracks.service.js';
 import { CurrentUser } from '../auth/decorators/user.decorator.js';
 import { TrackQueryDto } from './dto/track-query.dto.js';
@@ -29,7 +27,6 @@ import {
 import { TrackEntity, TrackSummaryEntity } from './tracks.entity.js';
 
 @Controller('tracks')
-@UseGuards(AuthGuard)
 @ApiBearerAuth()
 @ApiTags('Tracks')
 export class TracksController {

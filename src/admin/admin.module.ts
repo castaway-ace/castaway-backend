@@ -10,7 +10,6 @@ import { ConfigService } from '@nestjs/config';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { randomUUID } from 'crypto';
-import { GuardModule } from '../auth/guard.module.js';
 
 @Module({
   imports: [
@@ -32,7 +31,6 @@ import { GuardModule } from '../auth/guard.module.js';
         };
       },
     }),
-    GuardModule,
     TracksModule,
     AlbumsModule,
     ArtistsModule,

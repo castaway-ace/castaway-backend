@@ -4,10 +4,9 @@ import { SearchService } from './search.service.js';
 import { AlbumsModule } from '../albums/albums.module.js';
 import { ArtistsModule } from '../artists/artists.module.js';
 import { TracksModule } from '../tracks/tracks.module.js';
-import { GuardModule } from '../auth/guard.module.js';
 
 @Module({
-  imports: [GuardModule, ArtistsModule, TracksModule, AlbumsModule],
+  imports: [ArtistsModule, TracksModule, AlbumsModule],
   controllers: [SearchController],
   providers: [SearchService],
 })

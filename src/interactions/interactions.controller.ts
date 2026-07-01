@@ -1,12 +1,4 @@
-import {
-  Controller,
-  Get,
-  HttpCode,
-  Param,
-  Post,
-  UseGuards,
-} from '@nestjs/common';
-import { AuthGuard } from '../auth/guards/auth.guard.js';
+import { Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
 import { InteractionsService } from './interactions.service.js';
 import { CurrentUser } from '../auth/decorators/user.decorator.js';
 import { Interaction } from './interactions.types.js';
@@ -29,7 +21,6 @@ import {
   PlaylistInteractionEntity,
   AlbumInteractionEntity,
 )
-@UseGuards(AuthGuard)
 @ApiBearerAuth()
 @ApiTags('Interactions')
 export class InteractionsController {

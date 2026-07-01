@@ -10,9 +10,7 @@ import {
   Patch,
   Post,
   Query,
-  UseGuards,
 } from '@nestjs/common';
-import { AuthGuard } from '../auth/guards/auth.guard.js';
 import { CurrentUser } from '../auth/decorators/user.decorator.js';
 import { PlaylistsService } from './playlists.service.js';
 import { PlaylistIdentity } from './playlists.types.js';
@@ -34,7 +32,6 @@ import { CreatePlaylistDto } from './dto/create-playlist.dto.js';
 import { PlaylistRef } from '../common/entities/references.entity.js';
 
 @Controller('playlists')
-@UseGuards(AuthGuard)
 @ApiBearerAuth()
 @ApiTags('Playlists')
 export class PlaylistsController {

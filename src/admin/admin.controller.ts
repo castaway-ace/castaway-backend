@@ -12,7 +12,6 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { AdminGuard } from '../auth/guards/admin.guard.js';
-import { AuthGuard } from '../auth/guards/auth.guard.js';
 import { AdminService } from './admin.service.js';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { CurrentUser } from '../auth/decorators/user.decorator.js';
@@ -34,7 +33,7 @@ import { ArtistRef } from '../common/entities/references.entity.js';
 import { ReferralCodeEntity } from '../referral-code/referral-code.entity.js';
 
 @Controller('admin')
-@UseGuards(AuthGuard, AdminGuard)
+@UseGuards(AdminGuard)
 @ApiBearerAuth()
 @ApiTags('Admin')
 @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })

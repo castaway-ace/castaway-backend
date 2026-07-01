@@ -6,6 +6,7 @@ import {
 } from '@nestjs/terminus';
 import { StorageHealthIndicator } from './storage.health.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { Public } from '../auth/decorators/public.decorator.js';
 
 @Controller('health')
 export class HealthController {
@@ -16,6 +17,7 @@ export class HealthController {
     private storage: StorageHealthIndicator,
   ) {}
 
+  @Public()
   @Get()
   @HealthCheck()
   check() {

@@ -22,12 +22,14 @@ import { LoginDto } from './dto/login.dto.js';
 import { SignUpDto } from './dto/sign-up.dto.js';
 import { AuthTokensEntity } from './entities/auth-tokens.entity.js';
 import { RefreshTokenDto } from './dto/refresh-token.dto.js';
+import { Public } from './decorators/public.decorator.js';
 
 @Controller('auth')
 @ApiTags('Auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  @Public()
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOkResponse({ type: AuthTokensEntity })
@@ -37,6 +39,7 @@ export class AuthController {
     return this.authService.login(loginDto);
   }
 
+  @Public()
   @Post('signup')
   @ApiCreatedResponse({ type: AuthTokensEntity })
   @ApiBadRequestResponse({
@@ -47,6 +50,7 @@ export class AuthController {
     return this.authService.signUp(signUpDto);
   }
 
+  @Public()
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @ApiOkResponse({ type: AuthTokensEntity })

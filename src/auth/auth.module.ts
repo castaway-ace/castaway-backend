@@ -3,12 +3,20 @@ import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 import { UsersModule } from '../users/users.module.js';
 import { DeviceModule } from '../device/device.module.js';
-import { GuardModule } from './guard.module.js';
 import { RefreshTokenModule } from '../refresh-token/refresh-token.module.js';
+import { APP_GUARD } from '@nestjs/core';
+import { AuthGuard } from './guards/auth.guard.js';
+import { JwtModule } from '@nestjs/jwt';
 
 @Module({
-  imports: [UsersModule, DeviceModule, RefreshTokenModule, GuardModule],
+  imports: [JwtModule, UsersModule, DeviceModule, RefreshTokenModule],
   controllers: [AuthController],
-  providers: [AuthService],
+  providers: [
+    AuthService,
+    {
+      provide: APP_GUARD,
+      useClass: AuthGuard,
+    },
+  ],
 })
 export class AuthModule {}
