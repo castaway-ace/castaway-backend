@@ -44,13 +44,25 @@ export class ArtistsService {
     const take = Math.min(Math.max(requestedLimit, 1), 200);
     const skip = Math.max(options.pagination?.offset ?? 0, 0);
 
-    return this.prisma.artist.findMany({
+    const artists = await this.prisma.artist.findMany({
       orderBy,
       take,
       skip,
       where,
-      select: artistSummarySelect,
+      select: {
+        ...artistSummarySelect,
+        artistAnnotations: {
+          where: { userId, starred: true },
+          select: { artistId: true },
+          take: 1,
+        },
+      },
     });
+
+    return artists.map(({ artistAnnotations, ...artist }) => ({
+      ...artist,
+      starred: artistAnnotations.length > 0,
+    }));
   }
 
   async find(userId: string, id: string): Promise<ArtistEntity> {

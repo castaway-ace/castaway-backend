@@ -25,4 +25,7 @@ export class ArtistSummaryEntity implements ArtistSummary {
 
   @ApiProperty()
   name!: string;
+
+  @ApiProperty()
+  starred!: boolean;
 }

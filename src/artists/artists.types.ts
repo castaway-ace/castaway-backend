@@ -34,4 +34,6 @@ export type Artist = Omit<ArtistRow, 'albumArtists'> & {
   albums: AlbumRow[];
 };
 
-export type ArtistSummary = Omit<ArtistSummaryRow, 'albumArtists'>;
+export type ArtistSummary = ArtistSummaryRow & {
+  starred: boolean;
+};
