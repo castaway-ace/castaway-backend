@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { StorageService } from '../storage/storage.service.js';
 import { Prisma, Album as PrismaAlbum } from '../generated/prisma/client.js';
@@ -12,6 +12,9 @@ import { StorageBucket } from '../storage/storage.types.js';
 import { IPicture } from 'music-metadata';
 import { buildAlbumIdentity } from '../utils/album-identity.js';
 import { AlbumSortOptions, AlbumSortOrder } from './dto/album-query.dto.js';
+import { buildOrderBy } from '../common/query.js';
+import { withStorageCleanup } from '../common/storage-cleanup.js';
+import { isPrismaKnownError } from '../common/prisma-error.js';
 
 interface AlbumFilters {
   artistIds?: string[];
@@ -28,6 +31,7 @@ interface AlbumQueryOptions {
 
 @Injectable()
 export class AlbumsService {
+  private readonly logger = new Logger(AlbumsService.name);
   constructor(
     private readonly prisma: PrismaService,
     private readonly storageService: StorageService,
@@ -49,12 +53,20 @@ export class AlbumsService {
       take,
       skip,
       where,
-      select: albumSummarySelect,
+      select: {
+        ...albumSummarySelect,
+        albumAnnotations: {
+          where: { userId, starred: true },
+          select: { albumId: true },
+          take: 1,
+        },
+      },
     });
 
-    return albums.map(({ albumArtists, ...album }) => ({
+    return albums.map(({ albumAnnotations, albumArtists, ...album }) => ({
       ...album,
       artists: albumArtists.map((ta) => ta.artist),
+      starred: albumAnnotations.length > 0,
     }));
   }
 
@@ -158,13 +170,18 @@ export class AlbumsService {
     );
 
     try {
-      await this.setImageKey(albumId, fileKey);
+      await withStorageCleanup(
+        () => this.setImageKey(albumId, fileKey),
+        () => this.storageService.deleteObject(StorageBucket.AlbumArt, fileKey),
+        (error) =>
+          this.logger.warn(
+            `Failed to clean up orphaned cover ${fileKey}: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          ),
+      );
     } catch (error) {
-      await this.storageService.deleteObject(StorageBucket.AlbumArt, fileKey);
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2025'
-      ) {
+      if (isPrismaKnownError(error, 'P2025')) {
         throw new NotFoundException('Album not found');
       }
       throw error;
@@ -270,10 +287,13 @@ export class AlbumsService {
   };
 
   private buildOrderBy(
-    orderOptions?: AlbumSortOptions,
-  ): Prisma.AlbumOrderByWithRelationInput {
-    const ordering = orderOptions ?? { order: 'title', orderBy: 'asc' };
-    const orderBy = AlbumsService.SORT_FIELD_MAP[ordering.order];
-    return orderBy(ordering.orderBy);
+    options?: AlbumSortOptions,
+  ): Prisma.AlbumOrderByWithRelationInput[] {
+    return buildOrderBy(
+      AlbumsService.SORT_FIELD_MAP,
+      { id: 'asc' },
+      { order: 'title', orderBy: 'asc' },
+      options,
+    );
   }
 }

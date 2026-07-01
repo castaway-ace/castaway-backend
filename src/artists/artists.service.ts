@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { StorageService } from '../storage/storage.service.js';
 import { Prisma } from '../generated/prisma/client.js';
@@ -14,6 +14,9 @@ import { ArtistEntity } from './artists.entity.js';
 import { ArtistOrderOptions, ArtistSortOrder } from './dto/artist-query.dto.js';
 import { ArtistRef } from '../common/entities/references.entity.js';
 import { createReadStream } from 'fs';
+import { buildOrderBy } from '../common/query.js';
+import { withStorageCleanup } from '../common/storage-cleanup.js';
+import { isPrismaKnownError } from '../common/prisma-error.js';
 
 interface ArtistFilters {
   starred?: boolean;
@@ -28,6 +31,7 @@ interface ArtistQueryOptions {
 
 @Injectable()
 export class ArtistsService {
+  private readonly logger = new Logger(ArtistsService.name);
   constructor(
     private readonly prisma: PrismaService,
     private readonly storageService: StorageService,
@@ -146,13 +150,19 @@ export class ArtistsService {
     );
 
     try {
-      await this.setImageKey(artistId, fileKey);
+      await withStorageCleanup(
+        () => this.setImageKey(artistId, fileKey),
+        () =>
+          this.storageService.deleteObject(StorageBucket.ArtistArt, fileKey),
+        (error) =>
+          this.logger.warn(
+            `Failed to clean up orphaned cover ${fileKey}: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          ),
+      );
     } catch (error) {
-      await this.storageService.deleteObject(StorageBucket.ArtistArt, fileKey);
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2025'
-      ) {
+      if (isPrismaKnownError(error, 'P2025')) {
         throw new NotFoundException('Artist not found');
       }
       throw error;
@@ -245,10 +255,13 @@ export class ArtistsService {
   };
 
   private buildOrderBy(
-    orderOptions?: ArtistOrderOptions,
-  ): Prisma.ArtistOrderByWithRelationInput {
-    const ordering = orderOptions ?? { order: 'name', orderBy: 'asc' };
-    const orderBy = ArtistsService.SORT_FIELD_MAP[ordering.order];
-    return orderBy(ordering.orderBy);
+    options?: ArtistOrderOptions,
+  ): Prisma.ArtistOrderByWithRelationInput[] {
+    return buildOrderBy(
+      ArtistsService.SORT_FIELD_MAP,
+      { id: 'asc' },
+      { order: 'name', orderBy: 'asc' },
+      options,
+    );
   }
 }

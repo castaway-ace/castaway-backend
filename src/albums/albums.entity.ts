@@ -69,4 +69,7 @@ export class AlbumSummaryEntity implements AlbumSummary {
 
   @ApiProperty({ type: () => ArtistRef, isArray: true })
   artists!: ArtistRef[];
+
+  @ApiProperty()
+  starred!: boolean;
 }
