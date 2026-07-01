@@ -10,11 +10,12 @@ import { RefreshTokenService } from '../refresh-token/refresh-token.service.js';
 import { DeviceService } from '../device/device.service.js';
 import { DeviceDto } from '../device/dto/device.dto.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { Prisma, PlaylistType } from '../generated/prisma/client.js';
+import { PlaylistType } from '../generated/prisma/client.js';
 import { User } from '../users/users.types.js';
 import { SignUpDto } from './dto/sign-up.dto.js';
 import { LoginDto } from './dto/login.dto.js';
 import { AuthTokensEntity } from './entities/auth-tokens.entity.js';
+import { isPrismaKnownError } from 'src/common/prisma-error.js';
 
 @Injectable()
 export class AuthService {
@@ -70,11 +71,20 @@ export class AuthService {
         return user;
       })
       .catch((error: unknown) => {
-        if (
-          error instanceof Prisma.PrismaClientKnownRequestError &&
-          error.code === 'P2002'
-        ) {
-          throw new ConflictException('Email or username already registered');
+        if (isPrismaKnownError(error, 'P2002')) {
+          const target = error.meta?.target;
+          const fields = Array.isArray(target)
+            ? target.join(',')
+            : typeof target === 'string'
+              ? target
+              : '';
+          if (fields.includes('user_name')) {
+            throw new ConflictException('Username already taken');
+          }
+          if (fields.includes('email')) {
+            throw new ConflictException('Email already registered');
+          }
+          throw new ConflictException('Email or username already taken');
         }
         throw error;
       });

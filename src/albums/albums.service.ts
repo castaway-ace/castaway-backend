@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { StorageService } from '../storage/storage.service.js';
 import { Prisma, Album as PrismaAlbum } from '../generated/prisma/client.js';
@@ -134,18 +139,21 @@ export class AlbumsService {
     releaseDate: Date,
   ): Promise<PrismaAlbum> {
     const identityKey = buildAlbumIdentity(title, artistIds);
-    const album = await this.prisma.album.create({
-      data: {
-        title,
-        releaseDate,
-        identityKey,
-        albumArtists: {
-          create: artistIds.map((artistId) => ({ artistId })),
+    try {
+      return await this.prisma.album.create({
+        data: {
+          title,
+          releaseDate,
+          identityKey,
+          albumArtists: { create: artistIds.map((artistId) => ({ artistId })) },
         },
-      },
-    });
-
-    return album;
+      });
+    } catch (error) {
+      if (isPrismaKnownError(error, 'P2002')) {
+        throw new ConflictException('Album already imported');
+      }
+      throw error;
+    }
   }
 
   async delete(id: string): Promise<void> {
