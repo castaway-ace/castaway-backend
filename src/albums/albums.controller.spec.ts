@@ -10,8 +10,9 @@ import type { App } from 'supertest/types.js';
 import type { Request } from 'express';
 import { AlbumsService } from './albums.service.js';
 import { AlbumsController } from './albums.controller.js';
-import { AuthGuard } from '../auth/guards/auth.guard.js';
 import { Album, AlbumSummary } from './albums.types.js';
+import { APP_GUARD } from '@nestjs/core';
+import { toJson } from '../common/test.js';
 
 const releaseDate = new Date('2026-06-06T00:00:00.000Z');
 
@@ -42,12 +43,10 @@ const albumSummaries: AlbumSummary[] = [
 const albumCoverUrl =
   'http://localhost:9000/albums/album-1/cover.jpg?X-Amz-Signature=test';
 
-const toJson = <T>(value: T): unknown => JSON.parse(JSON.stringify(value));
-
 describe('AlbumsController', () => {
   let app: INestApplication<App>;
 
-  const albumsService = {
+  const mockAlbumService = {
     find: jest.fn<AlbumsService['find']>().mockResolvedValue(album),
     findAll: jest
       .fn<AlbumsService['findAll']>()
@@ -63,17 +62,20 @@ describe('AlbumsController', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AlbumsController],
-      providers: [{ provide: AlbumsService, useValue: albumsService }],
-    })
-      .overrideGuard(AuthGuard)
-      .useValue({
-        canActivate: (context: ExecutionContext): boolean => {
-          const req = context.switchToHttp().getRequest<Request>();
-          req.user = { sub: 'test-user', isAdmin: false, deviceId: '1234' };
-          return true;
+      providers: [
+        { provide: AlbumsService, useValue: mockAlbumService },
+        {
+          provide: APP_GUARD,
+          useValue: {
+            canActivate: (context: ExecutionContext): boolean => {
+              const req = context.switchToHttp().getRequest<Request>();
+              req.user = { sub: 'test-user', isAdmin: false, deviceId: '1234' };
+              return true;
+            },
+          },
         },
-      })
-      .compile();
+      ],
+    }).compile();
 
     app = module.createNestApplication();
     app.useGlobalPipes(
@@ -92,23 +94,26 @@ describe('AlbumsController', () => {
 
   describe('GET /albums/:id', () => {
     it('returns the album for the requesting user', async () => {
-      await request(app.getHttpServer())
+      const res = await request(app.getHttpServer())
         .get('/albums/album-1')
-        .expect(200)
-        .expect(toJson(album) as object);
+        .expect(200);
 
-      expect(albumsService.find).toHaveBeenCalledWith('test-user', 'album-1');
+      expect(res.body).toEqual(toJson(album));
+
+      expect(mockAlbumService.find).toHaveBeenCalledWith(
+        'test-user',
+        'album-1',
+      );
     });
   });
 
   describe('GET /albums', () => {
     it('returns a list of album summaries', async () => {
-      await request(app.getHttpServer())
-        .get('/albums')
-        .expect(200)
-        .expect(toJson(albumSummaries) as object);
+      const res = await request(app.getHttpServer()).get('/albums').expect(200);
 
-      expect(albumsService.findAll).toHaveBeenCalledWith('test-user', {
+      expect(res.body).toEqual(toJson(albumSummaries));
+
+      expect(mockAlbumService.findAll).toHaveBeenCalledWith('test-user', {
         filters: {
           artistIds: undefined,
           genres: undefined,
@@ -125,7 +130,7 @@ describe('AlbumsController', () => {
         .get('/albums?starred=true&order=year&orderBy=desc&limit=10&offset=20')
         .expect(200);
 
-      expect(albumsService.findAll).toHaveBeenCalledWith('test-user', {
+      expect(mockAlbumService.findAll).toHaveBeenCalledWith('test-user', {
         filters: {
           artistIds: undefined,
           genres: undefined,
@@ -145,7 +150,7 @@ describe('AlbumsController', () => {
         .expect(200)
         .expect(albumCoverUrl);
 
-      expect(albumsService.getAlbumCoverUrl).toHaveBeenCalledWith('album-1');
+      expect(mockAlbumService.getAlbumCoverUrl).toHaveBeenCalledWith('album-1');
     });
   });
 
@@ -155,7 +160,7 @@ describe('AlbumsController', () => {
         .post('/albums/album-1/star')
         .expect(204);
 
-      expect(albumsService.updateStar).toHaveBeenCalledWith(
+      expect(mockAlbumService.updateStar).toHaveBeenCalledWith(
         'test-user',
         'album-1',
         true,
@@ -169,7 +174,7 @@ describe('AlbumsController', () => {
         .delete('/albums/album-1/star')
         .expect(204);
 
-      expect(albumsService.updateStar).toHaveBeenCalledWith(
+      expect(mockAlbumService.updateStar).toHaveBeenCalledWith(
         'test-user',
         'album-1',
         false,

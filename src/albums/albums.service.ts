@@ -7,12 +7,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service.js';
 import { StorageService } from '../storage/storage.service.js';
 import { Prisma, Album as PrismaAlbum } from '../generated/prisma/client.js';
-import {
-  Album,
-  albumSelect,
-  albumSummarySelect,
-  AlbumSummary,
-} from './albums.types.js';
+import { albumSelect, albumSummarySelect } from './albums.types.js';
 import { StorageBucket } from '../storage/storage.types.js';
 import { IPicture } from 'music-metadata';
 import { buildAlbumIdentity } from '../utils/album-identity.js';
@@ -20,6 +15,7 @@ import { AlbumSortOptions, AlbumSortOrder } from './dto/album-query.dto.js';
 import { buildOrderBy } from '../common/query.js';
 import { withStorageCleanup } from '../common/storage-cleanup.js';
 import { isPrismaKnownError } from '../common/prisma-error.js';
+import { AlbumEntity, AlbumSummaryEntity } from './albums.entity.js';
 
 interface AlbumFilters {
   artistIds?: string[];
@@ -45,7 +41,7 @@ export class AlbumsService {
   async findAll(
     userId: string,
     options: AlbumQueryOptions,
-  ): Promise<AlbumSummary[]> {
+  ): Promise<AlbumSummaryEntity[]> {
     const where = this.buildWhere(options.filters, userId);
     const orderBy = this.buildOrderBy(options?.sortOptions);
 
@@ -71,11 +67,11 @@ export class AlbumsService {
     return albums.map(({ albumAnnotations, albumArtists, ...album }) => ({
       ...album,
       artists: albumArtists.map((ta) => ta.artist),
-      starred: albumAnnotations.length > 0,
+      starred: albumAnnotations?.length > 0,
     }));
   }
 
-  async find(userId: string, id: string): Promise<Album> {
+  async find(userId: string, id: string): Promise<AlbumEntity> {
     const album = await this.prisma.album.findUnique({
       where: { id },
       select: {
@@ -101,7 +97,7 @@ export class AlbumsService {
         (a, b) => a.discNumber - b.discNumber || a.trackNumber - b.trackNumber,
       );
 
-    const starred = album.albumAnnotations.length > 0;
+    const starred = album.albumAnnotations?.length > 0;
 
     return {
       id: album.id,

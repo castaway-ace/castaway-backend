@@ -54,8 +54,8 @@ export const albumSummarySelect = {
   },
 } satisfies Prisma.AlbumSelect;
 
-type AlbumRow = Prisma.AlbumGetPayload<{ select: typeof albumSelect }>;
-type AlbumSummaryRow = Prisma.AlbumGetPayload<{
+export type AlbumRow = Prisma.AlbumGetPayload<{ select: typeof albumSelect }>;
+export type AlbumSummaryRow = Prisma.AlbumGetPayload<{
   select: typeof albumSummarySelect;
 }>;
 type AlbumTrackRow = AlbumRow['tracks'][number];
