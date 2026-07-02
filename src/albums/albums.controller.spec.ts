@@ -35,6 +35,7 @@ const albumSummaries: AlbumSummary[] = [
     releaseDate,
     genres: ['rock'],
     artists: [artistRef],
+    starred: false,
   },
 ];
 

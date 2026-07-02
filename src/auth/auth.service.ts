@@ -15,7 +15,7 @@ import { User } from '../users/users.types.js';
 import { SignUpDto } from './dto/sign-up.dto.js';
 import { LoginDto } from './dto/login.dto.js';
 import { AuthTokensEntity } from './entities/auth-tokens.entity.js';
-import { isPrismaKnownError } from 'src/common/prisma-error.js';
+import { isPrismaKnownError } from '../common/prisma-error.js';
 
 @Injectable()
 export class AuthService {

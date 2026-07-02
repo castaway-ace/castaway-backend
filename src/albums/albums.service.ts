@@ -157,9 +157,28 @@ export class AlbumsService {
   }
 
   async delete(id: string): Promise<void> {
-    await this.prisma.album.delete({
+    const album = await this.prisma.album.findUnique({
       where: { id },
+      select: { imageKey: true },
     });
+
+    if (!album) {
+      throw new NotFoundException('Album not found');
+    }
+
+    if (album.imageKey) {
+      await this.storageService
+        .deleteObject(StorageBucket.AlbumArt, album.imageKey)
+        .catch((error: unknown) =>
+          this.logger.warn(
+            `Failed to delete cover ${album.imageKey} for album ${id}: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          ),
+        );
+    }
+
+    await this.prisma.album.delete({ where: { id } });
   }
 
   async createAlbumCover(albumId: string, picture: IPicture): Promise<void> {

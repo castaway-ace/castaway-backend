@@ -32,6 +32,7 @@ export class AdminService {
   }
 
   async deleteAlbum(id: string): Promise<void> {
+    await this.trackService.deleteAlbumTrackFiles(id);
     await this.albumService.delete(id);
   }
 
@@ -67,6 +68,7 @@ export class AdminService {
       const parsedFiles = await this.parseFiles(files);
       const artistMap = await this.resolveArtistMap(parsedFiles);
       this.validateSingleAlbum(parsedFiles, artistMap);
+      this.validateUniqueTrackPositions(parsedFiles);
 
       const firstTags = parsedFiles[0].tags;
       const albumArtistIds = this.resolveArtistIds(
@@ -80,36 +82,49 @@ export class AdminService {
         firstTags.date,
       );
 
-      const picture = firstTags.picture;
-      if (!album.imageKey && picture && picture.format.startsWith('image/')) {
-        await this.albumService.createAlbumCover(album.id, picture);
-      }
+      try {
+        const picture = firstTags.picture;
+        if (picture && picture.format.startsWith('image/')) {
+          await this.albumService.createAlbumCover(album.id, picture);
+        }
 
-      const results = await this.uploadTracksWithConcurrency(
-        parsedFiles,
-        album.id,
-        artistMap,
-      );
+        const results = await this.uploadTracksWithConcurrency(
+          parsedFiles,
+          album.id,
+          artistMap,
+        );
 
-      const failures = results.flatMap((result, index) =>
-        result.status === 'rejected'
-          ? [
-              {
-                trackTitle: parsedFiles[index].tags.title,
-                reason:
-                  result.reason instanceof Error
-                    ? result.reason.message
-                    : String(result.reason),
-              },
-            ]
-          : [],
-      );
+        const failures = results.flatMap((result, index) =>
+          result.status === 'rejected'
+            ? [
+                {
+                  trackTitle: parsedFiles[index].tags.title,
+                  reason:
+                    result.reason instanceof Error
+                      ? result.reason.message
+                      : String(result.reason),
+                },
+              ]
+            : [],
+        );
 
-      if (failures.length > 0) {
-        throw new BadRequestException({
-          message: `${failures.length} of ${parsedFiles.length} tracks failed to upload`,
-          failures,
-        });
+        if (failures.length > 0) {
+          throw new BadRequestException({
+            message: `${failures.length} of ${parsedFiles.length} tracks failed to upload`,
+            failures,
+          });
+        }
+      } catch (error) {
+        await this.deleteAlbum(album.id).catch((rollbackError: unknown) =>
+          this.logger.warn(
+            `Rollback failed for album ${album.id}: ${
+              rollbackError instanceof Error
+                ? rollbackError.message
+                : String(rollbackError)
+            }`,
+          ),
+        );
+        throw error;
       }
     } finally {
       await this.cleanupFiles(files);
@@ -262,6 +277,30 @@ export class AdminService {
     }
   }
 
+  private validateUniqueTrackPositions(parsedFiles: ParsedFile[]): void {
+    const seen = new Map<string, string>();
+    const collisions: string[] = [];
+
+    for (const { tags } of parsedFiles) {
+      const key = `${tags.discNumber}-${tags.trackNumber}`;
+      const existingTitle = seen.get(key);
+      if (existingTitle !== undefined) {
+        collisions.push(
+          `Disc ${tags.discNumber}, track ${tags.trackNumber}: "${existingTitle}" and "${tags.title}"`,
+        );
+      } else {
+        seen.set(key, tags.title);
+      }
+    }
+
+    if (collisions.length > 0) {
+      throw new BadRequestException({
+        message: 'Upload contains duplicate disc and track numbers',
+        collisions,
+      });
+    }
+  }
+
   private extractRequiredTags(metadata: IAudioMetadata): MetadataTags {
     const {
       title,
@@ -294,6 +333,10 @@ export class AdminService {
     const releaseDate = new Date(date);
     if (Number.isNaN(releaseDate.getTime())) {
       throw new BadRequestException(`Invalid date: ${date}`);
+    }
+
+    if (track.no === null || track.no === undefined) {
+      throw new BadRequestException('Missing track number');
     }
 
     return {

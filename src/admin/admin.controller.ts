@@ -86,7 +86,7 @@ export class AdminController {
   @Post('albums')
   @UseInterceptors(
     FilesInterceptor('files', 200, {
-      limits: { fileSize: 2 * 1024 * 1024 * 1024 },
+      limits: { fileSize: 2 * 1024 * 1024 * 1024 - 1 },
     }),
   )
   @ApiConsumes('multipart/form-data')
@@ -101,6 +101,7 @@ export class AdminController {
   })
   @ApiCreatedResponse({ description: 'Album imported.' })
   @ApiBadRequestResponse({ description: 'Invalid files or metadata.' })
+  @ApiConflictResponse({ description: 'Album already imported.' })
   async uploadAlbum(
     @UploadedFiles() files: Express.Multer.File[],
   ): Promise<void> {

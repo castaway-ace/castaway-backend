@@ -1,14 +1,9 @@
 import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
-import { MockMetadata, ModuleMocker } from 'jest-mock';
 import { AdminService } from './admin.service.js';
 import { AdminController } from './admin.controller.js';
-import { AuthGuard } from '../auth/guards/auth.guard.js';
-import { AdminGuard } from '../auth/guards/admin.guard.js';
 
-const moduleMocker = new ModuleMocker(global);
-
-describe('AuthController', () => {
+describe('AdminController', () => {
   let adminController: AdminController;
 
   const mockAdminService = {
@@ -35,32 +30,8 @@ describe('AuthController', () => {
           useValue: mockAdminService,
         },
       ],
-    })
-      .useMocker((token) => {
-        if (typeof token === 'function') {
-          const mockMetadata = moduleMocker.getMetadata(token) as MockMetadata<
-            any,
-            any
-          >;
-          const Mock = moduleMocker.generateFromMetadata(
-            mockMetadata,
-          ) as ObjectConstructor;
-          return new Mock();
-        }
-      })
-      .overrideGuard(AuthGuard)
-      .useValue({
-        canActivate: (): boolean => {
-          return true;
-        },
-      })
-      .overrideGuard(AdminGuard)
-      .useValue({
-        canActivate: (): boolean => {
-          return true;
-        },
-      })
-      .compile();
+    }).compile();
+
     adminController = module.get(AdminController);
   });
 
