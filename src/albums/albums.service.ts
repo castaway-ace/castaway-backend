@@ -12,7 +12,7 @@ import { StorageBucket } from '../storage/storage.types.js';
 import { IPicture } from 'music-metadata';
 import { buildAlbumIdentity } from '../utils/album-identity.js';
 import { AlbumSortOptions, AlbumSortOrder } from './dto/album-query.dto.js';
-import { buildOrderBy } from '../common/query.js';
+import { buildOrderBy, clampPagination } from '../common/query.js';
 import { withStorageCleanup } from '../common/storage-cleanup.js';
 import { isPrismaKnownError } from '../common/prisma-error.js';
 import { AlbumEntity, AlbumSummaryEntity } from './albums.entity.js';
@@ -44,10 +44,7 @@ export class AlbumsService {
   ): Promise<AlbumSummaryEntity[]> {
     const where = this.buildWhere(options.filters, userId);
     const orderBy = this.buildOrderBy(options?.sortOptions);
-
-    const requestedLimit = options.pagination?.limit ?? 100;
-    const take = Math.min(Math.max(requestedLimit, 1), 200);
-    const skip = Math.max(options.pagination?.offset ?? 0, 0);
+    const { take, skip } = clampPagination(options.pagination);
 
     const albums = await this.prisma.album.findMany({
       orderBy,

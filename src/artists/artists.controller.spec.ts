@@ -8,9 +8,9 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import { App } from 'supertest/types.js';
-import { AuthGuard } from '../auth/guards/auth.guard.js';
 import type { Request } from 'express';
 import request from 'supertest';
+import { APP_GUARD } from '@nestjs/core';
 
 const artist = {
   id: 'artist-1',
@@ -24,6 +24,7 @@ const artistSummaries = [
   {
     id: 'artist-1',
     name: 'Test Artist',
+    starred: false,
   },
 ];
 
@@ -41,10 +42,12 @@ describe('ArtistsController', () => {
     getArtistImageUrl: jest
       .fn<ArtistsService['getArtistImageUrl']>()
       .mockResolvedValue(artistImageURL),
-    updateStar: jest.fn<ArtistsService['updateStar']>().mockResolvedValue(),
+    star: jest.fn<ArtistsService['star']>().mockResolvedValue(),
+    unstar: jest.fn<ArtistsService['unstar']>().mockResolvedValue(),
   };
 
   beforeEach(async () => {
+    jest.clearAllMocks();
     const module = await Test.createTestingModule({
       controllers: [ArtistsController],
       providers: [
@@ -52,17 +55,18 @@ describe('ArtistsController', () => {
           provide: ArtistsService,
           useValue: artistsService,
         },
-      ],
-    })
-      .overrideGuard(AuthGuard)
-      .useValue({
-        canActivate: (context: ExecutionContext): boolean => {
-          const req = context.switchToHttp().getRequest<Request>();
-          req.user = { sub: 'test-user', isAdmin: false, deviceId: '1234' };
-          return true;
+        {
+          provide: APP_GUARD,
+          useValue: {
+            canActivate: (context: ExecutionContext): boolean => {
+              const req = context.switchToHttp().getRequest<Request>();
+              req.user = { sub: 'test-user', isAdmin: false, deviceId: '1234' };
+              return true;
+            },
+          },
         },
-      })
-      .compile();
+      ],
+    }).compile();
 
     app = module.createNestApplication();
     app.useGlobalPipes(
@@ -76,7 +80,6 @@ describe('ArtistsController', () => {
   });
 
   afterEach(async () => {
-    jest.clearAllMocks();
     await app.close();
   });
 
@@ -127,11 +130,7 @@ describe('ArtistsController', () => {
       await request(app.getHttpServer())
         .post('/artists/artist-1/star')
         .expect(204);
-      expect(artistsService.updateStar).toHaveBeenCalledWith(
-        'test-user',
-        'artist-1',
-        true,
-      );
+      expect(artistsService.star).toHaveBeenCalledWith('test-user', 'artist-1');
     });
   });
 
@@ -140,10 +139,9 @@ describe('ArtistsController', () => {
       await request(app.getHttpServer())
         .delete('/artists/artist-1/star')
         .expect(204);
-      expect(artistsService.updateStar).toHaveBeenCalledWith(
+      expect(artistsService.unstar).toHaveBeenCalledWith(
         'test-user',
         'artist-1',
-        false,
       );
     });
   });

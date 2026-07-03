@@ -41,9 +41,10 @@ export class ArtistsController {
         starred: query.starred,
         search: query.search,
       },
-      sortOptions: query.order
-        ? { order: query.order, orderBy: query.orderBy ?? 'asc' }
-        : undefined,
+      sortOptions:
+        query.order || query.orderBy
+          ? { order: query.order ?? 'name', orderBy: query.orderBy ?? 'asc' }
+          : undefined,
       pagination: { limit: query.limit, offset: query.offset },
     });
   }
@@ -67,6 +68,7 @@ export class ArtistsController {
       description: 'Presigned URL to the artist image.',
     },
   })
+  @ApiNotFoundResponse({ description: 'Artist image not found.' })
   async getArtistImageUrl(@Param('id') id: string): Promise<string> {
     const url = await this.artistService.getArtistImageUrl(id);
 
@@ -81,17 +83,17 @@ export class ArtistsController {
     @CurrentUser('sub') sub: string,
     @Param('id') id: string,
   ): Promise<void> {
-    await this.artistService.updateStar(sub, id, true);
+    await this.artistService.star(sub, id);
   }
 
   @Delete(':id/star')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiNoContentResponse()
-  @ApiNotFoundResponse({ description: 'Album not found.' })
-  async unStar(
+  @ApiNotFoundResponse({ description: 'Artist not found.' })
+  async unstar(
     @CurrentUser('sub') sub: string,
     @Param('id') id: string,
   ): Promise<void> {
-    await this.artistService.updateStar(sub, id, false);
+    await this.artistService.unstar(sub, id);
   }
 }

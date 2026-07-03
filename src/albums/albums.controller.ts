@@ -88,7 +88,7 @@ export class AlbumsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiNoContentResponse()
   @ApiNotFoundResponse({ description: 'Album not found.' })
-  async unStar(
+  async unstar(
     @CurrentUser('sub') sub: string,
     @Param('id') id: string,
   ): Promise<void> {

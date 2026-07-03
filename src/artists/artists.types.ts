@@ -26,7 +26,7 @@ export type ArtistRow = Prisma.ArtistGetPayload<{
 }>;
 type AlbumRow = ArtistRow['albumArtists'][number]['album'];
 
-type ArtistSummaryRow = Prisma.ArtistGetPayload<{
+export type ArtistSummaryRow = Prisma.ArtistGetPayload<{
   select: typeof artistSummarySelect;
 }>;
 

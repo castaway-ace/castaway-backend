@@ -21,12 +21,7 @@ const artistRef = { id: 'artist-1', name: 'Test Artist' };
 
 const userId = 'user-1';
 
-const p2002 = new Prisma.PrismaClientKnownRequestError('Unique constraint', {
-  code: 'P2002',
-  clientVersion: '7.0.0',
-});
-
-const createdAlbumRow: PrismaAlbum = {
+const albumRow: PrismaAlbum = {
   id: 'album-1',
   title: 'test1',
   releaseDate,
@@ -36,62 +31,6 @@ const createdAlbumRow: PrismaAlbum = {
   genres: [],
   createdAt: releaseDate,
   updatedAt: releaseDate,
-};
-
-const albumRow: AlbumRow & AlbumAnnotations = {
-  id: 'album-1',
-  title: 'test1',
-  releaseDate,
-  compilation: false,
-  genres: ['rock'],
-  albumArtists: [{ artist: artistRef }],
-  tracks: [],
-  albumAnnotations: [],
-};
-
-const albumEntity: AlbumEntity = {
-  id: 'album-1',
-  title: 'test1',
-  releaseDate,
-  compilation: false,
-  genres: ['rock'],
-  artists: [artistRef],
-  starred: false,
-  tracks: [],
-};
-
-const albumSummaryRows: (AlbumSummaryRow & AlbumAnnotations)[] = [
-  {
-    id: 'album-1',
-    title: 'test1',
-    releaseDate,
-    genres: ['rock'],
-    albumArtists: [{ artist: artistRef }],
-    albumAnnotations: [],
-  },
-];
-
-const albumSummaryEntities: AlbumSummaryEntity[] = [
-  {
-    id: 'album-1',
-    title: 'test1',
-    releaseDate,
-    genres: ['rock'],
-    artists: [artistRef],
-    starred: false,
-  },
-];
-
-const albumCoverUrl = 'https://example.com/cover.jpg';
-
-const p2025 = new Prisma.PrismaClientKnownRequestError('Record not found', {
-  code: 'P2025',
-  clientVersion: '7.0.0',
-});
-
-const picture: IPicture = {
-  format: 'image/jpeg',
-  data: new Uint8Array([1, 2, 3]),
 };
 
 describe('AlbumService', () => {
@@ -139,6 +78,28 @@ describe('AlbumService', () => {
   afterEach(() => jest.clearAllMocks());
 
   describe('findAll', () => {
+    const albumSummaryRows: (AlbumSummaryRow & AlbumAnnotations)[] = [
+      {
+        id: 'album-1',
+        title: 'test1',
+        releaseDate,
+        genres: ['rock'],
+        albumArtists: [{ artist: artistRef }],
+        albumAnnotations: [],
+      },
+    ];
+
+    const albumSummaryEntities: AlbumSummaryEntity[] = [
+      {
+        id: 'album-1',
+        title: 'test1',
+        releaseDate,
+        genres: ['rock'],
+        artists: [artistRef],
+        starred: false,
+      },
+    ];
+
     it('should find all albums', async () => {
       mockPrismaService.album.findMany.mockResolvedValue(albumSummaryRows);
       const result = await albumService.findAll(userId, {});
@@ -147,6 +108,28 @@ describe('AlbumService', () => {
   });
 
   describe('find', () => {
+    const albumRow: AlbumRow & AlbumAnnotations = {
+      id: 'album-1',
+      title: 'test1',
+      releaseDate,
+      compilation: false,
+      genres: ['rock'],
+      albumArtists: [{ artist: artistRef }],
+      tracks: [],
+      albumAnnotations: [],
+    };
+
+    const albumEntity: AlbumEntity = {
+      id: 'album-1',
+      title: 'test1',
+      releaseDate,
+      compilation: false,
+      genres: ['rock'],
+      artists: [artistRef],
+      starred: false,
+      tracks: [],
+    };
+
     it('should find an album by id', async () => {
       mockPrismaService.album.findUnique.mockResolvedValue(albumRow);
       const result = await albumService.find(userId, 'album-1');
@@ -155,6 +138,7 @@ describe('AlbumService', () => {
   });
 
   describe('getAlbumCoverUrl', () => {
+    const albumCoverUrl = 'https://example.com/cover.jpg';
     it('should get the album cover url', async () => {
       mockPrismaService.album.findUnique.mockResolvedValue({
         imageKey: 'album-1/cover.jpg',
@@ -170,7 +154,7 @@ describe('AlbumService', () => {
   });
 
   describe('star', () => {
-    it('upserts the annotation when starring', async () => {
+    it('upsert the annotation when starring', async () => {
       mockPrismaService.albumAnnotation.upsert.mockResolvedValue({});
 
       await albumService.star(userId, 'album-1');
@@ -200,8 +184,16 @@ describe('AlbumService', () => {
   });
 
   describe('create', () => {
+    const p2002 = new Prisma.PrismaClientKnownRequestError(
+      'Unique constraint',
+      {
+        code: 'P2002',
+        clientVersion: '7.0.0',
+      },
+    );
+
     it('creates the album with its artist joins', async () => {
-      mockPrismaService.album.create.mockResolvedValue(createdAlbumRow);
+      mockPrismaService.album.create.mockResolvedValue(albumRow);
 
       const result = await albumService.create(
         'test1',
@@ -209,7 +201,7 @@ describe('AlbumService', () => {
         releaseDate,
       );
 
-      expect(result).toEqual(createdAlbumRow);
+      expect(result).toEqual(albumRow);
       expect(mockPrismaService.album.create).toHaveBeenCalledTimes(1);
 
       const createArgs = mockPrismaService.album.create.mock.calls[0][0];
@@ -238,7 +230,7 @@ describe('AlbumService', () => {
         imageKey: 'album-1/cover.jpg',
       });
       mockStorageService.deleteObject.mockResolvedValue(undefined);
-      mockPrismaService.album.delete.mockResolvedValue(createdAlbumRow);
+      mockPrismaService.album.delete.mockResolvedValue(albumRow);
 
       await albumService.delete('album-1');
 
@@ -253,7 +245,7 @@ describe('AlbumService', () => {
 
     it('skips storage deletion when the album has no cover', async () => {
       mockPrismaService.album.findUnique.mockResolvedValue({ imageKey: null });
-      mockPrismaService.album.delete.mockResolvedValue(createdAlbumRow);
+      mockPrismaService.album.delete.mockResolvedValue(albumRow);
 
       await albumService.delete('album-1');
 
@@ -277,7 +269,7 @@ describe('AlbumService', () => {
       mockStorageService.deleteObject.mockRejectedValue(
         new Error('storage unavailable'),
       );
-      mockPrismaService.album.delete.mockResolvedValue(createdAlbumRow);
+      mockPrismaService.album.delete.mockResolvedValue(albumRow);
 
       await albumService.delete('album-1');
 
@@ -288,9 +280,19 @@ describe('AlbumService', () => {
   });
 
   describe('createAlbumCover', () => {
+    const p2025 = new Prisma.PrismaClientKnownRequestError('Record not found', {
+      code: 'P2025',
+      clientVersion: '7.0.0',
+    });
+
+    const picture: IPicture = {
+      format: 'image/jpeg',
+      data: new Uint8Array([1, 2, 3]),
+    };
+
     it('uploads the cover and then sets the image key', async () => {
       mockStorageService.putObject.mockResolvedValue(undefined);
-      mockPrismaService.album.update.mockResolvedValue(createdAlbumRow);
+      mockPrismaService.album.update.mockResolvedValue(albumRow);
 
       await albumService.createAlbumCover('album-1', picture);
 

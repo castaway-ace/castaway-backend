@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { StorageService } from '../storage/storage.service.js';
 import { Prisma } from '../generated/prisma/client.js';
@@ -14,7 +19,7 @@ import { ArtistEntity } from './artists.entity.js';
 import { ArtistOrderOptions, ArtistSortOrder } from './dto/artist-query.dto.js';
 import { ArtistRef } from '../common/entities/references.entity.js';
 import { createReadStream } from 'fs';
-import { buildOrderBy } from '../common/query.js';
+import { buildOrderBy, clampPagination } from '../common/query.js';
 import { withStorageCleanup } from '../common/storage-cleanup.js';
 import { isPrismaKnownError } from '../common/prisma-error.js';
 
@@ -44,9 +49,7 @@ export class ArtistsService {
     const where = this.buildWhere(options.filters, userId);
     const orderBy = this.buildOrderBy(options?.sortOptions);
 
-    const requestedLimit = options.pagination?.limit ?? 100;
-    const take = Math.min(Math.max(requestedLimit, 1), 200);
-    const skip = Math.max(options.pagination?.offset ?? 0, 0);
+    const { take, skip } = clampPagination(options.pagination);
 
     const artists = await this.prisma.artist.findMany({
       orderBy,
@@ -111,25 +114,57 @@ export class ArtistsService {
     );
   }
 
-  create(name: string): Promise<ArtistRef> {
-    return this.prisma.artist.create({
-      data: { name },
-      select: { id: true, name: true },
+  async star(userId: string, artistId: string): Promise<void> {
+    await this.prisma.artistAnnotation.upsert({
+      where: { userId_artistId: { userId, artistId } },
+      create: { userId, artistId, starred: true },
+      update: { starred: true },
     });
+  }
+
+  async unstar(userId: string, artistId: string): Promise<void> {
+    await this.prisma.artistAnnotation.deleteMany({
+      where: { userId, artistId },
+    });
+  }
+
+  async create(name: string): Promise<ArtistRef> {
+    try {
+      return await this.prisma.artist.create({
+        data: { name },
+        select: { id: true, name: true },
+      });
+    } catch (error) {
+      if (isPrismaKnownError(error, 'P2002')) {
+        throw new ConflictException('Artist already exists');
+      }
+      throw error;
+    }
   }
 
   async delete(id: string): Promise<void> {
-    await this.prisma.artist.delete({
+    const artist = await this.prisma.artist.findUnique({
       where: { id },
+      select: { imageKey: true },
     });
-  }
 
-  async findIdsByNames(names: string[]): Promise<Map<string, string>> {
-    const artists = await this.prisma.artist.findMany({
-      where: { name: { in: names } },
-      select: { name: true, id: true },
-    });
-    return new Map(artists.map((artist) => [artist.name, artist.id]));
+    if (!artist) {
+      throw new NotFoundException('Artist not found');
+    }
+
+    if (artist.imageKey) {
+      await this.storageService
+        .deleteObject(StorageBucket.ArtistArt, artist.imageKey)
+        .catch((error: unknown) =>
+          this.logger.warn(
+            `Failed to delete image ${artist.imageKey} for artist ${id}: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          ),
+        );
+    }
+
+    await this.prisma.artist.delete({ where: { id } });
   }
 
   async createArtistImage(
@@ -169,22 +204,12 @@ export class ArtistsService {
     }
   }
 
-  async updateStar(
-    userId: string,
-    artistId: string,
-    starred: boolean,
-  ): Promise<void> {
-    if (starred) {
-      await this.prisma.artistAnnotation.upsert({
-        where: { userId_artistId: { userId, artistId } },
-        create: { userId, artistId, starred: true },
-        update: { starred: true },
-      });
-    } else {
-      await this.prisma.artistAnnotation.deleteMany({
-        where: { userId, artistId },
-      });
-    }
+  async findIdsByNames(names: string[]): Promise<Map<string, string>> {
+    const artists = await this.prisma.artist.findMany({
+      where: { name: { in: names } },
+      select: { name: true, id: true },
+    });
+    return new Map(artists.map((artist) => [artist.name, artist.id]));
   }
 
   async findOrCreateArtist(name: string): Promise<Artist> {
@@ -198,10 +223,7 @@ export class ArtistsService {
 
       return this.toArtist(artist);
     } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
+      if (isPrismaKnownError(error, 'P2002')) {
         const artist = await this.prisma.artist.findUniqueOrThrow({
           where: { name },
           select: artistSelect,
