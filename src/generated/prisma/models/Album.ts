@@ -234,6 +234,7 @@ export type AlbumOrderByWithRelationInput = {
 
 export type AlbumWhereUniqueInput = Prisma.AtLeast<{
   id?: string
+  imageKey?: string
   identityKey?: string
   AND?: Prisma.AlbumWhereInput | Prisma.AlbumWhereInput[]
   OR?: Prisma.AlbumWhereInput[]
@@ -241,7 +242,6 @@ export type AlbumWhereUniqueInput = Prisma.AtLeast<{
   title?: Prisma.StringFilter<"Album"> | string
   releaseDate?: Prisma.DateTimeFilter<"Album"> | Date | string
   compilation?: Prisma.BoolFilter<"Album"> | boolean
-  imageKey?: Prisma.StringNullableFilter<"Album"> | string | null
   genres?: Prisma.StringNullableListFilter<"Album">
   createdAt?: Prisma.DateTimeFilter<"Album"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Album"> | Date | string
@@ -249,7 +249,7 @@ export type AlbumWhereUniqueInput = Prisma.AtLeast<{
   tracks?: Prisma.TrackListRelationFilter
   albumAnnotations?: Prisma.AlbumAnnotationListRelationFilter
   albumInteractions?: Prisma.AlbumInteractionListRelationFilter
-}, "id" | "identityKey">
+}, "id" | "imageKey" | "identityKey">
 
 export type AlbumOrderByWithAggregationInput = {
   id?: Prisma.SortOrder

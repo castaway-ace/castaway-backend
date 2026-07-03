@@ -81,7 +81,7 @@ export class AlbumsController {
     @CurrentUser('sub') sub: string,
     @Param('id') id: string,
   ): Promise<void> {
-    await this.albumService.updateStar(sub, id, true);
+    await this.albumService.star(sub, id);
   }
 
   @Delete(':id/star')
@@ -92,6 +92,6 @@ export class AlbumsController {
     @CurrentUser('sub') sub: string,
     @Param('id') id: string,
   ): Promise<void> {
-    await this.albumService.updateStar(sub, id, false);
+    await this.albumService.unstar(sub, id);
   }
 }

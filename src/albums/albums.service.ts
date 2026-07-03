@@ -129,6 +129,20 @@ export class AlbumsService {
     );
   }
 
+  async star(userId: string, albumId: string): Promise<void> {
+    await this.prisma.albumAnnotation.upsert({
+      where: { userId_albumId: { userId, albumId } },
+      create: { userId, albumId, starred: true },
+      update: { starred: true },
+    });
+  }
+
+  async unstar(userId: string, albumId: string): Promise<void> {
+    await this.prisma.albumAnnotation.deleteMany({
+      where: { userId, albumId },
+    });
+  }
+
   async create(
     title: string,
     artistIds: string[],
@@ -234,24 +248,6 @@ export class AlbumsService {
     return new Map(
       entries.filter((entry): entry is [string, string] => entry !== null),
     );
-  }
-
-  async updateStar(
-    userId: string,
-    albumId: string,
-    starred: boolean,
-  ): Promise<void> {
-    if (starred) {
-      await this.prisma.albumAnnotation.upsert({
-        where: { userId_albumId: { userId, albumId } },
-        create: { userId, albumId, starred: true },
-        update: { starred: true },
-      });
-    } else {
-      await this.prisma.albumAnnotation.deleteMany({
-        where: { userId, albumId },
-      });
-    }
   }
 
   private async setImageKey(id: string, imageKey: string): Promise<void> {

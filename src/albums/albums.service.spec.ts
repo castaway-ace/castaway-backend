@@ -8,6 +8,7 @@ import { AlbumRow, AlbumSummaryRow } from './albums.types.js';
 import { StorageBucket } from '../storage/storage.types.js';
 import { Prisma, Album as PrismaAlbum } from '../generated/prisma/client.js';
 import { ConflictException, NotFoundException } from '@nestjs/common';
+import { IPicture } from 'music-metadata';
 
 type AlbumAnnotations = { albumAnnotations: { albumId: string }[] };
 
@@ -83,6 +84,16 @@ const albumSummaryEntities: AlbumSummaryEntity[] = [
 
 const albumCoverUrl = 'https://example.com/cover.jpg';
 
+const p2025 = new Prisma.PrismaClientKnownRequestError('Record not found', {
+  code: 'P2025',
+  clientVersion: '7.0.0',
+});
+
+const picture: IPicture = {
+  format: 'image/jpeg',
+  data: new Uint8Array([1, 2, 3]),
+};
+
 describe('AlbumService', () => {
   let albumService: AlbumsService;
 
@@ -93,6 +104,7 @@ describe('AlbumService', () => {
         jest.fn<() => Promise<(AlbumSummaryRow & AlbumAnnotations)[]>>(),
       create: jest.fn<(args: Prisma.AlbumCreateArgs) => Promise<PrismaAlbum>>(),
       delete: jest.fn<() => Promise<PrismaAlbum>>(),
+      update: jest.fn<(args: Prisma.AlbumUpdateArgs) => Promise<PrismaAlbum>>(),
     },
     albumAnnotation: {
       upsert: jest.fn<() => Promise<unknown>>(),
@@ -126,6 +138,14 @@ describe('AlbumService', () => {
 
   afterEach(() => jest.clearAllMocks());
 
+  describe('findAll', () => {
+    it('should find all albums', async () => {
+      mockPrismaService.album.findMany.mockResolvedValue(albumSummaryRows);
+      const result = await albumService.findAll(userId, {});
+      expect(result).toEqual(albumSummaryEntities);
+    });
+  });
+
   describe('find', () => {
     it('should find an album by id', async () => {
       mockPrismaService.album.findUnique.mockResolvedValue(albumRow);
@@ -134,11 +154,48 @@ describe('AlbumService', () => {
     });
   });
 
-  describe('findAll', () => {
-    it('should find all albums', async () => {
-      mockPrismaService.album.findMany.mockResolvedValue(albumSummaryRows);
-      const result = await albumService.findAll(userId, {});
-      expect(result).toEqual(albumSummaryEntities);
+  describe('getAlbumCoverUrl', () => {
+    it('should get the album cover url', async () => {
+      mockPrismaService.album.findUnique.mockResolvedValue({
+        imageKey: 'album-1/cover.jpg',
+      });
+      mockStorageService.getPresignedUrl.mockResolvedValue(albumCoverUrl);
+      const result = await albumService.getAlbumCoverUrl('album-1');
+      expect(result).toEqual(albumCoverUrl);
+      expect(mockStorageService.getPresignedUrl).toHaveBeenCalledWith(
+        StorageBucket.AlbumArt,
+        'album-1/cover.jpg',
+      );
+    });
+  });
+
+  describe('star', () => {
+    it('upserts the annotation when starring', async () => {
+      mockPrismaService.albumAnnotation.upsert.mockResolvedValue({});
+
+      await albumService.star(userId, 'album-1');
+
+      expect(mockPrismaService.albumAnnotation.upsert).toHaveBeenCalledWith({
+        where: { userId_albumId: { userId, albumId: 'album-1' } },
+        create: { userId, albumId: 'album-1', starred: true },
+        update: { starred: true },
+      });
+    });
+  });
+
+  describe('unstar', () => {
+    it('deletes the annotation row when unstarring', async () => {
+      mockPrismaService.albumAnnotation.deleteMany.mockResolvedValue({
+        count: 1,
+      });
+
+      await albumService.unstar(userId, 'album-1');
+
+      expect(mockPrismaService.albumAnnotation.deleteMany).toHaveBeenCalledWith(
+        {
+          where: { userId, albumId: 'album-1' },
+        },
+      );
     });
   });
 
@@ -230,50 +287,79 @@ describe('AlbumService', () => {
     });
   });
 
-  describe('getAlbumCoverUrl', () => {
-    it('should get the album cover url', async () => {
-      mockPrismaService.album.findUnique.mockResolvedValue({
-        imageKey: 'album-1/cover.jpg',
+  describe('createAlbumCover', () => {
+    it('uploads the cover and then sets the image key', async () => {
+      mockStorageService.putObject.mockResolvedValue(undefined);
+      mockPrismaService.album.update.mockResolvedValue(createdAlbumRow);
+
+      await albumService.createAlbumCover('album-1', picture);
+
+      expect(mockStorageService.putObject).toHaveBeenCalledTimes(1);
+      const putArgs = mockStorageService.putObject.mock.calls[0];
+      expect(putArgs[0]).toBe(StorageBucket.AlbumArt);
+      expect(putArgs[1]).toBe('album-1/cover.jpg');
+      expect(putArgs[3]).toMatchObject({ contentType: 'image/jpeg' });
+
+      expect(mockPrismaService.album.update).toHaveBeenCalledTimes(1);
+      const updateArgs = mockPrismaService.album.update.mock.calls[0][0];
+      expect(updateArgs).toMatchObject({
+        where: { id: 'album-1' },
+        data: { imageKey: 'album-1/cover.jpg' },
       });
-      mockStorageService.getPresignedUrl.mockResolvedValue(albumCoverUrl);
-      const result = await albumService.getAlbumCoverUrl('album-1');
-      expect(result).toEqual(albumCoverUrl);
-      expect(mockStorageService.getPresignedUrl).toHaveBeenCalledWith(
+
+      expect(mockStorageService.deleteObject).not.toHaveBeenCalled();
+    });
+
+    it('deletes the uploaded object and throws NotFoundException when the album does not exist', async () => {
+      mockStorageService.putObject.mockResolvedValue(undefined);
+      mockPrismaService.album.update.mockRejectedValue(p2025);
+      mockStorageService.deleteObject.mockResolvedValue(undefined);
+
+      await expect(
+        albumService.createAlbumCover('album-1', picture),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(mockStorageService.deleteObject).toHaveBeenCalledWith(
         StorageBucket.AlbumArt,
         'album-1/cover.jpg',
       );
     });
-  });
 
-  describe('updateStar', () => {
-    it('upserts the annotation when starring', async () => {
-      mockPrismaService.albumAnnotation.upsert.mockResolvedValue({});
+    it('deletes the uploaded object and rethrows unknown errors unchanged', async () => {
+      const dbError = new Error('connection lost');
+      mockStorageService.putObject.mockResolvedValue(undefined);
+      mockPrismaService.album.update.mockRejectedValue(dbError);
+      mockStorageService.deleteObject.mockResolvedValue(undefined);
 
-      await albumService.updateStar(userId, 'album-1', true);
+      await expect(
+        albumService.createAlbumCover('album-1', picture),
+      ).rejects.toThrow(dbError);
 
-      expect(mockPrismaService.albumAnnotation.upsert).toHaveBeenCalledWith({
-        where: { userId_albumId: { userId, albumId: 'album-1' } },
-        create: { userId, albumId: 'album-1', starred: true },
-        update: { starred: true },
-      });
-      expect(
-        mockPrismaService.albumAnnotation.deleteMany,
-      ).not.toHaveBeenCalled();
+      expect(mockStorageService.deleteObject).toHaveBeenCalled();
     });
 
-    it('deletes the annotation row when unstarring', async () => {
-      mockPrismaService.albumAnnotation.deleteMany.mockResolvedValue({
-        count: 1,
-      });
-
-      await albumService.updateStar(userId, 'album-1', false);
-
-      expect(mockPrismaService.albumAnnotation.deleteMany).toHaveBeenCalledWith(
-        {
-          where: { userId, albumId: 'album-1' },
-        },
+    it('surfaces the original database error even when the cleanup delete fails', async () => {
+      mockStorageService.putObject.mockResolvedValue(undefined);
+      mockPrismaService.album.update.mockRejectedValue(p2025);
+      mockStorageService.deleteObject.mockRejectedValue(
+        new Error('storage unavailable'),
       );
-      expect(mockPrismaService.albumAnnotation.upsert).not.toHaveBeenCalled();
+
+      await expect(
+        albumService.createAlbumCover('album-1', picture),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('propagates an upload failure without touching the database or attempting cleanup', async () => {
+      const uploadError = new Error('upload failed');
+      mockStorageService.putObject.mockRejectedValue(uploadError);
+
+      await expect(
+        albumService.createAlbumCover('album-1', picture),
+      ).rejects.toThrow(uploadError);
+
+      expect(mockPrismaService.album.update).not.toHaveBeenCalled();
+      expect(mockStorageService.deleteObject).not.toHaveBeenCalled();
     });
   });
 });

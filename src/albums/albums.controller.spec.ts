@@ -54,7 +54,8 @@ describe('AlbumsController', () => {
     getAlbumCoverUrl: jest
       .fn<AlbumsService['getAlbumCoverUrl']>()
       .mockResolvedValue(albumCoverUrl),
-    updateStar: jest.fn<AlbumsService['updateStar']>().mockResolvedValue(),
+    star: jest.fn<AlbumsService['star']>().mockResolvedValue(),
+    unstar: jest.fn<AlbumsService['unstar']>().mockResolvedValue(),
   };
 
   beforeEach(async () => {
@@ -160,10 +161,9 @@ describe('AlbumsController', () => {
         .post('/albums/album-1/star')
         .expect(204);
 
-      expect(mockAlbumService.updateStar).toHaveBeenCalledWith(
+      expect(mockAlbumService.star).toHaveBeenCalledWith(
         'test-user',
         'album-1',
-        true,
       );
     });
   });
@@ -174,10 +174,9 @@ describe('AlbumsController', () => {
         .delete('/albums/album-1/star')
         .expect(204);
 
-      expect(mockAlbumService.updateStar).toHaveBeenCalledWith(
+      expect(mockAlbumService.unstar).toHaveBeenCalledWith(
         'test-user',
         'album-1',
-        false,
       );
     });
   });
