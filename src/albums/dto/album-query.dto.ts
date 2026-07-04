@@ -9,7 +9,7 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
-import { ToStringArray, ToBoolean, ToInt } from '../../utils/dto-transforms.js';
+import { ToStringArray, ToBoolean, ToInt } from '../../common/dto/dto-transforms.js';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { SORT_DIRECTIONS, type SortDirection } from '../../common/dto/sort.js';
 

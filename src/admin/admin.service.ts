@@ -6,7 +6,7 @@ import { TracksService } from '../tracks/tracks.service.js';
 import { ArtistsService } from '../artists/artists.service.js';
 import { AlbumsService } from '../albums/albums.service.js';
 import { MetadataTags, ParsedFile } from './admin.types.js';
-import { buildAlbumIdentity } from '../utils/album-identity.js';
+import { buildAlbumIdentity } from '../common/album-identity.js';
 import { ReferralCodeService } from '../referral-code/referral-code.service.js';
 import { ArtistRef } from '../common/entities/references.entity.js';
 import { ReferralCodeEntity } from '../referral-code/referral-code.entity.js';

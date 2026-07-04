@@ -1,6 +1,6 @@
 import { IsBoolean, IsIn, IsInt, IsOptional, Max, Min } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { ToBoolean, ToInt } from '../../utils/dto-transforms.js';
+import { ToBoolean, ToInt } from '../../common/dto/dto-transforms.js';
 import { SORT_DIRECTIONS, type SortDirection } from '../../common/dto/sort.js';
 
 export const PLAYLIST_SORT_ORDERS = ['name', 'added'] as const;

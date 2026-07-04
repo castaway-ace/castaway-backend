@@ -17,7 +17,7 @@ import { IPicture } from 'music-metadata';
 import { AlbumSortOptions, AlbumSortOrder } from './dto/album-query.dto.js';
 import { buildOrderBy, clampPagination } from '../common/query.js';
 import { AlbumEntity, AlbumSummaryEntity } from './albums.entity.js';
-import { buildAlbumIdentity } from '../utils/album-identity.js';
+import { buildAlbumIdentity } from '../common/album-identity.js';
 
 interface AlbumFilters {
   artistIds?: string[];

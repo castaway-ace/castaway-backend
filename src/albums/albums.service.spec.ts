@@ -9,7 +9,7 @@ import { StorageBucket } from '../storage/storage.types.js';
 import { Prisma, Album as PrismaAlbum } from '../generated/prisma/client.js';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { IPicture } from 'music-metadata';
-import { buildAlbumIdentity } from '../utils/album-identity.js';
+import { buildAlbumIdentity } from '../common/album-identity.js';
 
 type AlbumAnnotations = { albumAnnotations: { albumId: string }[] };
 

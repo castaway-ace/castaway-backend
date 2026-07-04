@@ -9,7 +9,7 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
-import { ToBoolean, ToInt, ToStringArray } from '../../utils/dto-transforms.js';
+import { ToBoolean, ToInt, ToStringArray } from '../../common/dto/dto-transforms.js';
 import { SortDirection } from 'src/common/dto/sort.js';
 
 export const ARTIST_SORT_ORDERS = ['title', 'album', 'year', 'added'] as const;
