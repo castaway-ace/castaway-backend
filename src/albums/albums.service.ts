@@ -7,15 +7,17 @@ import {
 import { PrismaService } from '../prisma/prisma.service.js';
 import { StorageService } from '../storage/storage.service.js';
 import { Prisma, Album as PrismaAlbum } from '../generated/prisma/client.js';
-import { albumSelect, albumSummarySelect } from './albums.types.js';
+import {
+  AlbumCreateData,
+  albumSelect,
+  albumSummarySelect,
+} from './albums.types.js';
 import { StorageBucket } from '../storage/storage.types.js';
 import { IPicture } from 'music-metadata';
-import { buildAlbumIdentity } from '../utils/album-identity.js';
 import { AlbumSortOptions, AlbumSortOrder } from './dto/album-query.dto.js';
 import { buildOrderBy, clampPagination } from '../common/query.js';
-import { withStorageCleanup } from '../common/storage-cleanup.js';
-import { isPrismaKnownError } from '../common/prisma-error.js';
 import { AlbumEntity, AlbumSummaryEntity } from './albums.entity.js';
+import { buildAlbumIdentity } from '../utils/album-identity.js';
 
 interface AlbumFilters {
   artistIds?: string[];
@@ -64,7 +66,7 @@ export class AlbumsService {
     return albums.map(({ albumAnnotations, albumArtists, ...album }) => ({
       ...album,
       artists: albumArtists.map((ta) => ta.artist),
-      starred: albumAnnotations?.length > 0,
+      starred: albumAnnotations.length > 0,
     }));
   }
 
@@ -94,7 +96,7 @@ export class AlbumsService {
         (a, b) => a.discNumber - b.discNumber || a.trackNumber - b.trackNumber,
       );
 
-    const starred = album.albumAnnotations?.length > 0;
+    const starred = album.albumAnnotations.length > 0;
 
     return {
       id: album.id,
@@ -116,7 +118,7 @@ export class AlbumsService {
       },
     });
 
-    if (!album) {
+    if (!album?.imageKey) {
       throw new NotFoundException('Album Art does not exist');
     }
 
@@ -141,26 +143,19 @@ export class AlbumsService {
   }
 
   async create(
-    title: string,
-    artistIds: string[],
-    releaseDate: Date,
+    data: AlbumCreateData,
+    tx?: Prisma.TransactionClient,
   ): Promise<PrismaAlbum> {
-    const identityKey = buildAlbumIdentity(title, artistIds);
-    try {
-      return await this.prisma.album.create({
-        data: {
-          title,
-          releaseDate,
-          identityKey,
-          albumArtists: { create: artistIds.map((artistId) => ({ artistId })) },
+    const client = tx ?? this.prisma;
+    const { artistIds, ...album } = data;
+    return await client.album.create({
+      data: {
+        ...album,
+        albumArtists: {
+          create: artistIds.map((artistId) => ({ artistId })),
         },
-      });
-    } catch (error) {
-      if (isPrismaKnownError(error, 'P2002')) {
-        throw new ConflictException('Album already imported');
-      }
-      throw error;
-    }
+      },
+    });
   }
 
   async delete(id: string): Promise<void> {
@@ -188,13 +183,11 @@ export class AlbumsService {
     await this.prisma.album.delete({ where: { id } });
   }
 
-  async createAlbumCover(albumId: string, picture: IPicture): Promise<void> {
-    const fileKey = `${albumId}/cover.jpg`;
+  async uploadCover(coverKey: string, picture: IPicture): Promise<void> {
     const coverBuffer = Buffer.from(picture.data);
-
     await this.storageService.putObject(
       StorageBucket.AlbumArt,
-      fileKey,
+      coverKey,
       coverBuffer,
       {
         contentType: picture.format,
@@ -202,24 +195,18 @@ export class AlbumsService {
         metadata: { source: 'embedded' },
       },
     );
+  }
 
-    try {
-      await withStorageCleanup(
-        () => this.setImageKey(albumId, fileKey),
-        () => this.storageService.deleteObject(StorageBucket.AlbumArt, fileKey),
-        (error) =>
-          this.logger.warn(
-            `Failed to clean up orphaned cover ${fileKey}: ${
-              error instanceof Error ? error.message : String(error)
-            }`,
-          ),
+  async deleteCoverObject(coverKey: string): Promise<void> {
+    await this.storageService
+      .deleteObject(StorageBucket.AlbumArt, coverKey)
+      .catch((error: unknown) =>
+        this.logger.warn(
+          `Failed to delete cover object ${coverKey}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        ),
       );
-    } catch (error) {
-      if (isPrismaKnownError(error, 'P2025')) {
-        throw new NotFoundException('Album not found');
-      }
-      throw error;
-    }
   }
 
   async findAlbumCoverMap(ids: string[]): Promise<Map<string, string>> {
@@ -247,11 +234,20 @@ export class AlbumsService {
     );
   }
 
-  private async setImageKey(id: string, imageKey: string): Promise<void> {
-    await this.prisma.album.update({
-      where: { id },
-      data: { imageKey },
+  async assertNotImported(title: string, artistIds: string[]): Promise<string> {
+    const identityKey = buildAlbumIdentity(title, artistIds);
+    const existing = await this.prisma.album.findUnique({
+      where: { identityKey },
+      select: { id: true },
     });
+    if (existing) {
+      throw new ConflictException('Album already imported');
+    }
+    return identityKey;
+  }
+
+  buildCoverKey(albumId: string): string {
+    return `${albumId}/cover.jpg`;
   }
 
   private buildWhere(

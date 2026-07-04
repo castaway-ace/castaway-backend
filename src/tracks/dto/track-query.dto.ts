@@ -10,10 +10,15 @@ import {
   MinLength,
 } from 'class-validator';
 import { ToBoolean, ToInt, ToStringArray } from '../../utils/dto-transforms.js';
+import { SortDirection } from 'src/common/dto/sort.js';
+
+export const ARTIST_SORT_ORDERS = ['title', 'album', 'year', 'added'] as const;
+
+export type TrackSortOrder = (typeof ARTIST_SORT_ORDERS)[number];
 
 export interface TrackOrderOptions {
-  order: 'title' | 'album' | 'year' | 'added';
-  orderBy: 'asc' | 'desc';
+  order: TrackSortOrder;
+  orderBy: SortDirection;
 }
 
 export class TrackQueryDto {

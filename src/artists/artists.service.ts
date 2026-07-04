@@ -1,14 +1,10 @@
-import {
-  ConflictException,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { StorageService } from '../storage/storage.service.js';
 import { Prisma } from '../generated/prisma/client.js';
 import {
   Artist,
+  ArtistCreateData,
   ArtistRow,
   artistSelect,
   ArtistSummary,
@@ -20,8 +16,6 @@ import { ArtistOrderOptions, ArtistSortOrder } from './dto/artist-query.dto.js';
 import { ArtistRef } from '../common/entities/references.entity.js';
 import { createReadStream } from 'fs';
 import { buildOrderBy, clampPagination } from '../common/query.js';
-import { withStorageCleanup } from '../common/storage-cleanup.js';
-import { isPrismaKnownError } from '../common/prisma-error.js';
 
 interface ArtistFilters {
   starred?: boolean;
@@ -48,7 +42,6 @@ export class ArtistsService {
   ): Promise<ArtistSummary[]> {
     const where = this.buildWhere(options.filters, userId);
     const orderBy = this.buildOrderBy(options?.sortOptions);
-
     const { take, skip } = clampPagination(options.pagination);
 
     const artists = await this.prisma.artist.findMany({
@@ -104,7 +97,7 @@ export class ArtistsService {
       },
     });
 
-    if (!artist) {
+    if (!artist?.imageKey) {
       throw new NotFoundException('Artist Image does not exist');
     }
 
@@ -128,18 +121,11 @@ export class ArtistsService {
     });
   }
 
-  async create(name: string): Promise<ArtistRef> {
-    try {
-      return await this.prisma.artist.create({
-        data: { name },
-        select: { id: true, name: true },
-      });
-    } catch (error) {
-      if (isPrismaKnownError(error, 'P2002')) {
-        throw new ConflictException('Artist already exists');
-      }
-      throw error;
-    }
+  async create(data: ArtistCreateData): Promise<ArtistRef> {
+    return await this.prisma.artist.create({
+      data,
+      select: { id: true, name: true },
+    });
   }
 
   async delete(id: string): Promise<void> {
@@ -167,7 +153,7 @@ export class ArtistsService {
     await this.prisma.artist.delete({ where: { id } });
   }
 
-  async createArtistImage(
+  async uploadImage(
     artistId: string,
     file: Express.Multer.File,
   ): Promise<void> {
@@ -184,24 +170,7 @@ export class ArtistsService {
       },
     );
 
-    try {
-      await withStorageCleanup(
-        () => this.setImageKey(artistId, fileKey),
-        () =>
-          this.storageService.deleteObject(StorageBucket.ArtistArt, fileKey),
-        (error) =>
-          this.logger.warn(
-            `Failed to clean up orphaned cover ${fileKey}: ${
-              error instanceof Error ? error.message : String(error)
-            }`,
-          ),
-      );
-    } catch (error) {
-      if (isPrismaKnownError(error, 'P2025')) {
-        throw new NotFoundException('Artist not found');
-      }
-      throw error;
-    }
+    await this.setImageKey(artistId, fileKey);
   }
 
   async findIdsByNames(names: string[]): Promise<Map<string, string>> {
@@ -210,29 +179,6 @@ export class ArtistsService {
       select: { name: true, id: true },
     });
     return new Map(artists.map((artist) => [artist.name, artist.id]));
-  }
-
-  async findOrCreateArtist(name: string): Promise<Artist> {
-    try {
-      const artist = await this.prisma.artist.upsert({
-        where: { name },
-        create: { name },
-        update: {},
-        select: artistSelect,
-      });
-
-      return this.toArtist(artist);
-    } catch (error) {
-      if (isPrismaKnownError(error, 'P2002')) {
-        const artist = await this.prisma.artist.findUniqueOrThrow({
-          where: { name },
-          select: artistSelect,
-        });
-
-        return this.toArtist(artist);
-      }
-      throw error;
-    }
   }
 
   private async setImageKey(id: string, imageKey: string): Promise<void> {

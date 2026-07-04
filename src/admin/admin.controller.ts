@@ -42,11 +42,29 @@ export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
   @Post('artists')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 10 * 1024 * 1024 },
+    }),
+  )
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: {
+        file: { type: 'string', format: 'binary' },
+      },
+    },
+  })
   @ApiCreatedResponse({ type: ArtistRef })
   @ApiBadRequestResponse({ description: 'Invalid request body.' })
   @ApiConflictResponse({ description: 'Artist with this name already exists.' })
-  uploadArtist(@Body() artistDto: CreateArtistDto): Promise<ArtistRef> {
-    return this.adminService.uploadArtist(artistDto.name);
+  uploadArtist(
+    @Body() artistDto: CreateArtistDto,
+    @UploadedFile() file?: Express.Multer.File,
+  ): Promise<ArtistRef> {
+    return this.adminService.uploadArtist(artistDto.name, file);
   }
 
   @Post('artists/:id/image')

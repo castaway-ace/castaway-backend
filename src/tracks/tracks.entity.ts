@@ -32,6 +32,9 @@ export class TrackEntity implements Track {
 
   @ApiProperty({ type: () => ArtistRef, isArray: true })
   artists!: ArtistRef[];
+
+  @ApiProperty()
+  starred!: boolean;
 }
 
 export class TrackSummaryEntity implements TrackSummary {

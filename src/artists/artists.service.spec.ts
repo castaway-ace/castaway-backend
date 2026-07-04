@@ -288,7 +288,7 @@ describe('ArtistService', () => {
       mockStorageService.putObject.mockResolvedValue(undefined);
       mockPrismaService.artist.update.mockResolvedValue(artistRow);
 
-      await artistsService.createArtistImage('artist-1', uploadFile);
+      await artistsService.uploadImage('artist-1', uploadFile);
 
       expect(mockStorageService.putObject).toHaveBeenCalledTimes(1);
       const putArgs = mockStorageService.putObject.mock.calls[0];
@@ -312,7 +312,7 @@ describe('ArtistService', () => {
       mockStorageService.deleteObject.mockResolvedValue(undefined);
 
       await expect(
-        artistsService.createArtistImage('artist-1', uploadFile),
+        artistsService.uploadImage('artist-1', uploadFile),
       ).rejects.toThrow(NotFoundException);
 
       expect(mockStorageService.deleteObject).toHaveBeenCalledWith(
@@ -328,7 +328,7 @@ describe('ArtistService', () => {
       mockStorageService.deleteObject.mockResolvedValue(undefined);
 
       await expect(
-        artistsService.createArtistImage('artist-1', uploadFile),
+        artistsService.uploadImage('artist-1', uploadFile),
       ).rejects.toThrow(dbError);
 
       expect(mockStorageService.deleteObject).toHaveBeenCalled();
@@ -342,7 +342,7 @@ describe('ArtistService', () => {
       );
 
       await expect(
-        artistsService.createArtistImage('artist-1', uploadFile),
+        artistsService.uploadImage('artist-1', uploadFile),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -351,7 +351,7 @@ describe('ArtistService', () => {
       mockStorageService.putObject.mockRejectedValue(uploadError);
 
       await expect(
-        artistsService.createArtistImage('artist-1', uploadFile),
+        artistsService.uploadImage('artist-1', uploadFile),
       ).rejects.toThrow(uploadError);
 
       expect(mockPrismaService.artist.update).not.toHaveBeenCalled();

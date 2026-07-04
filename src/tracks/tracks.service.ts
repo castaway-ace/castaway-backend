@@ -13,9 +13,10 @@ import {
 } from './tracks.types.js';
 import { StorageBucket } from '../storage/storage.types.js';
 import { PlaylistsService } from '../playlists/playlists.service.js';
-import { MetadataTags } from '../admin/admin.types.js';
 import { TrackEntity, TrackSummaryEntity } from './tracks.entity.js';
 import { createReadStream } from 'fs';
+import { buildOrderBy, clampPagination } from '../common/query.js';
+import { MetadataTags } from 'src/admin/admin.types.js';
 
 interface TrackFilters {
   artistIds?: string[];
@@ -27,7 +28,7 @@ interface TrackFilters {
 
 interface TrackQueryOptions {
   filters?: TrackFilters;
-  orderOptions?: TrackOrderOptions;
+  sortOptions?: TrackOrderOptions;
   pagination?: { limit?: number; offset?: number };
 }
 
@@ -40,53 +41,61 @@ export class TracksService {
     private readonly storageService: StorageService,
   ) {}
 
-  async create({
-    title,
-    albumId,
-    fileKey,
-    trackNumber,
-    discNumber,
-    duration,
-    size,
-    suffix,
-    genres,
-    bitRate,
-    sampleRate,
-    bitDepth,
-    releaseDate,
-    artistIds,
-  }: TrackCreateData): Promise<PrismaTrack> {
-    return this.prisma.track.create({
-      data: {
-        title,
-        albumId,
-        fileKey,
-        trackNumber,
-        discNumber,
-        duration,
-        size,
-        suffix,
-        genres,
-        bitRate,
-        sampleRate,
-        bitDepth,
-        releaseDate,
-        trackArtists: {
-          create: artistIds.map((artistId) => ({ artistId })),
+  async findAll(
+    userId: string,
+    options: TrackQueryOptions,
+  ): Promise<TrackSummaryEntity[]> {
+    const where = this.buildWhere(options.filters, userId);
+    const orderBy = this.buildOrderBy(options?.sortOptions);
+    const { take, skip } = clampPagination(options.pagination);
+
+    const tracks = await this.prisma.track.findMany({
+      orderBy,
+      take,
+      skip,
+      where,
+      select: {
+        ...trackSummarySelect,
+        trackAnnotations: {
+          where: { userId, starred: true },
+          select: { trackId: true },
+          take: 1,
         },
       },
     });
+
+    const results = tracks.map(
+      ({ trackAnnotations, trackArtists, album, ...track }) => {
+        return {
+          ...track,
+          artists: trackArtists.map((ta) => ta.artist),
+          album: album,
+          starred: trackAnnotations.length > 0,
+        };
+      },
+    );
+
+    return results;
   }
 
-  async find(id: string): Promise<TrackEntity> {
+  async find(userId: string, id: string): Promise<TrackEntity> {
     const track = await this.prisma.track.findUnique({
       where: { id },
-      select: trackSelect,
+      select: {
+        ...trackSelect,
+        trackAnnotations: {
+          where: { userId, starred: true },
+          select: { trackId: true },
+          take: 1,
+        },
+      },
     });
 
     if (!track) {
       throw new NotFoundException('Track does not exist');
     }
+
+    const starred = track.trackAnnotations.length > 0;
 
     return {
       id: track.id,
@@ -99,10 +108,14 @@ export class TracksService {
       size: track.size,
       album: track.album,
       artists: track.trackArtists.map((ta) => ta.artist),
+      starred,
     };
   }
 
-  async findTrackFileKey(id: string): Promise<string | null> {
+  async getTrackStream(
+    id: string,
+    range?: string,
+  ): Promise<ObjectStreamResult> {
     const track = await this.prisma.track.findUnique({
       where: { id },
       select: {
@@ -110,61 +123,11 @@ export class TracksService {
       },
     });
 
-    if (!track) return null;
-
-    return track.fileKey;
-  }
-
-  async findAll(
-    userId: string,
-    options: TrackQueryOptions,
-  ): Promise<TrackSummaryEntity[]> {
-    const where = this.buildWhere(options.filters, userId);
-    const orderBy = this.buildOrderBy(options?.orderOptions);
-
-    const requestedLimit = options.pagination?.limit ?? 100;
-    const take = Math.min(Math.max(requestedLimit, 1), 200);
-    const skip = Math.max(options.pagination?.offset ?? 0, 0);
-
-    const tracks = await this.prisma.track.findMany({
-      orderBy,
-      take,
-      skip,
-      where,
-      select: trackSummarySelect,
-    });
-
-    const starredIds = new Set(await this.findStarredTrackIds(userId));
-
-    const results = tracks.map(({ trackArtists, album, ...track }) => {
-      return {
-        ...track,
-        artists: trackArtists.map((ta) => ta.artist),
-        album: album,
-        starred: starredIds.has(track.id),
-      };
-    });
-
-    return results;
-  }
-
-  async findStarredTrackIds(userId: string): Promise<string[]> {
-    const annotations = await this.prisma.trackAnnotation.findMany({
-      where: { userId, starred: true },
-      select: { trackId: true },
-    });
-    return annotations.map((a) => a.trackId);
-  }
-
-  async findTrackStream(
-    id: string,
-    range?: string,
-  ): Promise<ObjectStreamResult> {
-    const fileKey = await this.findTrackFileKey(id);
-
-    if (!fileKey) {
+    if (!track?.fileKey) {
       throw new NotFoundException('Track stream does not exist');
     }
+
+    const fileKey = track.fileKey;
 
     const result = await this.storageService.getObjectStream(
       StorageBucket.Tracks,
@@ -176,99 +139,6 @@ export class TracksService {
       ...result,
       contentType: this.resolveContentType(fileKey, result.contentType),
     };
-  }
-
-  async createTrack(
-    file: Express.Multer.File,
-    tags: MetadataTags,
-    suffix: string,
-    albumId: string,
-    artistIds: string[],
-  ): Promise<void> {
-    const fileKey = `${albumId}/${tags.discNumber}-${String(tags.trackNumber).padStart(2, '0')}.${suffix}`;
-
-    await this.storageService.putObject(
-      StorageBucket.Tracks,
-      fileKey,
-      createReadStream(file.path),
-      {
-        contentType: file.mimetype,
-        size: file.size,
-        metadata: { originalName: file.originalname },
-      },
-    );
-
-    try {
-      await this.create({
-        title: tags.title,
-        albumId: albumId,
-        fileKey,
-        trackNumber: tags.trackNumber,
-        discNumber: tags.discNumber,
-        duration: tags.duration,
-        size: file.size,
-        suffix,
-        genres: tags.genres,
-        bitRate: tags.bitRate,
-        sampleRate: tags.sampleRate,
-        bitDepth: tags.bitDepth,
-        releaseDate: tags.date,
-        artistIds,
-      });
-    } catch (error) {
-      await this.storageService.deleteObject(StorageBucket.Tracks, fileKey);
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2025'
-      ) {
-        throw new NotFoundException('Track not found');
-      }
-      throw error;
-    }
-  }
-
-  async deleteWithFile(id: string): Promise<void> {
-    const track = await this.prisma.track.findUnique({
-      where: { id },
-      select: { fileKey: true },
-    });
-
-    if (!track) {
-      throw new NotFoundException('Track not found');
-    }
-
-    await this.storageService
-      .deleteObject(StorageBucket.Tracks, track.fileKey)
-      .catch((error: unknown) =>
-        this.logger.warn(
-          `Failed to delete audio object ${track.fileKey}: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        ),
-      );
-
-    await this.prisma.track.delete({ where: { id } });
-  }
-
-  async deleteAlbumTrackFiles(albumId: string): Promise<void> {
-    const tracks = await this.prisma.track.findMany({
-      where: { albumId },
-      select: { fileKey: true },
-    });
-
-    await Promise.all(
-      tracks.map(({ fileKey }) =>
-        this.storageService
-          .deleteObject(StorageBucket.Tracks, fileKey)
-          .catch((error: unknown) =>
-            this.logger.warn(
-              `Failed to delete audio object ${fileKey}: ${
-                error instanceof Error ? error.message : String(error)
-              }`,
-            ),
-          ),
-      ),
-    );
   }
 
   async updateStar(
@@ -312,6 +182,89 @@ export class TracksService {
         );
       }
     });
+  }
+
+  async create(
+    data: TrackCreateData,
+    tx?: Prisma.TransactionClient,
+  ): Promise<PrismaTrack> {
+    const client = tx ?? this.prisma;
+    const { artistIds, ...track } = data;
+    return await client.track.create({
+      data: {
+        ...track,
+        trackArtists: {
+          create: artistIds.map((artistId) => ({ artistId })),
+        },
+      },
+    });
+  }
+
+  async delete(id: string): Promise<void> {
+    const track = await this.prisma.track.findUnique({
+      where: { id },
+      select: { fileKey: true },
+    });
+
+    if (!track) {
+      throw new NotFoundException('Track not found');
+    }
+
+    await this.storageService
+      .deleteObject(StorageBucket.Tracks, track.fileKey)
+      .catch((error: unknown) =>
+        this.logger.warn(
+          `Failed to delete audio object ${track.fileKey}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        ),
+      );
+
+    await this.prisma.track.delete({ where: { id } });
+  }
+
+  async uploadTrackFile(
+    file: Express.Multer.File,
+    fileKey: string,
+  ): Promise<void> {
+    await this.storageService.putObject(
+      StorageBucket.Tracks,
+      fileKey,
+      createReadStream(file.path),
+      {
+        contentType: file.mimetype,
+        size: file.size,
+        metadata: { originalName: file.originalname },
+      },
+    );
+  }
+
+  async deleteTrackObjects(fileKeys: string[]): Promise<void> {
+    await Promise.all(
+      fileKeys.map((fileKey) =>
+        this.storageService
+          .deleteObject(StorageBucket.Tracks, fileKey)
+          .catch((error: unknown) =>
+            this.logger.warn(
+              `Failed to delete audio object ${fileKey}: ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+            ),
+          ),
+      ),
+    );
+  }
+
+  async deleteAlbumTrackFiles(albumId: string): Promise<void> {
+    const tracks = await this.prisma.track.findMany({
+      where: { albumId },
+      select: { fileKey: true },
+    });
+    await this.deleteTrackObjects(tracks.map(({ fileKey }) => fileKey));
+  }
+
+  buildFileKey(albumId: string, tags: MetadataTags, suffix: string): string {
+    return `${albumId}/${tags.discNumber}-${String(tags.trackNumber).padStart(2, '0')}.${suffix}`;
   }
 
   private buildWhere(
@@ -397,10 +350,13 @@ export class TracksService {
   }
 
   private buildOrderBy(
-    orderOptions?: TrackOrderOptions,
-  ): Prisma.TrackOrderByWithRelationInput {
-    const ordering = orderOptions ?? { order: 'title', orderBy: 'asc' };
-    const orderBy = TracksService.SORT_FIELD_MAP[ordering.order];
-    return orderBy(ordering.orderBy);
+    options?: TrackOrderOptions,
+  ): Prisma.TrackOrderByWithRelationInput[] {
+    return buildOrderBy(
+      TracksService.SORT_FIELD_MAP,
+      { id: 'asc' },
+      { order: 'title', orderBy: 'asc' },
+      options,
+    );
   }
 }

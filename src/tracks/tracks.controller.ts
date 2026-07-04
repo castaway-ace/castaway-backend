@@ -23,12 +23,14 @@ import {
   ApiOkResponse,
   ApiProduces,
   ApiTags,
+  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { TrackEntity, TrackSummaryEntity } from './tracks.entity.js';
 
 @Controller('tracks')
 @ApiBearerAuth()
 @ApiTags('Tracks')
+@ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
 export class TracksController {
   constructor(private readonly trackService: TracksService) {}
 
@@ -47,24 +49,22 @@ export class TracksController {
         starred: query.starred,
         search: query.search,
       },
-      orderOptions: query.order
-        ? { order: query.order, orderBy: query.orderBy ?? 'asc' }
-        : undefined,
+      sortOptions:
+        query.order || query.orderBy
+          ? { order: query.order ?? 'title', orderBy: query.orderBy ?? 'asc' }
+          : undefined,
       pagination: { limit: query.limit, offset: query.offset },
     });
-  }
-
-  @Get('starred')
-  @ApiOkResponse({ type: String, isArray: true })
-  async getStarred(@CurrentUser('sub') sub: string): Promise<string[]> {
-    return this.trackService.findStarredTrackIds(sub);
   }
 
   @Get(':id')
   @ApiOkResponse({ type: TrackEntity })
   @ApiNotFoundResponse({ description: 'Track not found.' })
-  async find(@Param('id') id: string): Promise<TrackEntity> {
-    const track = await this.trackService.find(id);
+  async find(
+    @CurrentUser('sub') sub: string,
+    @Param('id') id: string,
+  ): Promise<TrackEntity> {
+    const track = await this.trackService.find(sub, id);
 
     return track;
   }
@@ -75,13 +75,13 @@ export class TracksController {
     description: 'Audio stream. Returns 206 Partial Content when Range is set.',
   })
   @ApiNotFoundResponse({ description: 'Track not found.' })
-  async findTrackStream(
+  async getTrackStream(
     @Param('id') id: string,
     @Res({ passthrough: true }) res: Response,
     @Headers('range') range?: string,
   ): Promise<StreamableFile> {
     const { stream, contentType, contentLength, contentRange } =
-      await this.trackService.findTrackStream(id, range);
+      await this.trackService.getTrackStream(id, range);
 
     res.set({ 'Accept-Ranges': 'bytes' });
 
@@ -111,7 +111,7 @@ export class TracksController {
   @HttpCode(204)
   @ApiNoContentResponse()
   @ApiNotFoundResponse({ description: 'Track not found.' })
-  async unStar(
+  async unstar(
     @CurrentUser('sub') sub: string,
     @Param('id') id: string,
   ): Promise<void> {

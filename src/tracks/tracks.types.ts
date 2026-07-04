@@ -39,8 +39,8 @@ export const trackSummarySelect = {
   },
 } satisfies Prisma.TrackSelect;
 
-type TrackRow = Prisma.TrackGetPayload<{ select: typeof trackSelect }>;
-type TrackSummaryRow = Prisma.TrackGetPayload<{
+export type TrackRow = Prisma.TrackGetPayload<{ select: typeof trackSelect }>;
+export type TrackSummaryRow = Prisma.TrackGetPayload<{
   select: typeof trackSummarySelect;
 }>;
 

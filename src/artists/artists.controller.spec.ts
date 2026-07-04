@@ -96,10 +96,19 @@ describe('ArtistsController', () => {
 
   describe('GET /artists', () => {
     it('returns a list of artist summaries', async () => {
-      return request(app.getHttpServer())
+      await request(app.getHttpServer())
         .get('/artists')
         .expect(200)
         .expect(artistSummaries);
+
+      expect(artistsService.findAll).toHaveBeenCalledWith('test-user', {
+        filters: {
+          starred: undefined,
+          search: undefined,
+        },
+        sortOptions: undefined,
+        pagination: { limit: undefined, offset: undefined },
+      });
     });
 
     it('forwards filters and pagination to the service', async () => {

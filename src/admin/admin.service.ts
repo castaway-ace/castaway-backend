@@ -10,8 +10,15 @@ import { buildAlbumIdentity } from '../utils/album-identity.js';
 import { ReferralCodeService } from '../referral-code/referral-code.service.js';
 import { ArtistRef } from '../common/entities/references.entity.js';
 import { ReferralCodeEntity } from '../referral-code/referral-code.entity.js';
+import { randomUUID } from 'crypto';
+import { PrismaService } from '../prisma/prisma.service.js';
 
 const TRACK_UPLOAD_CONCURRENCY = 4;
+
+interface TrackUploadPlan extends ParsedFile {
+  fileKey: string;
+  trackArtistIds: string[];
+}
 
 @Injectable()
 export class AdminService {
@@ -21,10 +28,30 @@ export class AdminService {
     private readonly artistService: ArtistsService,
     private readonly albumService: AlbumsService,
     private readonly referralCodeService: ReferralCodeService,
+    private readonly prisma: PrismaService,
   ) {}
 
-  uploadArtist(name: string): Promise<ArtistRef> {
-    return this.artistService.create(name);
+  async uploadArtist(
+    name: string,
+    file?: Express.Multer.File,
+  ): Promise<ArtistRef> {
+    const artistId = randomUUID();
+    if (file) {
+      try {
+        if (!file.mimetype.startsWith('image/')) {
+          throw new BadRequestException('Artist art must be an image');
+        }
+
+        await this.artistService.uploadImage(artistId, file);
+      } finally {
+        await this.cleanupFile(file);
+      }
+    }
+
+    return await this.artistService.create({
+      id: artistId,
+      name,
+    });
   }
 
   async deleteArtist(id: string): Promise<void> {
@@ -53,7 +80,7 @@ export class AdminService {
         throw new BadRequestException('Artist art must be an image');
       }
 
-      await this.artistService.createArtistImage(artistId, file);
+      await this.artistService.uploadImage(artistId, file);
     } finally {
       await this.cleanupFile(file);
     }
@@ -76,53 +103,104 @@ export class AdminService {
         artistMap,
       );
 
-      const album = await this.albumService.create(
+      const identityKey = await this.albumService.assertNotImported(
         firstTags.albumTitle,
         albumArtistIds,
-        firstTags.date,
       );
 
-      try {
-        const picture = firstTags.picture;
-        if (picture && picture.format.startsWith('image/')) {
-          await this.albumService.createAlbumCover(album.id, picture);
-        }
+      const albumId = randomUUID();
 
-        const results = await this.uploadTracksWithConcurrency(
-          parsedFiles,
-          album.id,
+      const picture = firstTags.picture;
+      const hasCover =
+        picture !== undefined && picture.format.startsWith('image/');
+      const coverKey = hasCover
+        ? this.albumService.buildCoverKey(albumId)
+        : null;
+
+      const plans: TrackUploadPlan[] = parsedFiles.map((parsed) => ({
+        ...parsed,
+        fileKey: this.trackService.buildFileKey(
+          albumId,
+          parsed.tags,
+          parsed.suffix,
+        ),
+        trackArtistIds: this.resolveArtistIds(
+          parsed.tags.trackArtistNames,
           artistMap,
-        );
+        ),
+      }));
 
-        const failures = results.flatMap((result, index) =>
-          result.status === 'rejected'
-            ? [
-                {
-                  trackTitle: parsedFiles[index].tags.title,
-                  reason:
-                    result.reason instanceof Error
-                      ? result.reason.message
-                      : String(result.reason),
-                },
-              ]
-            : [],
-        );
+      if (coverKey && picture) {
+        await this.albumService.uploadCover(coverKey, picture);
+      }
 
-        if (failures.length > 0) {
-          throw new BadRequestException({
-            message: `${failures.length} of ${parsedFiles.length} tracks failed to upload`,
-            failures,
-          });
-        }
+      const results = await this.uploadFilesWithConcurrency(plans);
+
+      const failures = results.flatMap((result, index) =>
+        result.status === 'rejected'
+          ? [
+              {
+                trackTitle: plans[index].tags.title,
+                reason:
+                  result.reason instanceof Error
+                    ? result.reason.message
+                    : String(result.reason),
+              },
+            ]
+          : [],
+      );
+
+      if (failures.length > 0) {
+        const uploadedKeys = plans
+          .filter((_, index) => results[index].status === 'fulfilled')
+          .map((plan) => plan.fileKey);
+        await this.cleanupObjects(uploadedKeys, coverKey);
+        throw new BadRequestException({
+          message: `${failures.length} of ${plans.length} tracks failed to upload`,
+          failures,
+        });
+      }
+
+      try {
+        await this.prisma.$transaction(async (tx) => {
+          await this.albumService.create(
+            {
+              id: albumId,
+              title: firstTags.albumTitle,
+              releaseDate: firstTags.date,
+              identityKey,
+              imageKey: coverKey,
+              artistIds: albumArtistIds,
+            },
+            tx,
+          );
+
+          for (const plan of plans) {
+            await this.trackService.create(
+              {
+                title: plan.tags.title,
+                albumId,
+                fileKey: plan.fileKey,
+                trackNumber: plan.tags.trackNumber,
+                discNumber: plan.tags.discNumber,
+                duration: plan.tags.duration,
+                size: plan.file.size,
+                suffix: plan.suffix,
+                genres: plan.tags.genres,
+                bitRate: plan.tags.bitRate,
+                sampleRate: plan.tags.sampleRate,
+                bitDepth: plan.tags.bitDepth,
+                releaseDate: plan.tags.date,
+                artistIds: plan.trackArtistIds,
+              },
+              tx,
+            );
+          }
+        });
       } catch (error) {
-        await this.deleteAlbum(album.id).catch((rollbackError: unknown) =>
-          this.logger.warn(
-            `Rollback failed for album ${album.id}: ${
-              rollbackError instanceof Error
-                ? rollbackError.message
-                : String(rollbackError)
-            }`,
-          ),
+        await this.cleanupObjects(
+          plans.map((plan) => plan.fileKey),
+          coverKey,
         );
         throw error;
       }
@@ -131,13 +209,21 @@ export class AdminService {
     }
   }
 
-  private async uploadTracksWithConcurrency(
-    parsedFiles: ParsedFile[],
-    albumId: string,
-    artistMap: Map<string, string>,
+  private async cleanupObjects(
+    trackKeys: string[],
+    coverKey: string | null,
+  ): Promise<void> {
+    await this.trackService.deleteTrackObjects(trackKeys);
+    if (coverKey) {
+      await this.albumService.deleteCoverObject(coverKey);
+    }
+  }
+
+  private async uploadFilesWithConcurrency(
+    plans: TrackUploadPlan[],
   ): Promise<PromiseSettledResult<void>[]> {
     const results: PromiseSettledResult<void>[] = Array.from(
-      { length: parsedFiles.length },
+      { length: plans.length },
       (): PromiseSettledResult<void> => ({
         status: 'rejected',
         reason: new Error('Track upload did not run'),
@@ -148,21 +234,11 @@ export class AdminService {
     const worker = async (): Promise<void> => {
       while (true) {
         const index = nextIndex++;
-        if (index >= parsedFiles.length) return;
+        if (index >= plans.length) return;
 
-        const { file, tags, suffix } = parsedFiles[index];
+        const { file, fileKey } = plans[index];
         try {
-          const trackArtistIds = this.resolveArtistIds(
-            tags.trackArtistNames,
-            artistMap,
-          );
-          await this.trackService.createTrack(
-            file,
-            tags,
-            suffix,
-            albumId,
-            trackArtistIds,
-          );
+          await this.trackService.uploadTrackFile(file, fileKey);
           results[index] = { status: 'fulfilled', value: undefined };
         } catch (reason) {
           results[index] = { status: 'rejected', reason };
@@ -170,7 +246,7 @@ export class AdminService {
       }
     };
 
-    const workerCount = Math.min(TRACK_UPLOAD_CONCURRENCY, parsedFiles.length);
+    const workerCount = Math.min(TRACK_UPLOAD_CONCURRENCY, plans.length);
     await Promise.all(Array.from({ length: workerCount }, () => worker()));
     return results;
   }

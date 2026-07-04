@@ -1,27 +1,64 @@
 import { jest } from '@jest/globals';
 import request from 'supertest';
 import { Test, TestingModule } from '@nestjs/testing';
-import { ExecutionContext, INestApplication } from '@nestjs/common';
+import {
+  ExecutionContext,
+  INestApplication,
+  ValidationPipe,
+} from '@nestjs/common';
 import { Readable } from 'node:stream';
 import { TracksController } from './tracks.controller.js';
 import { TracksService } from './tracks.service.js';
 import { App } from 'supertest/types.js';
-import { AuthGuard } from '../auth/guards/auth.guard.js';
 import type { Request } from 'express';
+import { APP_GUARD } from '@nestjs/core';
+import { toJson } from '../common/test.js';
+
+const albumRef = {
+  id: '1',
+  title: 'album-1',
+};
+
+const releaseDate = new Date('2026-06-06T00:00:00.000Z');
 
 const track = {
   id: '1',
   title: 'track',
+  genres: [],
+  duration: 300,
+  releaseDate,
+  trackNumber: 1,
+  discNumber: 1,
+  size: 200,
+  album: albumRef,
+  artists: [],
+  starred: false,
 };
 
 const trackSummaries = [
   {
     id: '1',
     title: 'track-1',
+    genres: [],
+    duration: 300,
+    releaseDate,
+    trackNumber: 1,
+    discNumber: 1,
+    album: albumRef,
+    artists: [],
+    starred: false,
   },
   {
     id: '2',
     title: 'track-2',
+    genres: [],
+    duration: 300,
+    releaseDate: new Date(),
+    trackNumber: 1,
+    discNumber: 1,
+    album: albumRef,
+    artists: [],
+    starred: false,
   },
 ];
 
@@ -34,13 +71,18 @@ const trackStream = {
 describe('TracksController', () => {
   let app: INestApplication<App>;
   const tracksService = {
-    find: jest.fn().mockReturnValue(track),
-    findAll: jest.fn().mockReturnValue(trackSummaries),
-    findTrackStream: jest.fn().mockReturnValue(trackStream),
-    updateStar: jest.fn(),
+    find: jest.fn<TracksService['find']>().mockResolvedValue(track),
+    findAll: jest
+      .fn<TracksService['findAll']>()
+      .mockResolvedValue(trackSummaries),
+    getTrackStream: jest
+      .fn<TracksService['getTrackStream']>()
+      .mockResolvedValue(trackStream),
+    updateStar: jest.fn<TracksService['updateStar']>(),
   };
 
   beforeEach(async () => {
+    jest.clearAllMocks();
     const module: TestingModule = await Test.createTestingModule({
       controllers: [TracksController],
       providers: [
@@ -48,64 +90,137 @@ describe('TracksController', () => {
           provide: TracksService,
           useValue: tracksService,
         },
-      ],
-    })
-      .overrideGuard(AuthGuard)
-      .useValue({
-        canActivate: (context: ExecutionContext): boolean => {
-          const req = context.switchToHttp().getRequest<Request>();
-          req.user = { sub: 'test-user', isAdmin: false, deviceId: '1234' };
-          return true;
+        {
+          provide: APP_GUARD,
+          useValue: {
+            canActivate: (context: ExecutionContext): boolean => {
+              const req = context.switchToHttp().getRequest<Request>();
+              req.user = { sub: 'test-user', isAdmin: false, deviceId: '1234' };
+              return true;
+            },
+          },
         },
-      })
-      .compile();
+      ],
+    }).compile();
 
     app = module.createNestApplication();
+    app.useGlobalPipes(
+      new ValidationPipe({
+        transform: true,
+        whitelist: true,
+        forbidNonWhitelisted: true,
+      }),
+    );
     await app.init();
   });
 
   afterEach(async () => {
-    jest.clearAllMocks();
     await app.close();
   });
 
-  describe('find', () => {
+  describe('GET /tracks/:id', () => {
     it('should return a track', async () => {
-      return request(app.getHttpServer())
-        .get('/tracks/1234')
-        .expect(200)
-        .expect(track);
+      const res = await request(app.getHttpServer())
+        .get('/tracks/track-1')
+        .expect(200);
+
+      expect(res.body).toEqual(toJson(track));
+
+      expect(tracksService.find).toHaveBeenCalledWith('test-user', 'track-1');
     });
   });
 
-  describe('findAll', () => {
+  describe('GET /tracks', () => {
     it('should return an array of tracks', async () => {
-      return request(app.getHttpServer())
-        .get('/tracks')
-        .expect(200)
-        .expect(trackSummaries);
+      const res = await request(app.getHttpServer()).get('/tracks').expect(200);
+
+      expect(res.body).toEqual(toJson(trackSummaries));
+
+      expect(tracksService.findAll).toHaveBeenCalledWith('test-user', {
+        filters: {
+          artistIds: undefined,
+          albumIds: undefined,
+          genres: undefined,
+          starred: undefined,
+          search: undefined,
+        },
+        sortOptions: undefined,
+        pagination: { limit: undefined, offset: undefined },
+      });
+    });
+
+    it('forwards filters and pagination to the service', async () => {
+      await request(app.getHttpServer())
+        .get('/tracks?starred=true&search=foo&order=title&limit=50&offset=20')
+        .expect(200);
+
+      expect(tracksService.findAll).toHaveBeenCalledWith('test-user', {
+        filters: {
+          albumIds: undefined,
+          artistIds: undefined,
+          genres: undefined,
+          starred: true,
+          search: 'foo',
+        },
+        sortOptions: { order: 'title', orderBy: 'asc' },
+        pagination: { limit: 50, offset: 20 },
+      });
     });
   });
 
-  describe('findTrackStream', () => {
-    it('should return the stream of a track', async () => {
+  describe('GET /tracks/:id/stream', () => {
+    const bufferParser = (
+      res: request.Response,
+      cb: (err: Error | null, body: Buffer) => void,
+    ): void => {
+      const chunks: Buffer[] = [];
+      res.on('data', (c: Buffer) => chunks.push(Buffer.from(c)));
+      res.on('end', () => cb(null, Buffer.concat(chunks)));
+    };
+
+    it('returns the full stream with a 200 when no range is requested', async () => {
       const res = await request(app.getHttpServer())
         .get('/tracks/1234/stream')
         .buffer(true)
-        .parse((res, cb) => {
-          const chunks: Buffer[] = [];
-          res.on('data', (c: Buffer) => chunks.push(Buffer.from(c)));
-          res.on('end', () => cb(null, Buffer.concat(chunks)));
-        });
+        .parse(bufferParser);
 
       expect(res.status).toBe(200);
       expect(res.headers['content-type']).toBe('audio/flac');
+      expect(res.headers['accept-ranges']).toBe('bytes');
       expect(res.body).toEqual(Buffer.from('audio file'));
+      expect(tracksService.getTrackStream).toHaveBeenCalledWith(
+        '1234',
+        undefined,
+      );
+    });
+
+    it('returns 206 with Content-Range when a range is requested', async () => {
+      tracksService.getTrackStream.mockResolvedValue({
+        stream: Readable.from(Buffer.from('audio')),
+        contentType: 'audio/flac',
+        contentLength: 5,
+        contentRange: 'bytes 0-4/10',
+        acceptRanges: 'bytes',
+      });
+
+      const res = await request(app.getHttpServer())
+        .get('/tracks/1234/stream')
+        .set('Range', 'bytes=0-4')
+        .buffer(true)
+        .parse(bufferParser);
+
+      expect(res.status).toBe(206);
+      expect(res.headers['content-range']).toBe('bytes 0-4/10');
+      expect(res.headers['content-length']).toBe('5');
+      expect(tracksService.getTrackStream).toHaveBeenCalledWith(
+        '1234',
+        'bytes=0-4',
+      );
     });
   });
 
-  describe('star', () => {
-    it('calls updateStar with true', async () => {
+  describe('POST /artists/:id/star', () => {
+    it('calls star with true', async () => {
       await request(app.getHttpServer()).post('/tracks/1234/star').expect(204);
       expect(tracksService.updateStar).toHaveBeenCalledWith(
         'test-user',
@@ -115,8 +230,8 @@ describe('TracksController', () => {
     });
   });
 
-  describe('unStar', () => {
-    it('calls updateStar with false', async () => {
+  describe('DELETE /artists/:id/star', () => {
+    it('calls star with false', async () => {
       await request(app.getHttpServer())
         .delete('/tracks/1234/star')
         .expect(204);

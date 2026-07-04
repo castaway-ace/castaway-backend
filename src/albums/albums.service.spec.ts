@@ -4,16 +4,20 @@ import { AlbumsService } from './albums.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AlbumEntity, AlbumSummaryEntity } from './albums.entity.js';
 import { StorageService } from '../storage/storage.service.js';
-import { AlbumRow, AlbumSummaryRow } from './albums.types.js';
+import { AlbumCreateData, AlbumRow, AlbumSummaryRow } from './albums.types.js';
 import { StorageBucket } from '../storage/storage.types.js';
 import { Prisma, Album as PrismaAlbum } from '../generated/prisma/client.js';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { IPicture } from 'music-metadata';
+import { buildAlbumIdentity } from '../utils/album-identity.js';
 
 type AlbumAnnotations = { albumAnnotations: { albumId: string }[] };
 
 type AlbumFindUniqueRow =
-  (AlbumRow & AlbumAnnotations) | { imageKey: string | null } | null;
+  | (AlbumRow & AlbumAnnotations)
+  | { imageKey: string | null }
+  | { id: string }
+  | null;
 
 const releaseDate = new Date('2026-06-06T00:00:00.000Z');
 
@@ -184,42 +188,69 @@ describe('AlbumService', () => {
   });
 
   describe('create', () => {
-    const p2002 = new Prisma.PrismaClientKnownRequestError(
-      'Unique constraint',
-      {
-        code: 'P2002',
-        clientVersion: '7.0.0',
-      },
-    );
+    const createData: AlbumCreateData = {
+      id: 'album-1',
+      title: 'test1',
+      releaseDate,
+      identityKey: 'identity-key-1',
+      imageKey: 'album-1/cover.jpg',
+      artistIds: ['artist-1'],
+    };
 
-    it('creates the album with its artist joins', async () => {
+    it('creates the album with its artist joins and the supplied id and image key', async () => {
       mockPrismaService.album.create.mockResolvedValue(albumRow);
 
-      const result = await albumService.create(
-        'test1',
-        ['artist-1'],
-        releaseDate,
-      );
+      await albumService.create(createData);
 
-      expect(result).toEqual(albumRow);
       expect(mockPrismaService.album.create).toHaveBeenCalledTimes(1);
-
       const createArgs = mockPrismaService.album.create.mock.calls[0][0];
-
       expect(createArgs).toMatchObject({
         data: {
+          id: 'album-1',
           title: 'test1',
           releaseDate,
+          identityKey: 'identity-key-1',
+          imageKey: 'album-1/cover.jpg',
           albumArtists: { create: [{ artistId: 'artist-1' }] },
         },
       });
     });
 
-    it('throws ConflictException when the identity key already exists', async () => {
-      mockPrismaService.album.create.mockRejectedValue(p2002);
+    it('uses the transaction client when provided', async () => {
+      const txCreate = jest
+        .fn<(args: Prisma.AlbumCreateArgs) => Promise<PrismaAlbum>>()
+        .mockResolvedValue(albumRow);
+      const tx = {
+        album: { create: txCreate },
+      } as unknown as Prisma.TransactionClient;
+
+      await albumService.create(createData, tx);
+
+      expect(txCreate).toHaveBeenCalledTimes(1);
+      expect(mockPrismaService.album.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('assertNotImported', () => {
+    it('returns the identity key when the album is not imported', async () => {
+      mockPrismaService.album.findUnique.mockResolvedValue(null);
+
+      const result = await albumService.assertNotImported('test1', [
+        'artist-1',
+      ]);
+
+      expect(result).toEqual(buildAlbumIdentity('test1', ['artist-1']));
+      expect(mockPrismaService.album.findUnique).toHaveBeenCalledWith({
+        where: { identityKey: result },
+        select: { id: true },
+      });
+    });
+
+    it('throws ConflictException when the album is already imported', async () => {
+      mockPrismaService.album.findUnique.mockResolvedValue({ id: 'album-1' });
 
       await expect(
-        albumService.create('test1', ['artist-1'], releaseDate),
+        albumService.assertNotImported('test1', ['artist-1']),
       ).rejects.toThrow(ConflictException);
     });
   });
@@ -279,47 +310,30 @@ describe('AlbumService', () => {
     });
   });
 
-  describe('createAlbumCover', () => {
-    const p2025 = new Prisma.PrismaClientKnownRequestError('Record not found', {
-      code: 'P2025',
-      clientVersion: '7.0.0',
-    });
-
+  describe('uploadCover', () => {
     const picture: IPicture = {
       format: 'image/jpeg',
       data: new Uint8Array([1, 2, 3]),
     };
 
-    it('uploads the cover and then sets the image key', async () => {
+    it('uploads the cover buffer to the album art bucket', async () => {
       mockStorageService.putObject.mockResolvedValue(undefined);
-      mockPrismaService.album.update.mockResolvedValue(albumRow);
 
-      await albumService.createAlbumCover('album-1', picture);
+      await albumService.uploadCover('album-1/cover.jpg', picture);
 
       expect(mockStorageService.putObject).toHaveBeenCalledTimes(1);
       const putArgs = mockStorageService.putObject.mock.calls[0];
       expect(putArgs[0]).toBe(StorageBucket.AlbumArt);
       expect(putArgs[1]).toBe('album-1/cover.jpg');
-      expect(putArgs[3]).toMatchObject({ contentType: 'image/jpeg' });
-
-      expect(mockPrismaService.album.update).toHaveBeenCalledTimes(1);
-      const updateArgs = mockPrismaService.album.update.mock.calls[0][0];
-      expect(updateArgs).toMatchObject({
-        where: { id: 'album-1' },
-        data: { imageKey: 'album-1/cover.jpg' },
-      });
-
-      expect(mockStorageService.deleteObject).not.toHaveBeenCalled();
+      expect(putArgs[3]).toMatchObject({ contentType: 'image/jpeg', size: 3 });
     });
+  });
 
-    it('deletes the uploaded object and throws NotFoundException when the album does not exist', async () => {
-      mockStorageService.putObject.mockResolvedValue(undefined);
-      mockPrismaService.album.update.mockRejectedValue(p2025);
+  describe('deleteCoverObject', () => {
+    it('deletes the cover object', async () => {
       mockStorageService.deleteObject.mockResolvedValue(undefined);
 
-      await expect(
-        albumService.createAlbumCover('album-1', picture),
-      ).rejects.toThrow(NotFoundException);
+      await albumService.deleteCoverObject('album-1/cover.jpg');
 
       expect(mockStorageService.deleteObject).toHaveBeenCalledWith(
         StorageBucket.AlbumArt,
@@ -327,41 +341,14 @@ describe('AlbumService', () => {
       );
     });
 
-    it('deletes the uploaded object and rethrows unknown errors unchanged', async () => {
-      const dbError = new Error('connection lost');
-      mockStorageService.putObject.mockResolvedValue(undefined);
-      mockPrismaService.album.update.mockRejectedValue(dbError);
-      mockStorageService.deleteObject.mockResolvedValue(undefined);
-
-      await expect(
-        albumService.createAlbumCover('album-1', picture),
-      ).rejects.toThrow(dbError);
-
-      expect(mockStorageService.deleteObject).toHaveBeenCalled();
-    });
-
-    it('surfaces the original database error even when the cleanup delete fails', async () => {
-      mockStorageService.putObject.mockResolvedValue(undefined);
-      mockPrismaService.album.update.mockRejectedValue(p2025);
+    it('swallows a storage failure without throwing', async () => {
       mockStorageService.deleteObject.mockRejectedValue(
         new Error('storage unavailable'),
       );
 
       await expect(
-        albumService.createAlbumCover('album-1', picture),
-      ).rejects.toThrow(NotFoundException);
-    });
-
-    it('propagates an upload failure without touching the database or attempting cleanup', async () => {
-      const uploadError = new Error('upload failed');
-      mockStorageService.putObject.mockRejectedValue(uploadError);
-
-      await expect(
-        albumService.createAlbumCover('album-1', picture),
-      ).rejects.toThrow(uploadError);
-
-      expect(mockPrismaService.album.update).not.toHaveBeenCalled();
-      expect(mockStorageService.deleteObject).not.toHaveBeenCalled();
+        albumService.deleteCoverObject('album-1/cover.jpg'),
+      ).resolves.toBeUndefined();
     });
   });
 });

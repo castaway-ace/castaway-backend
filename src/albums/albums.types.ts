@@ -75,3 +75,8 @@ export type AlbumSummary = Omit<AlbumSummaryRow, 'albumArtists'> & {
   artists: AlbumArtistRow[];
   starred: boolean;
 };
+
+export type AlbumCreateData = Pick<
+  Prisma.AlbumUncheckedCreateInput,
+  'title' | 'releaseDate' | 'identityKey' | 'imageKey'
+> & { id: string; artistIds: string[] };

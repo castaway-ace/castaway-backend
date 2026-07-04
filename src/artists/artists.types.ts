@@ -37,3 +37,8 @@ export type Artist = Omit<ArtistRow, 'albumArtists'> & {
 export type ArtistSummary = ArtistSummaryRow & {
   starred: boolean;
 };
+
+export type ArtistCreateData = Pick<
+  Prisma.ArtistUncheckedCreateInput,
+  'name'
+> & { id: string; imageKey?: string };
