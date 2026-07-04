@@ -2,15 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { ArtistsService } from '../artists/artists.service.js';
 import { AlbumsService } from '../albums/albums.service.js';
 import { TracksService } from '../tracks/tracks.service.js';
-import { TrackSummary } from '../tracks/tracks.types.js';
-import { AlbumSummary } from '../albums/albums.types.js';
-import { ArtistSummary } from '../artists/artists.types.js';
+import { SearchResultsEntity } from './search.entity.js';
 
-export interface SearchResults {
-  artists: ArtistSummary[];
-  albums: AlbumSummary[];
-  tracks: TrackSummary[];
-}
+const SEARCH_RESULT_LIMIT = 10;
 
 @Injectable()
 export class SearchService {
@@ -20,23 +14,25 @@ export class SearchService {
     private readonly trackService: TracksService,
   ) {}
 
-  async find(userId: string, query: string): Promise<SearchResults> {
-    if (query.trim().length < 1) {
+  async find(userId: string, query: string): Promise<SearchResultsEntity> {
+    const search = query.trim();
+
+    if (search.length < 1) {
       return { artists: [], albums: [], tracks: [] };
     }
 
     const [artists, albums, tracks] = await Promise.all([
       this.artistService.findAll(userId, {
-        filters: { search: query },
-        pagination: { limit: 10 },
+        filters: { search },
+        pagination: { limit: SEARCH_RESULT_LIMIT },
       }),
       this.albumService.findAll(userId, {
-        filters: { search: query },
-        pagination: { limit: 10 },
+        filters: { search },
+        pagination: { limit: SEARCH_RESULT_LIMIT },
       }),
       this.trackService.findAll(userId, {
-        filters: { search: query },
-        pagination: { limit: 10 },
+        filters: { search },
+        pagination: { limit: SEARCH_RESULT_LIMIT },
       }),
     ]);
 

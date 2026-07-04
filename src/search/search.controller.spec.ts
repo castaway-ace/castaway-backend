@@ -62,7 +62,7 @@ describe('SearchController', () => {
     await app.close();
   });
 
-  describe('find', () => {
+  describe('GET /search', () => {
     it('returns the results from the service', async () => {
       await request(app.getHttpServer())
         .get('/search?query=beatles')
@@ -70,6 +70,12 @@ describe('SearchController', () => {
         .expect(searchResults);
 
       expect(searchService.find).toHaveBeenCalledWith('test-user', 'beatles');
+    });
+
+    it('rejects a missing query parameter', async () => {
+      await request(app.getHttpServer()).get('/search').expect(400);
+
+      expect(searchService.find).not.toHaveBeenCalled();
     });
 
     it('rejects an empty query', async () => {
