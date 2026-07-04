@@ -123,6 +123,7 @@ describe('ArtistService', () => {
 
   describe('getArtistImageUrl', () => {
     const artistImageUrl = 'https://example.com/image.jpg';
+
     it('should get the artist image url', async () => {
       mockPrismaService.artist.findUnique.mockResolvedValue({
         imageKey: 'artist-1/cover.jpg',
@@ -134,6 +135,16 @@ describe('ArtistService', () => {
         StorageBucket.ArtistArt,
         'artist-1/cover.jpg',
       );
+    });
+
+    it('throws NotFoundException when the artist has no image', async () => {
+      mockPrismaService.artist.findUnique.mockResolvedValue({
+        imageKey: null,
+      });
+
+      await expect(
+        artistsService.getArtistImageUrl('artist-1'),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -189,22 +200,28 @@ describe('ArtistService', () => {
   });
 
   describe('delete', () => {
-    it('deletes the image object', async () => {
+    it('deletes the row before deleting the image object', async () => {
       mockPrismaService.artist.findUnique.mockResolvedValue({
         imageKey: 'artist-1/cover.jpg',
       });
-      mockStorageService.deleteObject.mockResolvedValue(undefined);
       mockPrismaService.artist.delete.mockResolvedValue(artistRow);
+      mockStorageService.deleteObject.mockResolvedValue(undefined);
 
       await artistsService.delete('artist-1');
 
+      expect(mockPrismaService.artist.delete).toHaveBeenCalledWith({
+        where: { id: 'artist-1' },
+      });
       expect(mockStorageService.deleteObject).toHaveBeenCalledWith(
         StorageBucket.ArtistArt,
         'artist-1/cover.jpg',
       );
-      expect(mockPrismaService.artist.delete).toHaveBeenCalledWith({
-        where: { id: 'artist-1' },
-      });
+
+      const rowDeleteOrder =
+        mockPrismaService.artist.delete.mock.invocationCallOrder[0];
+      const objectDeleteOrder =
+        mockStorageService.deleteObject.mock.invocationCallOrder[0];
+      expect(rowDeleteOrder).toBeLessThan(objectDeleteOrder);
     });
 
     it('skips storage deletion when the artist has no image', async () => {
@@ -226,16 +243,27 @@ describe('ArtistService', () => {
       expect(mockPrismaService.artist.delete).not.toHaveBeenCalled();
     });
 
-    it('still deletes the row when image deletion fails', async () => {
+    it('does not touch storage when the row deletion fails', async () => {
       mockPrismaService.artist.findUnique.mockResolvedValue({
         imageKey: 'artist-1/cover.jpg',
       });
+      const dbError = new Error('db unavailable');
+      mockPrismaService.artist.delete.mockRejectedValue(dbError);
+
+      await expect(artistsService.delete('artist-1')).rejects.toThrow(dbError);
+      expect(mockStorageService.deleteObject).not.toHaveBeenCalled();
+    });
+
+    it('completes even when the image object deletion fails', async () => {
+      mockPrismaService.artist.findUnique.mockResolvedValue({
+        imageKey: 'artist-1/cover.jpg',
+      });
+      mockPrismaService.artist.delete.mockResolvedValue(artistRow);
       mockStorageService.deleteObject.mockRejectedValue(
         new Error('storage unavailable'),
       );
-      mockPrismaService.artist.delete.mockResolvedValue(artistRow);
 
-      await artistsService.delete('artist-1');
+      await expect(artistsService.delete('artist-1')).resolves.toBeUndefined();
 
       expect(mockPrismaService.artist.delete).toHaveBeenCalledWith({
         where: { id: 'artist-1' },
@@ -243,7 +271,7 @@ describe('ArtistService', () => {
     });
   });
 
-  describe('createArtistImage', () => {
+  describe('uploadImage', () => {
     let tmpDir: string;
     let uploadFile: Express.Multer.File;
 
@@ -283,6 +311,37 @@ describe('ArtistService', () => {
       });
 
       expect(mockStorageService.deleteObject).not.toHaveBeenCalled();
+    });
+
+    it('deletes the uploaded object when setting the image key fails', async () => {
+      mockStorageService.putObject.mockResolvedValue(undefined);
+      const updateError = new Error('record not found');
+      mockPrismaService.artist.update.mockRejectedValue(updateError);
+      mockStorageService.deleteObject.mockResolvedValue(undefined);
+
+      await expect(
+        artistsService.uploadImage('artist-1', uploadFile),
+      ).rejects.toThrow(updateError);
+
+      expect(mockStorageService.deleteObject).toHaveBeenCalledWith(
+        StorageBucket.ArtistArt,
+        'artist-1/cover.jpg',
+      );
+    });
+
+    it('propagates the original error when the compensating deletion also fails', async () => {
+      mockStorageService.putObject.mockResolvedValue(undefined);
+      const updateError = new Error('record not found');
+      mockPrismaService.artist.update.mockRejectedValue(updateError);
+      mockStorageService.deleteObject.mockRejectedValue(
+        new Error('storage unavailable'),
+      );
+
+      await expect(
+        artistsService.uploadImage('artist-1', uploadFile),
+      ).rejects.toThrow(updateError);
+
+      expect(mockStorageService.deleteObject).toHaveBeenCalledTimes(1);
     });
   });
 });

@@ -35,23 +35,40 @@ export class AdminService {
     name: string,
     file?: Express.Multer.File,
   ): Promise<ArtistRef> {
-    const artistId = randomUUID();
-    if (file) {
-      try {
-        if (!file.mimetype.startsWith('image/')) {
-          throw new BadRequestException('Artist art must be an image');
-        }
+    try {
+      if (file && !file.mimetype.startsWith('image/')) {
+        throw new BadRequestException('Artist art must be an image');
+      }
+      const artist = await this.artistService.create({
+        id: randomUUID(),
+        name,
+      });
 
-        await this.artistService.uploadImage(artistId, file);
-      } finally {
+      if (file) {
+        try {
+          await this.artistService.uploadImage(artist.id, file);
+        } catch (error) {
+          await this.artistService
+            .delete(artist.id)
+            .catch((cleanupError: unknown) =>
+              this.logger.warn(
+                `Failed to roll back artist ${artist.id} after image upload failure: ${
+                  cleanupError instanceof Error
+                    ? cleanupError.message
+                    : String(cleanupError)
+                }`,
+              ),
+            );
+          throw error;
+        }
+      }
+
+      return artist;
+    } finally {
+      if (file) {
         await this.cleanupFile(file);
       }
     }
-
-    return await this.artistService.create({
-      id: artistId,
-      name,
-    });
   }
 
   async deleteArtist(id: string): Promise<void> {

@@ -7,11 +7,10 @@ import {
   ArtistCreateData,
   ArtistRow,
   artistSelect,
-  ArtistSummary,
   artistSummarySelect,
 } from './artists.types.js';
 import { StorageBucket } from '../storage/storage.types.js';
-import { ArtistEntity } from './artists.entity.js';
+import { ArtistEntity, ArtistSummaryEntity } from './artists.entity.js';
 import { ArtistOrderOptions, ArtistSortOrder } from './dto/artist-query.dto.js';
 import { ArtistRef } from '../common/entities/references.entity.js';
 import { createReadStream } from 'fs';
@@ -39,7 +38,7 @@ export class ArtistsService {
   async findAll(
     userId: string,
     options: ArtistQueryOptions,
-  ): Promise<ArtistSummary[]> {
+  ): Promise<ArtistSummaryEntity[]> {
     const where = this.buildWhere(options.filters, userId);
     const orderBy = this.buildOrderBy(options?.sortOptions);
     const { take, skip } = clampPagination(options.pagination);
@@ -138,6 +137,8 @@ export class ArtistsService {
       throw new NotFoundException('Artist not found');
     }
 
+    await this.prisma.artist.delete({ where: { id } });
+
     if (artist.imageKey) {
       await this.storageService
         .deleteObject(StorageBucket.ArtistArt, artist.imageKey)
@@ -149,8 +150,6 @@ export class ArtistsService {
           ),
         );
     }
-
-    await this.prisma.artist.delete({ where: { id } });
   }
 
   async uploadImage(
@@ -170,7 +169,22 @@ export class ArtistsService {
       },
     );
 
-    await this.setImageKey(artistId, fileKey);
+    try {
+      await this.setImageKey(artistId, fileKey);
+    } catch (error) {
+      await this.storageService
+        .deleteObject(StorageBucket.ArtistArt, fileKey)
+        .catch((cleanupError: unknown) =>
+          this.logger.warn(
+            `Failed to clean up orphaned image ${fileKey}: ${
+              cleanupError instanceof Error
+                ? cleanupError.message
+                : String(cleanupError)
+            }`,
+          ),
+        );
+      throw error;
+    }
   }
 
   async findIdsByNames(names: string[]): Promise<Map<string, string>> {
