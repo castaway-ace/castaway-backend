@@ -1,5 +1,6 @@
 import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
+import { NotFoundException } from '@nestjs/common';
 import { TracksService } from './tracks.service.js';
 import { TrackRow, TrackSummaryRow } from './tracks.types.js';
 import { Prisma, Track as PrismaTrack } from '../generated/prisma/client.js';
@@ -22,27 +23,18 @@ const artistRef = { id: 'artist-1', name: 'Test Artist' };
 
 const releaseDate = new Date('2026-06-06T00:00:00.000Z');
 
-const track: PrismaTrack = {
-  id: '1',
-  title: 'track',
-  genres: [],
-  duration: 300,
-  releaseDate,
-  trackNumber: 1,
-  discNumber: 1,
-  size: 200,
-  albumId: '1',
-  fileKey: '',
-  bitDepth: 16,
-  bitRate: 982,
-  sampleRate: 44100,
-  suffix: 'flac',
-  createdAt: releaseDate,
-  updatedAt: releaseDate,
-};
-
 describe('TracksService', () => {
   let tracksService: TracksService;
+  const mockTx = {
+    track: {
+      findUnique: jest.fn<() => Promise<{ id: string } | null>>(),
+    },
+    trackAnnotation: {
+      findUnique: jest.fn<() => Promise<{ starred: boolean } | null>>(),
+      upsert:
+        jest.fn<(args: Prisma.TrackAnnotationUpsertArgs) => Promise<unknown>>(),
+    },
+  };
 
   const mockPrismaService = {
     track: {
@@ -53,10 +45,12 @@ describe('TracksService', () => {
       delete: jest.fn<() => Promise<PrismaTrack>>(),
       update: jest.fn<(args: Prisma.TrackUpdateArgs) => Promise<PrismaTrack>>(),
     },
-    trackAnnotation: {
-      upsert: jest.fn<() => Promise<unknown>>(),
-      deleteMany: jest.fn<() => Promise<{ count: number }>>(),
-    },
+    $transaction: jest.fn(
+      async (
+        callback: (tx: Prisma.TransactionClient) => Promise<void>,
+      ): Promise<void> =>
+        callback(mockTx as unknown as Prisma.TransactionClient),
+    ),
   };
 
   const mockStorageService = {
@@ -66,6 +60,7 @@ describe('TracksService', () => {
   };
 
   const mockPlaylistService = {
+    findLikedRecord: jest.fn<() => Promise<{ id: string }>>(),
     addTrack: jest.fn<PlaylistsService['addTrack']>(),
     deleteTrack: jest.fn<PlaylistsService['deleteTrack']>(),
   };
@@ -168,6 +163,13 @@ describe('TracksService', () => {
       const result = await tracksService.find(userId, 'track-1');
       expect(result).toEqual(trackEntity);
     });
+
+    it('throws NotFoundException when the track does not exist', async () => {
+      mockPrismaService.track.findUnique.mockResolvedValue(null);
+      await expect(tracksService.find(userId, 'missing')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
   });
 
   describe('getTrackStream', () => {
@@ -189,6 +191,89 @@ describe('TracksService', () => {
         'track-1/song.flac',
         undefined,
       );
+    });
+  });
+
+  describe('setStarred', () => {
+    const trackId = 'track-1';
+    const likedPlaylist = { id: 'liked-1' };
+
+    beforeEach(() => {
+      mockTx.track.findUnique.mockResolvedValue({ id: trackId });
+      mockPlaylistService.findLikedRecord.mockResolvedValue(likedPlaylist);
+    });
+
+    it('stars an unstarred track and adds it to the Liked playlist', async () => {
+      mockTx.trackAnnotation.findUnique.mockResolvedValue(null);
+
+      await tracksService.setStarred(userId, trackId, true);
+
+      const [upsertArgs] = mockTx.trackAnnotation.upsert.mock.calls[0];
+      expect(upsertArgs).toMatchObject({
+        where: { userId_trackId: { userId, trackId } },
+        create: { userId, trackId, starred: true },
+        update: { starred: true },
+      });
+      expect(upsertArgs.create.starredAt).toBeInstanceOf(Date);
+      expect(upsertArgs.update.starredAt).toBeInstanceOf(Date);
+
+      expect(mockPlaylistService.addTrack).toHaveBeenCalledWith(
+        userId,
+        likedPlaylist.id,
+        trackId,
+        mockTx,
+      );
+      expect(mockPlaylistService.deleteTrack).not.toHaveBeenCalled();
+    });
+
+    it('unstars a starred track and removes it from the Liked playlist', async () => {
+      mockTx.trackAnnotation.findUnique.mockResolvedValue({ starred: true });
+
+      await tracksService.setStarred(userId, trackId, false);
+
+      const [upsertArgs] = mockTx.trackAnnotation.upsert.mock.calls[0];
+      expect(upsertArgs).toMatchObject({
+        where: { userId_trackId: { userId, trackId } },
+        update: { starred: false, starredAt: null },
+      });
+
+      expect(mockPlaylistService.deleteTrack).toHaveBeenCalledWith(
+        userId,
+        likedPlaylist.id,
+        trackId,
+        mockTx,
+      );
+      expect(mockPlaylistService.addTrack).not.toHaveBeenCalled();
+    });
+
+    it('is a no-op when starring an already starred track', async () => {
+      mockTx.trackAnnotation.findUnique.mockResolvedValue({ starred: true });
+
+      await tracksService.setStarred(userId, trackId, true);
+
+      expect(mockTx.trackAnnotation.upsert).not.toHaveBeenCalled();
+      expect(mockPlaylistService.addTrack).not.toHaveBeenCalled();
+      expect(mockPlaylistService.findLikedRecord).not.toHaveBeenCalled();
+    });
+
+    it('is a no-op when unstarring a track that was never starred', async () => {
+      mockTx.trackAnnotation.findUnique.mockResolvedValue(null);
+
+      await tracksService.setStarred(userId, trackId, false);
+
+      expect(mockTx.trackAnnotation.upsert).not.toHaveBeenCalled();
+      expect(mockPlaylistService.deleteTrack).not.toHaveBeenCalled();
+    });
+
+    it('throws NotFoundException when the track does not exist', async () => {
+      mockTx.track.findUnique.mockResolvedValue(null);
+
+      await expect(
+        tracksService.setStarred(userId, 'missing', true),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(mockTx.trackAnnotation.upsert).not.toHaveBeenCalled();
+      expect(mockPlaylistService.addTrack).not.toHaveBeenCalled();
     });
   });
 });

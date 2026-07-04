@@ -5,7 +5,7 @@ import {
   ObjectStreamResult,
   StorageService,
 } from '../storage/storage.service.js';
-import { TrackOrderOptions } from './dto/track-query.dto.js';
+import { TrackOrderOptions, TrackSortOrder } from './dto/track-query.dto.js';
 import {
   TrackCreateData,
   trackSelect,
@@ -16,7 +16,7 @@ import { PlaylistsService } from '../playlists/playlists.service.js';
 import { TrackEntity, TrackSummaryEntity } from './tracks.entity.js';
 import { createReadStream } from 'fs';
 import { buildOrderBy, clampPagination } from '../common/query.js';
-import { MetadataTags } from 'src/admin/admin.types.js';
+import type { MetadataTags } from '../admin/admin.types.js';
 
 interface TrackFilters {
   artistIds?: string[];
@@ -64,18 +64,14 @@ export class TracksService {
       },
     });
 
-    const results = tracks.map(
-      ({ trackAnnotations, trackArtists, album, ...track }) => {
-        return {
-          ...track,
-          artists: trackArtists.map((ta) => ta.artist),
-          album: album,
-          starred: trackAnnotations.length > 0,
-        };
-      },
+    return tracks.map(
+      ({ trackAnnotations, trackArtists, album, ...track }) => ({
+        ...track,
+        artists: trackArtists.map((ta) => ta.artist),
+        album,
+        starred: trackAnnotations.length > 0,
+      }),
     );
-
-    return results;
   }
 
   async find(userId: string, id: string): Promise<TrackEntity> {
@@ -92,23 +88,16 @@ export class TracksService {
     });
 
     if (!track) {
-      throw new NotFoundException('Track does not exist');
+      throw new NotFoundException('Track not found');
     }
 
-    const starred = track.trackAnnotations.length > 0;
+    const { trackAnnotations, trackArtists, album, ...rest } = track;
 
     return {
-      id: track.id,
-      title: track.title,
-      genres: track.genres,
-      duration: track.duration,
-      releaseDate: track.releaseDate,
-      trackNumber: track.trackNumber,
-      discNumber: track.discNumber,
-      size: track.size,
-      album: track.album,
-      artists: track.trackArtists.map((ta) => ta.artist),
-      starred,
+      ...rest,
+      album,
+      artists: trackArtists.map((ta) => ta.artist),
+      starred: trackAnnotations.length > 0,
     };
   }
 
@@ -141,16 +130,31 @@ export class TracksService {
     };
   }
 
-  async updateStar(
+  async setStarred(
     userId: string,
     trackId: string,
     starred: boolean,
   ): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
-      const likedPlaylist = await this.playlistService.findLikedRecord(
-        userId,
-        tx,
-      );
+      const track = await tx.track.findUnique({
+        where: { id: trackId },
+        select: { id: true },
+      });
+
+      if (!track) {
+        throw new NotFoundException('Track not found');
+      }
+
+      const annotation = await tx.trackAnnotation.findUnique({
+        where: { userId_trackId: { userId, trackId } },
+        select: { starred: true },
+      });
+
+      const currentlyStarred = annotation?.starred ?? false;
+
+      if (currentlyStarred === starred) {
+        return;
+      }
 
       await tx.trackAnnotation.upsert({
         where: { userId_trackId: { userId, trackId } },
@@ -165,6 +169,11 @@ export class TracksService {
           starredAt: starred ? new Date() : null,
         },
       });
+
+      const likedPlaylist = await this.playlistService.findLikedRecord(
+        userId,
+        tx,
+      );
 
       if (starred) {
         await this.playlistService.addTrack(
@@ -210,6 +219,8 @@ export class TracksService {
       throw new NotFoundException('Track not found');
     }
 
+    await this.prisma.track.delete({ where: { id } });
+
     await this.storageService
       .deleteObject(StorageBucket.Tracks, track.fileKey)
       .catch((error: unknown) =>
@@ -219,8 +230,6 @@ export class TracksService {
           }`,
         ),
       );
-
-    await this.prisma.track.delete({ where: { id } });
   }
 
   async uploadTrackFile(
@@ -316,7 +325,7 @@ export class TracksService {
   }
 
   private static readonly SORT_FIELD_MAP: Record<
-    TrackOrderOptions['order'],
+    TrackSortOrder,
     (direction: Prisma.SortOrder) => Prisma.TrackOrderByWithRelationInput
   > = {
     title: (direction) => ({ title: direction }),
@@ -325,7 +334,7 @@ export class TracksService {
     added: (direction) => ({ createdAt: direction }),
   };
 
-  private readonly mimeByExt: Record<string, string> = {
+  private static readonly MIME_BY_EXT: Record<string, string> = {
     flac: 'audio/flac',
     mp3: 'audio/mpeg',
     m4a: 'audio/mp4',
@@ -335,7 +344,7 @@ export class TracksService {
     wav: 'audio/wav',
   };
 
-  private readonly mimeAliases: Record<string, string> = {
+  private static readonly MIME_ALIASES: Record<string, string> = {
     'audio/x-flac': 'audio/flac',
     'audio/x-wav': 'audio/wav',
     'audio/x-m4a': 'audio/mp4',
@@ -343,10 +352,10 @@ export class TracksService {
 
   private resolveContentType(key: string, fromStorage?: string): string {
     if (fromStorage && fromStorage !== 'application/octet-stream') {
-      return this.mimeAliases[fromStorage] ?? fromStorage;
+      return TracksService.MIME_ALIASES[fromStorage] ?? fromStorage;
     }
     const ext = key.split('.').pop()?.toLowerCase() ?? '';
-    return this.mimeByExt[ext] ?? 'application/octet-stream';
+    return TracksService.MIME_BY_EXT[ext] ?? 'application/octet-stream';
   }
 
   private buildOrderBy(

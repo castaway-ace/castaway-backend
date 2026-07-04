@@ -43,7 +43,6 @@ const trackSummaries = [
     duration: 300,
     releaseDate,
     trackNumber: 1,
-    discNumber: 1,
     album: albumRef,
     artists: [],
     starred: false,
@@ -55,7 +54,6 @@ const trackSummaries = [
     duration: 300,
     releaseDate: new Date(),
     trackNumber: 1,
-    discNumber: 1,
     album: albumRef,
     artists: [],
     starred: false,
@@ -78,7 +76,7 @@ describe('TracksController', () => {
     getTrackStream: jest
       .fn<TracksService['getTrackStream']>()
       .mockResolvedValue(trackStream),
-    updateStar: jest.fn<TracksService['updateStar']>(),
+    setStarred: jest.fn<TracksService['setStarred']>(),
   };
 
   beforeEach(async () => {
@@ -219,10 +217,10 @@ describe('TracksController', () => {
     });
   });
 
-  describe('POST /artists/:id/star', () => {
-    it('calls star with true', async () => {
+  describe('POST /tracks/:id/star', () => {
+    it('calls setStarred with true', async () => {
       await request(app.getHttpServer()).post('/tracks/1234/star').expect(204);
-      expect(tracksService.updateStar).toHaveBeenCalledWith(
+      expect(tracksService.setStarred).toHaveBeenCalledWith(
         'test-user',
         '1234',
         true,
@@ -230,12 +228,12 @@ describe('TracksController', () => {
     });
   });
 
-  describe('DELETE /artists/:id/star', () => {
-    it('calls star with false', async () => {
+  describe('DELETE /tracks/:id/star', () => {
+    it('calls setStarred with false', async () => {
       await request(app.getHttpServer())
         .delete('/tracks/1234/star')
         .expect(204);
-      expect(tracksService.updateStar).toHaveBeenCalledWith(
+      expect(tracksService.setStarred).toHaveBeenCalledWith(
         'test-user',
         '1234',
         false,

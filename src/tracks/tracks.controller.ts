@@ -64,9 +64,7 @@ export class TracksController {
     @CurrentUser('sub') sub: string,
     @Param('id') id: string,
   ): Promise<TrackEntity> {
-    const track = await this.trackService.find(sub, id);
-
-    return track;
+    return this.trackService.find(sub, id);
   }
 
   @Get(':id/stream')
@@ -97,24 +95,24 @@ export class TracksController {
   }
 
   @Post(':id/star')
-  @HttpCode(204)
+  @HttpCode(HttpStatus.NO_CONTENT)
   @ApiNoContentResponse()
   @ApiNotFoundResponse({ description: 'Track not found.' })
   async star(
     @CurrentUser('sub') sub: string,
     @Param('id') id: string,
   ): Promise<void> {
-    await this.trackService.updateStar(sub, id, true);
+    await this.trackService.setStarred(sub, id, true);
   }
 
   @Delete(':id/star')
-  @HttpCode(204)
+  @HttpCode(HttpStatus.NO_CONTENT)
   @ApiNoContentResponse()
   @ApiNotFoundResponse({ description: 'Track not found.' })
   async unstar(
     @CurrentUser('sub') sub: string,
     @Param('id') id: string,
   ): Promise<void> {
-    await this.trackService.updateStar(sub, id, false);
+    await this.trackService.setStarred(sub, id, false);
   }
 }
