@@ -106,6 +106,31 @@ export class ArtistsService {
     );
   }
 
+  async findArtistImageMap(ids: string[]): Promise<Map<string, string>> {
+    const artists = await this.prisma.artist.findMany({
+      where: { id: { in: ids } },
+      select: {
+        id: true,
+        imageKey: true,
+      },
+    });
+
+    const entries = await Promise.all(
+      artists.map(async (artist): Promise<[string, string] | null> => {
+        if (!artist.imageKey) return null;
+        const url = await this.storageService.getPresignedUrl(
+          StorageBucket.ArtistArt,
+          artist.imageKey,
+        );
+        return [artist.id, url];
+      }),
+    );
+
+    return new Map(
+      entries.filter((entry): entry is [string, string] => entry !== null),
+    );
+  }
+
   async star(userId: string, artistId: string): Promise<void> {
     await this.prisma.artistAnnotation.upsert({
       where: { userId_artistId: { userId, artistId } },

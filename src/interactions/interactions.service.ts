@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   albumInteractionSelect,
@@ -11,8 +11,11 @@ import { PlaylistsService } from '../playlists/playlists.service.js';
 import { ArtistsService } from '../artists/artists.service.js';
 import { AlbumsService } from '../albums/albums.service.js';
 
+const DEFAULT_INTERACTION_LIMIT = 20;
+
 @Injectable()
 export class InteractionsService {
+  private readonly logger = new Logger(InteractionsService.name);
   constructor(
     private readonly prisma: PrismaService,
     private readonly playlistService: PlaylistsService,
@@ -20,7 +23,10 @@ export class InteractionsService {
     private readonly albumService: AlbumsService,
   ) {}
 
-  async findAll(userId: string, limit = 20): Promise<Interaction[]> {
+  async findAll(
+    userId: string,
+    limit = DEFAULT_INTERACTION_LIMIT,
+  ): Promise<Interaction[]> {
     const [artistInteractions, playlistInteractions, albumInteractions] =
       await Promise.all([
         this.prisma.artistInteraction.findMany({
@@ -64,22 +70,36 @@ export class InteractionsService {
 
     const survivors = candidates.slice(0, limit);
 
+    const albumIds = survivors.flatMap((candidate) =>
+      candidate.kind === InteractionType.ALBUM ? [candidate.raw.album.id] : [],
+    );
+    const artistIds = survivors.flatMap((candidate) =>
+      candidate.kind === InteractionType.ARTIST
+        ? [candidate.raw.artist.id]
+        : [],
+    );
+
+    const [albumCovers, artistImages] = await Promise.all([
+      albumIds.length
+        ? this.albumService.findAlbumCoverMap(albumIds)
+        : new Map<string, string>(),
+      artistIds.length
+        ? this.artistService.findArtistImageMap(artistIds)
+        : new Map<string, string>(),
+    ]);
+
     return Promise.all(
       survivors.map(async (candidate): Promise<Interaction> => {
         switch (candidate.kind) {
           case InteractionType.ARTIST: {
-            const coverUrl = await this.artistService.getArtistImageUrl(
-              candidate.raw.artist.id,
-            );
             return {
               ...candidate.raw,
               type: InteractionType.ARTIST,
-              coverUrl,
+              coverUrl: artistImages.get(candidate.raw.artist.id) ?? null,
             };
           }
           case InteractionType.ALBUM: {
             const { album, ...rest } = candidate.raw;
-            const coverUrl = await this.albumService.getAlbumCoverUrl(album.id);
             return {
               ...rest,
               type: InteractionType.ALBUM,
@@ -88,17 +108,24 @@ export class InteractionsService {
                 title: album.title,
               },
               artists: album.albumArtists.map((aa) => aa.artist),
-              coverUrl,
+              coverUrl: albumCovers.get(album.id) ?? null,
             };
           }
           case InteractionType.PLAYLIST: {
-            const covers = await this.playlistService.findPlaylistCovers(
-              candidate.raw.playlist.id,
-            );
+            const coverUrls = await this.playlistService
+              .findPlaylistCovers(candidate.raw.playlist.id)
+              .catch((error: unknown): string[] => {
+                this.logger.warn(
+                  `Failed to resolve covers for playlist ${candidate.raw.playlist.id}: ${
+                    error instanceof Error ? error.message : String(error)
+                  }`,
+                );
+                return [];
+              });
             return {
               ...candidate.raw,
               type: InteractionType.PLAYLIST,
-              coverUrls: covers,
+              coverUrls,
             };
           }
         }

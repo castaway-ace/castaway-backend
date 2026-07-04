@@ -2,14 +2,30 @@ import { jest } from '@jest/globals';
 import { Test } from '@nestjs/testing';
 import { InteractionsController } from './interactions.controller.js';
 import { InteractionsService } from './interactions.service.js';
-import { ExecutionContext, INestApplication } from '@nestjs/common';
+import {
+  ExecutionContext,
+  INestApplication,
+  ValidationPipe,
+} from '@nestjs/common';
+import { HttpAdapterHost } from '@nestjs/core';
 import { App } from 'supertest/types.js';
 import type { Request } from 'express';
 import request from 'supertest';
-import { Interaction } from './interactions.types.js';
+import { Interaction, InteractionType } from './interactions.types.js';
 import { APP_GUARD } from '@nestjs/core';
+import { toJson } from '../common/test.js';
+import { Prisma } from '../generated/prisma/client.js';
+import { PrismaClientExceptionFilter } from '../prisma/prisma.filter.js';
 
-const interactions = [{}, {}, {}] as Interaction[];
+const interactions: Interaction[] = [
+  {
+    id: 'ai-1',
+    updatedAt: new Date('2026-06-06T03:00:00.000Z'),
+    type: InteractionType.ARTIST,
+    artist: { id: 'artist-1', name: 'Test Artist' },
+    coverUrl: null,
+  },
+];
 
 describe('InteractionsController', () => {
   let app: INestApplication<App>;
@@ -47,6 +63,15 @@ describe('InteractionsController', () => {
     }).compile();
 
     app = module.createNestApplication();
+    app.useGlobalPipes(
+      new ValidationPipe({
+        transform: true,
+        whitelist: true,
+        forbidNonWhitelisted: true,
+      }),
+    );
+    const { httpAdapter } = app.get(HttpAdapterHost);
+    app.useGlobalFilters(new PrismaClientExceptionFilter(httpAdapter));
     await app.init();
   });
 
@@ -57,10 +82,31 @@ describe('InteractionsController', () => {
 
   describe('findAll', () => {
     it('should return an array of interactions', async () => {
-      return request(app.getHttpServer())
+      const res = await request(app.getHttpServer())
         .get('/interactions')
-        .expect(200)
-        .expect(interactions);
+        .expect(200);
+
+      expect(res.body).toEqual(toJson(interactions));
+      expect(interactionsService.findAll).toHaveBeenCalledWith(
+        'test-user',
+        undefined,
+      );
+    });
+
+    it('forwards the limit to the service', async () => {
+      await request(app.getHttpServer())
+        .get('/interactions?limit=5')
+        .expect(200);
+
+      expect(interactionsService.findAll).toHaveBeenCalledWith('test-user', 5);
+    });
+
+    it('rejects a limit above the maximum', async () => {
+      await request(app.getHttpServer())
+        .get('/interactions?limit=51')
+        .expect(400);
+
+      expect(interactionsService.findAll).not.toHaveBeenCalled();
     });
   });
 
@@ -73,6 +119,24 @@ describe('InteractionsController', () => {
         'test-user',
         '12324',
       );
+    });
+
+    it('returns 404 through the Prisma filter for an unknown id', async () => {
+      interactionsService.createOrUpdateAlbum.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError('FK violation', {
+          code: 'P2003',
+          clientVersion: '7.0.0',
+        }),
+      );
+
+      const res = await request(app.getHttpServer())
+        .post('/interactions/albums/missing')
+        .expect(404);
+
+      expect(res.body).toMatchObject({
+        statusCode: 404,
+        message: 'Referenced record not found',
+      });
     });
   });
 

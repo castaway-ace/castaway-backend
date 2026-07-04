@@ -1,12 +1,24 @@
-import { Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { InteractionsService } from './interactions.service.js';
 import { CurrentUser } from '../auth/decorators/user.decorator.js';
 import { Interaction } from './interactions.types.js';
 import {
+  ApiBadRequestResponse,
   ApiBearerAuth,
   ApiExtraModels,
+  ApiNoContentResponse,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiTags,
+  ApiUnauthorizedResponse,
   getSchemaPath,
 } from '@nestjs/swagger';
 import {
@@ -14,6 +26,7 @@ import {
   PlaylistInteractionEntity,
   AlbumInteractionEntity,
 } from './interactions.entity.js';
+import { InteractionQueryDto } from './dto/interaction-query.dto.js';
 
 @Controller('interactions')
 @ApiExtraModels(
@@ -23,6 +36,7 @@ import {
 )
 @ApiBearerAuth()
 @ApiTags('Interactions')
+@ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
 export class InteractionsController {
   constructor(private readonly interactionsService: InteractionsService) {}
 
@@ -47,12 +61,18 @@ export class InteractionsController {
       },
     },
   })
-  async findAll(@CurrentUser('sub') sub: string): Promise<Interaction[]> {
-    return this.interactionsService.findAll(sub);
+  @ApiBadRequestResponse({ description: 'Invalid query parameters.' })
+  async findAll(
+    @CurrentUser('sub') sub: string,
+    @Query() query: InteractionQueryDto,
+  ): Promise<Interaction[]> {
+    return this.interactionsService.findAll(sub, query.limit);
   }
 
   @Post('/albums/:id')
-  @HttpCode(204)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContentResponse()
+  @ApiNotFoundResponse({ description: 'Album not found.' })
   async createOrUpdateAlbum(
     @CurrentUser('sub') sub: string,
     @Param('id') id: string,
@@ -61,7 +81,9 @@ export class InteractionsController {
   }
 
   @Post('/artists/:id')
-  @HttpCode(204)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContentResponse()
+  @ApiNotFoundResponse({ description: 'Artist not found.' })
   async createOrUpdateArtist(
     @CurrentUser('sub') sub: string,
     @Param('id') id: string,
@@ -70,7 +92,9 @@ export class InteractionsController {
   }
 
   @Post('/playlists/:id')
-  @HttpCode(204)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContentResponse()
+  @ApiNotFoundResponse({ description: 'Playlist not found.' })
   async createOrUpdatePlaylist(
     @CurrentUser('sub') sub: string,
     @Param('id') id: string,
