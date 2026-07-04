@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { AppService } from './app.service.js';
 import { HealthModule } from './health/health.module.js';
 import { UsersModule } from './users/users.module.js';
 import { AuthModule } from './auth/auth.module.js';
@@ -36,6 +35,5 @@ import { ReferralCodeModule } from './referral-code/referral-code.module.js';
     InteractionsModule,
     ReferralCodeModule,
   ],
-  providers: [AppService],
 })
 export class AppModule {}
