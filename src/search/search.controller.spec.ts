@@ -1,7 +1,6 @@
 import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import { SearchController } from './search.controller.js';
-import { MockMetadata, ModuleMocker } from 'jest-mock';
 import { SearchService } from './search.service.js';
 import {
   ExecutionContext,
@@ -11,9 +10,7 @@ import {
 import { App } from 'supertest/types.js';
 import type { Request } from 'express';
 import request from 'supertest';
-import { AuthGuard } from '../auth/guards/auth.guard.js';
-
-const moduleMocker = new ModuleMocker(global);
+import { APP_GUARD } from '@nestjs/core';
 
 const searchResults = {
   artists: [],
@@ -25,10 +22,11 @@ describe('SearchController', () => {
   let app: INestApplication<App>;
 
   const searchService = {
-    find: jest.fn().mockReturnValue(searchResults),
+    find: jest.fn<SearchService['find']>().mockResolvedValue(searchResults),
   };
 
   beforeEach(async () => {
+    jest.clearAllMocks();
     const module: TestingModule = await Test.createTestingModule({
       controllers: [SearchController],
       providers: [
@@ -36,39 +34,31 @@ describe('SearchController', () => {
           provide: SearchService,
           useValue: searchService,
         },
-      ],
-    })
-      .useMocker((token) => {
-        if (typeof token === 'function') {
-          const mockMetadata = moduleMocker.getMetadata(token) as MockMetadata<
-            any,
-            any
-          >;
-          const Mock = moduleMocker.generateFromMetadata(
-            mockMetadata,
-          ) as ObjectConstructor;
-          return new Mock();
-        }
-      })
-      .overrideGuard(AuthGuard)
-      .useValue({
-        canActivate: (context: ExecutionContext): boolean => {
-          const req = context.switchToHttp().getRequest<Request>();
-          req.user = { sub: 'sub', isAdmin: false, deviceId: '1234' };
-          return true;
+        {
+          provide: APP_GUARD,
+          useValue: {
+            canActivate: (context: ExecutionContext): boolean => {
+              const req = context.switchToHttp().getRequest<Request>();
+              req.user = { sub: 'test-user', isAdmin: false, deviceId: '1234' };
+              return true;
+            },
+          },
         },
-      })
-      .compile();
+      ],
+    }).compile();
 
     app = module.createNestApplication();
     app.useGlobalPipes(
-      new ValidationPipe({ whitelist: true, transform: true }),
+      new ValidationPipe({
+        transform: true,
+        whitelist: true,
+        forbidNonWhitelisted: true,
+      }),
     );
     await app.init();
   });
 
   afterEach(async () => {
-    jest.clearAllMocks();
     await app.close();
   });
 
@@ -79,7 +69,7 @@ describe('SearchController', () => {
         .expect(200)
         .expect(searchResults);
 
-      expect(searchService.find).toHaveBeenCalledWith('sub', 'beatles');
+      expect(searchService.find).toHaveBeenCalledWith('test-user', 'beatles');
     });
 
     it('rejects an empty query', async () => {

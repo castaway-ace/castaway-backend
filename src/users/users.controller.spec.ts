@@ -1,29 +1,34 @@
 import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
-import { MockMetadata, ModuleMocker } from 'jest-mock';
 import { UsersController } from './users.controller.js';
 import { UsersService } from './users.service.js';
-import { ExecutionContext, INestApplication } from '@nestjs/common';
+import {
+  ExecutionContext,
+  INestApplication,
+  ValidationPipe,
+} from '@nestjs/common';
 import { App } from 'supertest/types.js';
 import type { Request } from 'express';
 import request from 'supertest';
-import { AuthGuard } from '../auth/guards/auth.guard.js';
-
-const moduleMocker = new ModuleMocker(global);
+import { APP_GUARD } from '@nestjs/core';
 
 const user = {
   id: '1',
+  email: 'test@test.com',
+  isAdmin: false,
+  userName: 'user',
 };
 
 describe('UserController', () => {
   let app: INestApplication<App>;
 
   const usersService = {
-    findById: jest.fn().mockReturnValue(user),
-    delete: jest.fn(),
+    findById: jest.fn<UsersService['findById']>().mockResolvedValue(user),
+    delete: jest.fn<UsersService['delete']>(),
   };
 
   beforeEach(async () => {
+    jest.clearAllMocks();
     const module: TestingModule = await Test.createTestingModule({
       controllers: [UsersController],
       providers: [
@@ -31,36 +36,31 @@ describe('UserController', () => {
           provide: UsersService,
           useValue: usersService,
         },
-      ],
-    })
-      .useMocker((token) => {
-        if (typeof token === 'function') {
-          const mockMetadata = moduleMocker.getMetadata(token) as MockMetadata<
-            any,
-            any
-          >;
-          const Mock = moduleMocker.generateFromMetadata(
-            mockMetadata,
-          ) as ObjectConstructor;
-          return new Mock();
-        }
-      })
-      .overrideGuard(AuthGuard)
-      .useValue({
-        canActivate: (context: ExecutionContext): boolean => {
-          const req = context.switchToHttp().getRequest<Request>();
-          req.user = { sub: 'sub', isAdmin: false, deviceId: '1234' };
-          return true;
+        {
+          provide: APP_GUARD,
+          useValue: {
+            canActivate: (context: ExecutionContext): boolean => {
+              const req = context.switchToHttp().getRequest<Request>();
+              req.user = { sub: 'test-user', isAdmin: false, deviceId: '1234' };
+              return true;
+            },
+          },
         },
-      })
-      .compile();
+      ],
+    }).compile();
 
     app = module.createNestApplication();
+    app.useGlobalPipes(
+      new ValidationPipe({
+        transform: true,
+        whitelist: true,
+        forbidNonWhitelisted: true,
+      }),
+    );
     await app.init();
   });
 
   afterEach(async () => {
-    jest.clearAllMocks();
     await app.close();
   });
 
@@ -69,7 +69,7 @@ describe('UserController', () => {
       return request(app.getHttpServer())
         .get('/user/me')
         .expect(200)
-        .expect({ id: '1' });
+        .expect(user);
     });
   });
 
@@ -77,7 +77,7 @@ describe('UserController', () => {
     it('forwards the user id to the service', async () => {
       await request(app.getHttpServer()).delete('/user/me').expect(200);
 
-      expect(usersService.delete).toHaveBeenCalledWith('sub');
+      expect(usersService.delete).toHaveBeenCalledWith('test-user');
     });
   });
 });

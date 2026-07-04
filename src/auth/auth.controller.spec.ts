@@ -9,9 +9,9 @@ import request from 'supertest';
 import { App } from 'supertest/types.js';
 import { MockMetadata, ModuleMocker } from 'jest-mock';
 import { AuthController } from './auth.controller.js';
-import { AuthTokens } from './auth.types.js';
 import { AuthService } from './auth.service.js';
 import { AuthGuard } from './guards/auth.guard.js';
+import { AuthTokensEntity } from './entities/auth-tokens.entity.js';
 
 const moduleMocker = new ModuleMocker(global);
 
@@ -31,7 +31,10 @@ describe('AuthController', () => {
     deviceInfo: { name: 'phone' },
   };
 
-  const tokens: AuthTokens = { accessToken: 'access', refreshToken: 'refresh' };
+  const tokens: AuthTokensEntity = {
+    accessToken: 'access',
+    refreshToken: 'refresh',
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({

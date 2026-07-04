@@ -67,7 +67,10 @@ describe('AdminController', () => {
     it('passes the files array to the service', async () => {
       await adminController.uploadArtist({ name: 'test' });
 
-      expect(mockAdminService.uploadArtist).toHaveBeenCalledWith('test');
+      expect(mockAdminService.uploadArtist).toHaveBeenCalledWith(
+        'test',
+        undefined,
+      );
     });
   });
 

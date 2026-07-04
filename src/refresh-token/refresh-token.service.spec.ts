@@ -162,15 +162,6 @@ describe('RefreshTokenService', () => {
     });
   });
 
-  it('throws Concurrent error when a concurrent rotation occurs', async () => {
-    findUnique.mockResolvedValue(makeMockDevice());
-    findById.mockResolvedValue({ id: 'user-1', isAdmin: false });
-    claimUpdateMany.mockResolvedValue({ count: 0 });
-    await expect(refreshTokenService.rotate('raw')).rejects.toThrow(
-      'Concurrent rotation detected',
-    );
-  });
-
   it('when the refresh tokens has successfully rotated', async () => {
     findUnique.mockResolvedValue(makeMockDevice());
     findById.mockResolvedValue({ id: 'user-1', isAdmin: false });

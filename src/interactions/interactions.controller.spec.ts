@@ -4,20 +4,25 @@ import { InteractionsController } from './interactions.controller.js';
 import { InteractionsService } from './interactions.service.js';
 import { ExecutionContext, INestApplication } from '@nestjs/common';
 import { App } from 'supertest/types.js';
-import { AuthGuard } from '../auth/guards/auth.guard.js';
 import type { Request } from 'express';
 import request from 'supertest';
+import { Interaction } from './interactions.types.js';
+import { APP_GUARD } from '@nestjs/core';
 
-const interactions = [{}, {}, {}];
+const interactions = [{}, {}, {}] as Interaction[];
 
 describe('InteractionsController', () => {
   let app: INestApplication<App>;
 
   const interactionsService = {
-    findAll: jest.fn().mockReturnValue(interactions),
-    createOrUpdateAlbum: jest.fn(),
-    createOrUpdateArtist: jest.fn(),
-    createOrUpdatePlaylist: jest.fn(),
+    findAll: jest
+      .fn<InteractionsService['findAll']>()
+      .mockResolvedValue(interactions),
+    createOrUpdateAlbum: jest.fn<InteractionsService['createOrUpdateAlbum']>(),
+    createOrUpdateArtist:
+      jest.fn<InteractionsService['createOrUpdateArtist']>(),
+    createOrUpdatePlaylist:
+      jest.fn<InteractionsService['createOrUpdatePlaylist']>(),
   };
 
   beforeEach(async () => {
@@ -28,17 +33,18 @@ describe('InteractionsController', () => {
           provide: InteractionsService,
           useValue: interactionsService,
         },
-      ],
-    })
-      .overrideGuard(AuthGuard)
-      .useValue({
-        canActivate: (context: ExecutionContext): boolean => {
-          const req = context.switchToHttp().getRequest<Request>();
-          req.user = { sub: 'test-user', isAdmin: false, deviceId: '1234' };
-          return true;
+        {
+          provide: APP_GUARD,
+          useValue: {
+            canActivate: (context: ExecutionContext): boolean => {
+              const req = context.switchToHttp().getRequest<Request>();
+              req.user = { sub: 'test-user', isAdmin: false, deviceId: '1234' };
+              return true;
+            },
+          },
         },
-      })
-      .compile();
+      ],
+    }).compile();
 
     app = module.createNestApplication();
     await app.init();

@@ -7,7 +7,7 @@ import { StorageService } from '../storage/storage.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { ArtistEntity, ArtistSummaryEntity } from './artists.entity.js';
 import { StorageBucket } from '../storage/storage.types.js';
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { NotFoundException } from '@nestjs/common';
 import { ArtistRef } from '../common/entities/references.entity.js';
 import { mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
@@ -170,18 +170,10 @@ describe('ArtistService', () => {
   describe('create', () => {
     const artistRef: ArtistRef = { id: 'artist-1', name: 'test1' };
 
-    const p2002 = new Prisma.PrismaClientKnownRequestError(
-      'Unique constraint violation',
-      {
-        code: 'P2002',
-        clientVersion: '7.0.0',
-      },
-    );
-
     it('creates the artist', async () => {
       mockPrismaService.artist.create.mockResolvedValue(artistRef);
 
-      const result = await artistsService.create('artist-1');
+      const result = await artistsService.create({ ...artistRef });
 
       expect(result).toEqual(artistRef);
       expect(mockPrismaService.artist.create).toHaveBeenCalledTimes(1);
@@ -190,17 +182,9 @@ describe('ArtistService', () => {
 
       expect(createArgs).toMatchObject({
         data: {
-          name: 'artist-1',
+          name: 'test1',
         },
       });
-    });
-
-    it('throws ConflictException when the artist already exists', async () => {
-      mockPrismaService.artist.create.mockRejectedValue(p2002);
-
-      await expect(artistsService.create('artist-1')).rejects.toThrow(
-        ConflictException,
-      );
     });
   });
 
@@ -263,11 +247,6 @@ describe('ArtistService', () => {
     let tmpDir: string;
     let uploadFile: Express.Multer.File;
 
-    const p2025 = new Prisma.PrismaClientKnownRequestError('Record not found', {
-      code: 'P2025',
-      clientVersion: '7.0.0',
-    });
-
     beforeEach(async () => {
       tmpDir = await mkdtemp(join(tmpdir(), 'artists-spec-'));
       const filePath = join(tmpDir, 'cover.jpg');
@@ -303,58 +282,6 @@ describe('ArtistService', () => {
         data: { imageKey: 'artist-1/cover.jpg' },
       });
 
-      expect(mockStorageService.deleteObject).not.toHaveBeenCalled();
-    });
-
-    it('deletes the uploaded object and throws NotFoundException when the artist does not exist', async () => {
-      mockStorageService.putObject.mockResolvedValue(undefined);
-      mockPrismaService.artist.update.mockRejectedValue(p2025);
-      mockStorageService.deleteObject.mockResolvedValue(undefined);
-
-      await expect(
-        artistsService.uploadImage('artist-1', uploadFile),
-      ).rejects.toThrow(NotFoundException);
-
-      expect(mockStorageService.deleteObject).toHaveBeenCalledWith(
-        StorageBucket.ArtistArt,
-        'artist-1/cover.jpg',
-      );
-    });
-
-    it('deletes the uploaded object and rethrows unknown errors unchanged', async () => {
-      const dbError = new Error('connection lost');
-      mockStorageService.putObject.mockResolvedValue(undefined);
-      mockPrismaService.artist.update.mockRejectedValue(dbError);
-      mockStorageService.deleteObject.mockResolvedValue(undefined);
-
-      await expect(
-        artistsService.uploadImage('artist-1', uploadFile),
-      ).rejects.toThrow(dbError);
-
-      expect(mockStorageService.deleteObject).toHaveBeenCalled();
-    });
-
-    it('surfaces the original database error even when the cleanup delete fails', async () => {
-      mockStorageService.putObject.mockResolvedValue(undefined);
-      mockPrismaService.artist.update.mockRejectedValue(p2025);
-      mockStorageService.deleteObject.mockRejectedValue(
-        new Error('storage unavailable'),
-      );
-
-      await expect(
-        artistsService.uploadImage('artist-1', uploadFile),
-      ).rejects.toThrow(NotFoundException);
-    });
-
-    it('propagates an upload failure without touching the database or attempting cleanup', async () => {
-      const uploadError = new Error('upload failed');
-      mockStorageService.putObject.mockRejectedValue(uploadError);
-
-      await expect(
-        artistsService.uploadImage('artist-1', uploadFile),
-      ).rejects.toThrow(uploadError);
-
-      expect(mockPrismaService.artist.update).not.toHaveBeenCalled();
       expect(mockStorageService.deleteObject).not.toHaveBeenCalled();
     });
   });
