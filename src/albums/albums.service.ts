@@ -168,6 +168,8 @@ export class AlbumsService {
       throw new NotFoundException('Album not found');
     }
 
+    await this.prisma.album.delete({ where: { id } });
+
     if (album.imageKey) {
       await this.storageService
         .deleteObject(StorageBucket.AlbumArt, album.imageKey)
@@ -179,8 +181,6 @@ export class AlbumsService {
           ),
         );
     }
-
-    await this.prisma.album.delete({ where: { id } });
   }
 
   async uploadCover(coverKey: string, picture: IPicture): Promise<void> {

@@ -44,7 +44,11 @@ describe('AlbumService', () => {
     album: {
       findUnique: jest.fn<() => Promise<AlbumFindUniqueRow>>(),
       findMany:
-        jest.fn<() => Promise<(AlbumSummaryRow & AlbumAnnotations)[]>>(),
+        jest.fn<
+          (
+            args: Prisma.AlbumFindManyArgs,
+          ) => Promise<(AlbumSummaryRow & AlbumAnnotations)[]>
+        >(),
       create: jest.fn<(args: Prisma.AlbumCreateArgs) => Promise<PrismaAlbum>>(),
       delete: jest.fn<() => Promise<PrismaAlbum>>(),
       update: jest.fn<(args: Prisma.AlbumUpdateArgs) => Promise<PrismaAlbum>>(),
@@ -109,6 +113,60 @@ describe('AlbumService', () => {
       const result = await albumService.findAll(userId, {});
       expect(result).toEqual(albumSummaryEntities);
     });
+
+    it('applies the default ordering, tiebreaker, and pagination clamp', async () => {
+      mockPrismaService.album.findMany.mockResolvedValue([]);
+
+      await albumService.findAll(userId, {});
+
+      expect(mockPrismaService.album.findMany).toHaveBeenCalledTimes(1);
+      const args = mockPrismaService.album.findMany.mock.calls[0][0];
+      expect(args).toMatchObject({
+        orderBy: [{ title: 'asc' }, { id: 'asc' }],
+        take: 100,
+        skip: 0,
+        where: {},
+      });
+    });
+
+    it('builds where, orderBy, and pagination from the supplied options', async () => {
+      mockPrismaService.album.findMany.mockResolvedValue([]);
+
+      await albumService.findAll(userId, {
+        filters: {
+          artistIds: ['artist-1'],
+          genres: ['rock'],
+          starred: true,
+          search: 'foo',
+        },
+        sortOptions: { order: 'year', orderBy: 'desc' },
+        pagination: { limit: 10, offset: 20 },
+      });
+
+      const args = mockPrismaService.album.findMany.mock.calls[0][0];
+      expect(args).toMatchObject({
+        orderBy: [{ releaseDate: 'desc' }, { id: 'asc' }],
+        take: 10,
+        skip: 20,
+        where: {
+          albumArtists: { some: { artistId: { in: ['artist-1'] } } },
+          genres: { hasSome: ['rock'] },
+          albumAnnotations: { some: { userId, starred: true } },
+          OR: [
+            { title: { contains: 'foo', mode: 'insensitive' } },
+            {
+              albumArtists: {
+                some: {
+                  artist: {
+                    name: { contains: 'foo', mode: 'insensitive' },
+                  },
+                },
+              },
+            },
+          ],
+        },
+      });
+    });
   });
 
   describe('find', () => {
@@ -139,10 +197,19 @@ describe('AlbumService', () => {
       const result = await albumService.find(userId, 'album-1');
       expect(result).toEqual(albumEntity);
     });
+
+    it('throws NotFoundException when the album does not exist', async () => {
+      mockPrismaService.album.findUnique.mockResolvedValue(null);
+
+      await expect(albumService.find(userId, 'album-1')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
   });
 
   describe('getAlbumCoverUrl', () => {
     const albumCoverUrl = 'https://example.com/cover.jpg';
+
     it('should get the album cover url', async () => {
       mockPrismaService.album.findUnique.mockResolvedValue({
         imageKey: 'album-1/cover.jpg',
@@ -154,6 +221,24 @@ describe('AlbumService', () => {
         StorageBucket.AlbumArt,
         'album-1/cover.jpg',
       );
+    });
+
+    it('throws NotFoundException when the album has no cover', async () => {
+      mockPrismaService.album.findUnique.mockResolvedValue({ imageKey: null });
+
+      await expect(albumService.getAlbumCoverUrl('album-1')).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(mockStorageService.getPresignedUrl).not.toHaveBeenCalled();
+    });
+
+    it('throws NotFoundException when the album does not exist', async () => {
+      mockPrismaService.album.findUnique.mockResolvedValue(null);
+
+      await expect(albumService.getAlbumCoverUrl('album-1')).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(mockStorageService.getPresignedUrl).not.toHaveBeenCalled();
     });
   });
 
@@ -229,6 +314,16 @@ describe('AlbumService', () => {
       expect(txCreate).toHaveBeenCalledTimes(1);
       expect(mockPrismaService.album.create).not.toHaveBeenCalled();
     });
+
+    it('propagates a P2002 unique constraint violation unmodified', async () => {
+      const p2002 = new Prisma.PrismaClientKnownRequestError(
+        'Unique constraint failed on the fields: (`identity_key`)',
+        { code: 'P2002', clientVersion: 'test' },
+      );
+      mockPrismaService.album.create.mockRejectedValue(p2002);
+
+      await expect(albumService.create(createData)).rejects.toBe(p2002);
+    });
   });
 
   describe('assertNotImported', () => {
@@ -256,22 +351,28 @@ describe('AlbumService', () => {
   });
 
   describe('delete', () => {
-    it('deletes the cover object and then the album row', async () => {
+    it('deletes the row before deleting the cover object', async () => {
       mockPrismaService.album.findUnique.mockResolvedValue({
         imageKey: 'album-1/cover.jpg',
       });
-      mockStorageService.deleteObject.mockResolvedValue(undefined);
       mockPrismaService.album.delete.mockResolvedValue(albumRow);
+      mockStorageService.deleteObject.mockResolvedValue(undefined);
 
       await albumService.delete('album-1');
 
+      expect(mockPrismaService.album.delete).toHaveBeenCalledWith({
+        where: { id: 'album-1' },
+      });
       expect(mockStorageService.deleteObject).toHaveBeenCalledWith(
         StorageBucket.AlbumArt,
         'album-1/cover.jpg',
       );
-      expect(mockPrismaService.album.delete).toHaveBeenCalledWith({
-        where: { id: 'album-1' },
-      });
+
+      const rowDeleteOrder =
+        mockPrismaService.album.delete.mock.invocationCallOrder[0];
+      const objectDeleteOrder =
+        mockStorageService.deleteObject.mock.invocationCallOrder[0];
+      expect(rowDeleteOrder).toBeLessThan(objectDeleteOrder);
     });
 
     it('skips storage deletion when the album has no cover', async () => {
@@ -293,16 +394,27 @@ describe('AlbumService', () => {
       expect(mockPrismaService.album.delete).not.toHaveBeenCalled();
     });
 
-    it('still deletes the row when cover deletion fails', async () => {
+    it('does not touch storage when the row deletion fails', async () => {
       mockPrismaService.album.findUnique.mockResolvedValue({
         imageKey: 'album-1/cover.jpg',
       });
+      const dbError = new Error('db unavailable');
+      mockPrismaService.album.delete.mockRejectedValue(dbError);
+
+      await expect(albumService.delete('album-1')).rejects.toThrow(dbError);
+      expect(mockStorageService.deleteObject).not.toHaveBeenCalled();
+    });
+
+    it('completes even when the cover object deletion fails', async () => {
+      mockPrismaService.album.findUnique.mockResolvedValue({
+        imageKey: 'album-1/cover.jpg',
+      });
+      mockPrismaService.album.delete.mockResolvedValue(albumRow);
       mockStorageService.deleteObject.mockRejectedValue(
         new Error('storage unavailable'),
       );
-      mockPrismaService.album.delete.mockResolvedValue(albumRow);
 
-      await albumService.delete('album-1');
+      await expect(albumService.delete('album-1')).resolves.toBeUndefined();
 
       expect(mockPrismaService.album.delete).toHaveBeenCalledWith({
         where: { id: 'album-1' },

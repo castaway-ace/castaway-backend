@@ -16,10 +16,15 @@ import { toJson } from '../common/test.js';
 
 const releaseDate = new Date('2026-06-06T00:00:00.000Z');
 
-const artistRef = { id: 'artist-1', name: 'Test Artist' };
+const albumId = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
+
+const artistRef = {
+  id: 'b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e',
+  name: 'Test Artist',
+};
 
 const album: Album = {
-  id: 'album-1',
+  id: albumId,
   title: 'test1',
   releaseDate,
   compilation: false,
@@ -31,7 +36,7 @@ const album: Album = {
 
 const albumSummaries: AlbumSummary[] = [
   {
-    id: 'album-1',
+    id: albumId,
     title: 'test1',
     releaseDate,
     genres: ['rock'],
@@ -40,8 +45,7 @@ const albumSummaries: AlbumSummary[] = [
   },
 ];
 
-const albumCoverUrl =
-  'http://localhost:9000/albums/album-1/cover.jpg?X-Amz-Signature=test';
+const albumCoverUrl = `http://localhost:9000/albums/${albumId}/cover.jpg?X-Amz-Signature=test`;
 
 describe('AlbumsController', () => {
   let app: INestApplication<App>;
@@ -96,15 +100,18 @@ describe('AlbumsController', () => {
   describe('GET /albums/:id', () => {
     it('returns the album for the requesting user', async () => {
       const res = await request(app.getHttpServer())
-        .get('/albums/album-1')
+        .get(`/albums/${albumId}`)
         .expect(200);
 
       expect(res.body).toEqual(toJson(album));
 
-      expect(mockAlbumService.find).toHaveBeenCalledWith(
-        'test-user',
-        'album-1',
-      );
+      expect(mockAlbumService.find).toHaveBeenCalledWith('test-user', albumId);
+    });
+
+    it('rejects a malformed album id without reaching the service', async () => {
+      await request(app.getHttpServer()).get('/albums/not-a-uuid').expect(400);
+
+      expect(mockAlbumService.find).not.toHaveBeenCalled();
     });
   });
 
@@ -147,37 +154,58 @@ describe('AlbumsController', () => {
   describe('GET /albums/:id/cover', () => {
     it('returns the cover url', async () => {
       await request(app.getHttpServer())
-        .get('/albums/album-1/cover')
+        .get(`/albums/${albumId}/cover`)
         .expect(200)
         .expect(albumCoverUrl);
 
-      expect(mockAlbumService.getAlbumCoverUrl).toHaveBeenCalledWith('album-1');
+      expect(mockAlbumService.getAlbumCoverUrl).toHaveBeenCalledWith(albumId);
+    });
+
+    it('rejects a malformed album id without reaching the service', async () => {
+      await request(app.getHttpServer())
+        .get('/albums/not-a-uuid/cover')
+        .expect(400);
+
+      expect(mockAlbumService.getAlbumCoverUrl).not.toHaveBeenCalled();
     });
   });
 
   describe('POST /albums/:id/star', () => {
     it('stars the album for the requesting user', async () => {
       await request(app.getHttpServer())
-        .post('/albums/album-1/star')
+        .post(`/albums/${albumId}/star`)
         .expect(204);
 
-      expect(mockAlbumService.star).toHaveBeenCalledWith(
-        'test-user',
-        'album-1',
-      );
+      expect(mockAlbumService.star).toHaveBeenCalledWith('test-user', albumId);
+    });
+
+    it('rejects a malformed album id without reaching the service', async () => {
+      await request(app.getHttpServer())
+        .post('/albums/not-a-uuid/star')
+        .expect(400);
+
+      expect(mockAlbumService.star).not.toHaveBeenCalled();
     });
   });
 
   describe('DELETE /albums/:id/star', () => {
     it('unstars the album for the requesting user', async () => {
       await request(app.getHttpServer())
-        .delete('/albums/album-1/star')
+        .delete(`/albums/${albumId}/star`)
         .expect(204);
 
       expect(mockAlbumService.unstar).toHaveBeenCalledWith(
         'test-user',
-        'album-1',
+        albumId,
       );
+    });
+
+    it('rejects a malformed album id without reaching the service', async () => {
+      await request(app.getHttpServer())
+        .delete('/albums/not-a-uuid/star')
+        .expect(400);
+
+      expect(mockAlbumService.unstar).not.toHaveBeenCalled();
     });
   });
 });

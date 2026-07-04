@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  ParseUUIDPipe,
   Post,
   Query,
 } from '@nestjs/common';
@@ -53,10 +54,11 @@ export class AlbumsController {
 
   @Get(':id')
   @ApiOkResponse({ type: AlbumEntity })
+  @ApiBadRequestResponse({ description: 'Invalid album id.' })
   @ApiNotFoundResponse({ description: 'Album not found.' })
   find(
     @CurrentUser('sub') sub: string,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ): Promise<AlbumEntity> {
     return this.albumService.find(sub, id);
   }
@@ -68,18 +70,20 @@ export class AlbumsController {
       description: 'Presigned URL to the cover image.',
     },
   })
+  @ApiBadRequestResponse({ description: 'Invalid album id.' })
   @ApiNotFoundResponse({ description: 'Album cover not found.' })
-  getAlbumCoverUrl(@Param('id') id: string): Promise<string> {
+  getAlbumCoverUrl(@Param('id', ParseUUIDPipe) id: string): Promise<string> {
     return this.albumService.getAlbumCoverUrl(id);
   }
 
   @Post(':id/star')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiNoContentResponse()
+  @ApiBadRequestResponse({ description: 'Invalid album id.' })
   @ApiNotFoundResponse({ description: 'Album not found.' })
   async star(
     @CurrentUser('sub') sub: string,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ): Promise<void> {
     await this.albumService.star(sub, id);
   }
@@ -87,10 +91,10 @@ export class AlbumsController {
   @Delete(':id/star')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiNoContentResponse()
-  @ApiNotFoundResponse({ description: 'Album not found.' })
+  @ApiBadRequestResponse({ description: 'Invalid album id.' })
   async unstar(
     @CurrentUser('sub') sub: string,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ): Promise<void> {
     await this.albumService.unstar(sub, id);
   }

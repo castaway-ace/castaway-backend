@@ -24,6 +24,15 @@ export class PrismaClientExceptionFilter extends BaseExceptionFilter {
         );
         break;
       }
+      case 'P2023': {
+        this.logger.warn(this.describe(exception));
+        this.reply(
+          response,
+          HttpStatus.BAD_REQUEST,
+          'Malformed identifier in request',
+        );
+        break;
+      }
       case 'P2025': {
         this.logger.warn(this.describe(exception));
         this.reply(response, HttpStatus.NOT_FOUND, 'Record not found');

@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  ParseUUIDPipe,
   Post,
   Query,
 } from '@nestjs/common';
@@ -51,10 +52,11 @@ export class ArtistsController {
 
   @Get(':id')
   @ApiOkResponse({ type: ArtistEntity })
+  @ApiBadRequestResponse({ description: 'Invalid artist id.' })
   @ApiNotFoundResponse({ description: 'Artist not found.' })
   async find(
     @CurrentUser('sub') sub: string,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ): Promise<ArtistEntity> {
     const artist = await this.artistService.find(sub, id);
 
@@ -68,8 +70,11 @@ export class ArtistsController {
       description: 'Presigned URL to the artist image.',
     },
   })
+  @ApiBadRequestResponse({ description: 'Invalid artist id.' })
   @ApiNotFoundResponse({ description: 'Artist image not found.' })
-  async getArtistImageUrl(@Param('id') id: string): Promise<string> {
+  async getArtistImageUrl(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<string> {
     const url = await this.artistService.getArtistImageUrl(id);
 
     return url;
@@ -78,10 +83,11 @@ export class ArtistsController {
   @Post(':id/star')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiNoContentResponse()
+  @ApiBadRequestResponse({ description: 'Invalid artist id.' })
   @ApiNotFoundResponse({ description: 'Artist not found.' })
   async star(
     @CurrentUser('sub') sub: string,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ): Promise<void> {
     await this.artistService.star(sub, id);
   }
@@ -89,10 +95,10 @@ export class ArtistsController {
   @Delete(':id/star')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiNoContentResponse()
-  @ApiNotFoundResponse({ description: 'Artist not found.' })
+  @ApiBadRequestResponse({ description: 'Invalid artist id.' })
   async unstar(
     @CurrentUser('sub') sub: string,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ): Promise<void> {
     await this.artistService.unstar(sub, id);
   }
