@@ -64,18 +64,20 @@ describe('UserController', () => {
     await app.close();
   });
 
-  describe('find', () => {
-    it('should return a user', async () => {
-      return request(app.getHttpServer())
+  describe('GET /user/me', () => {
+    it('returns the authenticated user', async () => {
+      await request(app.getHttpServer())
         .get('/user/me')
         .expect(200)
         .expect(user);
+
+      expect(usersService.findById).toHaveBeenCalledWith('test-user');
     });
   });
 
-  describe('delete', () => {
-    it('forwards the user id to the service', async () => {
-      await request(app.getHttpServer()).delete('/user/me').expect(200);
+  describe('DELETE /user/me', () => {
+    it('deletes the authenticated user and returns no content', async () => {
+      await request(app.getHttpServer()).delete('/user/me').expect(204);
 
       expect(usersService.delete).toHaveBeenCalledWith('test-user');
     });

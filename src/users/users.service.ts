@@ -1,7 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
-  AdminUserCreateData,
   UserCreateData,
   userSelect,
   UserWithPassword,
@@ -27,7 +26,7 @@ export class UsersService {
     });
 
     if (!user) {
-      throw new NotFoundException('User does not exist');
+      throw new NotFoundException('User not found');
     }
 
     return user;
@@ -36,12 +35,13 @@ export class UsersService {
   async create(user: UserCreateData): Promise<UserEntity> {
     return this.prisma.user.create({
       data: user,
+      select: userSelect,
     });
   }
 
-  async createAdmin(user: AdminUserCreateData): Promise<void> {
+  async createAdmin(user: UserCreateData): Promise<void> {
     await this.prisma.user.create({
-      data: user,
+      data: { ...user, isAdmin: true },
     });
   }
 
