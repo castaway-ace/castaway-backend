@@ -1,6 +1,6 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import * as argon2 from 'argon2';
-import { PrismaClient } from '../src/generated/prisma/client.js';
+import { PlaylistType, PrismaClient } from '../src/generated/prisma/client.js';
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!,
@@ -25,6 +25,22 @@ async function main() {
       isAdmin: true,
     },
   });
+
+  const likedPlaylist = await prisma.playlist.findFirst({
+    where: { ownerId: user.id, type: PlaylistType.LIKED },
+    select: { id: true },
+  });
+
+  if (!likedPlaylist) {
+    await prisma.playlist.create({
+      data: {
+        name: 'Liked Songs',
+        type: PlaylistType.LIKED,
+        ownerId: user.id,
+      },
+    });
+    console.log(`Created Liked Songs playlist for ${user.email}`);
+  }
 
   console.log({ user });
 }
