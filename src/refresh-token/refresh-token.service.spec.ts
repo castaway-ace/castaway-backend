@@ -1,13 +1,12 @@
 import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
-import { MockMetadata, ModuleMocker } from 'jest-mock';
 import { RefreshTokenService } from './refresh-token.service.js';
 import { ConfigService } from '@nestjs/config';
 import { RefreshTokenWithDevice } from './refresh-token.types.js';
+import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { UsersService } from '../users/users.service.js';
-
-const moduleMocker = new ModuleMocker(global);
+import { JwtService } from '@nestjs/jwt';
 
 const configValues: Readonly<Record<string, unknown>> = {
   JWT_ACCESS_SECRET: 'access-secret',
@@ -43,12 +42,17 @@ describe('RefreshTokenService', () => {
   let refreshTokenService: RefreshTokenService;
 
   const findUnique = jest.fn<() => Promise<RefreshTokenWithDevice | null>>();
-  const revokeUpdateMany = jest.fn<() => Promise<{ count: number }>>();
+  const revokeUpdateMany =
+    jest.fn<
+      (args: Prisma.RefreshTokenUpdateManyArgs) => Promise<{ count: number }>
+    >();
 
   const claimUpdateMany = jest.fn<() => Promise<{ count: number }>>();
   const claimCreate = jest.fn<() => Promise<{ id: string }>>();
   const claimUpdate = jest.fn<() => Promise<unknown>>();
   const deviceUpdate = jest.fn<() => Promise<unknown>>();
+
+  const signAsync = jest.fn<JwtService['signAsync']>();
 
   const findById =
     jest.fn<() => Promise<{ id: string; isAdmin: boolean } | null>>();
@@ -92,38 +96,17 @@ describe('RefreshTokenService', () => {
           },
         },
         { provide: UsersService, useValue: { findById } },
-      ],
-    })
-      .useMocker((token) => {
-        if (token === ConfigService) {
-          return {
+        { provide: JwtService, useValue: { signAsync } },
+        {
+          provide: ConfigService,
+          useValue: {
             get: jest.fn((key: string): unknown => configValues[key]),
-          };
-        }
-        if (typeof token === 'function') {
-          const mockMetadata = moduleMocker.getMetadata(token) as MockMetadata<
-            any,
-            any
-          >;
-          const Mock = moduleMocker.generateFromMetadata(
-            mockMetadata,
-          ) as ObjectConstructor;
-          return new Mock();
-        }
-      })
-      .compile();
+          },
+        },
+      ],
+    }).compile();
 
     refreshTokenService = module.get(RefreshTokenService);
-
-    jest.spyOn(refreshTokenService, 'generateTokens').mockResolvedValue({
-      accessToken: 'access-user-1',
-      refreshToken: 'new-raw',
-      refreshExpiresAt: new Date(Date.now() + 60_000),
-    });
-  });
-
-  it('should be defined', () => {
-    expect(refreshTokenService).toBeDefined();
   });
 
   it('throws an Invalid error when the refresh token can not be found', async () => {
@@ -149,26 +132,41 @@ describe('RefreshTokenService', () => {
     );
   });
 
-  it('throws an Reuse error when the refresh token is being reused', async () => {
+  it('revokes the family when a used token is replayed', async () => {
     findUnique.mockResolvedValue(makeMockDevice({ usedAt: new Date() }));
     revokeUpdateMany.mockResolvedValue({ count: 1 });
+
     await expect(refreshTokenService.rotate('raw')).rejects.toThrow(
       'Refresh token reuse detected',
     );
-    expect(revokeUpdateMany).toHaveBeenCalledWith({
+
+    const [revokeArgs] = revokeUpdateMany.mock.calls[0];
+    expect(revokeArgs).toMatchObject({
       where: { familyId: 'fam-1', invalidatedAt: null },
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      data: { invalidatedAt: expect.any(Date) },
     });
+    expect(revokeArgs.data.invalidatedAt).toBeInstanceOf(Date);
   });
 
-  it('when the refresh tokens has successfully rotated', async () => {
+  it('rejects a lost concurrent claim without revoking the family', async () => {
+    findUnique.mockResolvedValue(makeMockDevice());
+    findById.mockResolvedValue({ id: 'user-1', isAdmin: false });
+    signAsync.mockResolvedValue('access-user-1');
+    claimUpdateMany.mockResolvedValue({ count: 0 });
+
+    await expect(refreshTokenService.rotate('raw')).rejects.toThrow(
+      'Invalid refresh token',
+    );
+    expect(revokeUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it('rotates successfully', async () => {
     findUnique.mockResolvedValue(makeMockDevice());
     findById.mockResolvedValue({ id: 'user-1', isAdmin: false });
     claimUpdateMany.mockResolvedValue({ count: 1 });
     claimCreate.mockResolvedValue({ id: 'rt-2' });
     claimUpdate.mockResolvedValue(undefined);
     deviceUpdate.mockResolvedValue(undefined);
+    signAsync.mockResolvedValue('access-user-1');
 
     const result = await refreshTokenService.rotate('raw');
 

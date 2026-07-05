@@ -110,47 +110,13 @@ export class RefreshTokenService {
     });
 
     if (!claimed) {
-      await this.handleFailedClaim(existingRefreshToken.id);
-      throw new UnauthorizedException('Refresh token reuse detected');
+      throw new UnauthorizedException('Invalid refresh token');
     }
 
     return {
       accessToken: issued.accessToken,
       refreshToken: issued.refreshToken,
     };
-  }
-
-  private async handleFailedClaim(tokenId: string): Promise<void> {
-    const current = await this.prisma.refreshToken.findUnique({
-      where: { id: tokenId },
-      select: { usedAt: true, invalidatedAt: true, familyId: true },
-    });
-
-    if (!current) {
-      return;
-    }
-
-    if (current.invalidatedAt !== null) {
-      return;
-    }
-
-    if (current.usedAt !== null) {
-      await this.revokeFamily(current.familyId);
-    }
-  }
-
-  async generateTokens(payload: TokenPayload): Promise<IssuedTokens> {
-    const accessToken = await this.jwtService.signAsync(payload, {
-      secret: this.jwtConfig.accessSecret,
-      expiresIn: this.jwtConfig.accessExpiresIn,
-    });
-
-    const refreshToken = randomBytes(32).toString('base64url');
-    const refreshExpiresAt = new Date(
-      Date.now() + this.jwtConfig.refreshExpiresInMs,
-    );
-
-    return { accessToken, refreshToken, refreshExpiresAt };
   }
 
   async revokeByToken(rawRefreshToken: string): Promise<void> {
@@ -184,6 +150,20 @@ export class RefreshTokenService {
       accessToken: issued.accessToken,
       refreshToken: issued.refreshToken,
     };
+  }
+
+  private async generateTokens(payload: TokenPayload): Promise<IssuedTokens> {
+    const accessToken = await this.jwtService.signAsync(payload, {
+      secret: this.jwtConfig.accessSecret,
+      expiresIn: this.jwtConfig.accessExpiresIn,
+    });
+
+    const refreshToken = randomBytes(32).toString('base64url');
+    const refreshExpiresAt = new Date(
+      Date.now() + this.jwtConfig.refreshExpiresInMs,
+    );
+
+    return { accessToken, refreshToken, refreshExpiresAt };
   }
 
   private async revokeFamily(familyId: string): Promise<void> {

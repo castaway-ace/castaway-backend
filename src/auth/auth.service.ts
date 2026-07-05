@@ -6,7 +6,7 @@ import { DeviceService } from '../device/device.service.js';
 import { DeviceDto } from '../device/dto/device.dto.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { PlaylistType } from '../generated/prisma/client.js';
-import { User } from '../users/users.types.js';
+import { User, userSelect } from '../users/users.types.js';
 import { SignUpDto } from './dto/sign-up.dto.js';
 import { LoginDto } from './dto/login.dto.js';
 import { AuthTokensEntity } from './entities/auth-tokens.entity.js';
@@ -37,38 +37,7 @@ export class AuthService {
 
     const passwordHash = await argon2.hash(password);
 
-    const newUser = await this.prisma
-      .$transaction(async (tx) => {
-        const user = await tx.user.create({
-          data: { email, userName, passwordHash },
-        });
-
-        await tx.playlist.create({
-          data: {
-            ownerId: user.id,
-            name: 'Liked Songs',
-            type: PlaylistType.LIKED,
-          },
-        });
-
-        return user;
-      })
-      .catch((error: unknown) => {
-        // const target = error.meta?.target;
-        // const fields = Array.isArray(target)
-        //   ? target.join(',')
-        //   : typeof target === 'string'
-        //     ? target
-        //     : '';
-        // if (fields.includes('user_name')) {
-        //   throw new ConflictException('Username already taken');
-        // }
-        // if (fields.includes('email')) {
-        //   throw new ConflictException('Email already registered');
-        // }
-        // throw new ConflictException('Email or username already taken');
-        throw error;
-      });
+    const newUser = await this.createUser({ email, userName, passwordHash });
 
     return this.issueTokensForDevice(newUser, deviceInfo);
   }
@@ -79,6 +48,29 @@ export class AuthService {
 
   async logout(refreshToken: string): Promise<void> {
     await this.refreshTokensService.revokeByToken(refreshToken);
+  }
+
+  private async createUser(data: {
+    email: string;
+    userName: string;
+    passwordHash: string;
+  }): Promise<User> {
+    return this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data,
+        select: userSelect,
+      });
+
+      await tx.playlist.create({
+        data: {
+          ownerId: user.id,
+          name: 'Liked Songs',
+          type: PlaylistType.LIKED,
+        },
+      });
+
+      return user;
+    });
   }
 
   private async issueTokensForDevice(
