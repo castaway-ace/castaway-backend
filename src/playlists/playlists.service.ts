@@ -2,18 +2,23 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { PlaylistType, Prisma } from '../generated/prisma/client.js';
 import { AlbumsService } from '../albums/albums.service.js';
-import { PlaylistEntity, PlaylistTrackEntity } from './playlist.entity.js';
+import {
+  PlaylistEntity,
+  PlaylistSummaryEntity,
+  PlaylistTrackEntity,
+} from './playlist.entity.js';
 import {
   PlaylistIdentity,
   playlistIdentitySelect,
   playlistSelect,
-  PlaylistSummary,
   playlistSummarySelect,
   playlistTrackSelect,
   PlaylistRow,
   PlaylistTracksRow,
 } from './playlists.types.js';
 import { PlaylistOrderOptions } from './dto/playlist-query.dto.js';
+import { PlaylistRef } from '../common/entities/references.entity.js';
+import { buildOrderBy, clampPagination } from '../common/query.js';
 
 interface PlaylistFilters {
   onlyUser?: boolean;
@@ -32,16 +37,14 @@ export class PlaylistsService {
     private readonly albumService: AlbumsService,
   ) {}
 
-  async create(userId: string, name: string): Promise<PlaylistIdentity> {
-    const playlist = await this.prisma.playlist.create({
+  async create(userId: string, name: string): Promise<PlaylistRef> {
+    return await this.prisma.playlist.create({
       data: {
         ownerId: userId,
         name,
       },
-      select: playlistIdentitySelect,
+      select: { id: true, name: true },
     });
-
-    return playlist;
   }
 
   async findPlaylistRecord(
@@ -78,13 +81,13 @@ export class PlaylistsService {
     return playlist;
   }
 
-  async find(id: string): Promise<PlaylistEntity> {
+  async find(userId: string, id: string): Promise<PlaylistEntity> {
     const playlist = await this.prisma.playlist.findUnique({
       where: { id },
       select: playlistSelect,
     });
 
-    if (!playlist) {
+    if (!playlist || playlist.ownerId !== userId) {
       throw new NotFoundException('Playlist not found');
     }
 
@@ -107,13 +110,10 @@ export class PlaylistsService {
   async findAll(
     userId: string,
     options: PlaylistQueryOptions,
-  ): Promise<PlaylistSummary[]> {
+  ): Promise<PlaylistSummaryEntity[]> {
     const where = this.buildWhere(options.filters, userId);
     const orderBy = this.buildOrderBy(options?.orderOptions);
-
-    const requestedLimit = options.pagination?.limit ?? 100;
-    const take = Math.min(Math.max(requestedLimit, 1), 200);
-    const skip = Math.max(options.pagination?.offset ?? 0, 0);
+    const { take, skip } = clampPagination(options.pagination);
 
     const playlists = await this.prisma.playlist.findMany({
       where,
@@ -172,7 +172,7 @@ export class PlaylistsService {
 
   async update(userId: string, id: string, name: string): Promise<void> {
     const result = await this.prisma.playlist.updateMany({
-      where: { id, ownerId: userId },
+      where: { id, ownerId: userId, type: PlaylistType.USER },
       data: { name },
     });
 
@@ -183,7 +183,7 @@ export class PlaylistsService {
 
   async delete(userId: string, id: string): Promise<void> {
     const result = await this.prisma.playlist.deleteMany({
-      where: { id, ownerId: userId },
+      where: { id, ownerId: userId, type: PlaylistType.USER },
     });
 
     if (result.count === 0) {
@@ -277,6 +277,7 @@ export class PlaylistsService {
     const playlistTrack = await client.playlistTrack.findFirst({
       where: { playlistId, trackId },
       select: playlistTrackSelect,
+      orderBy: { position: 'desc' },
     });
 
     if (!playlistTrack) {
@@ -353,10 +354,13 @@ export class PlaylistsService {
 
   private buildOrderBy(
     orderOptions?: PlaylistOrderOptions,
-  ): Prisma.PlaylistOrderByWithRelationInput {
-    const ordering = orderOptions ?? { order: 'name', orderBy: 'asc' };
-    const orderBy = PlaylistsService.SORT_FIELD_MAP[ordering.order];
-    return orderBy(ordering.orderBy);
+  ): Prisma.PlaylistOrderByWithRelationInput[] {
+    return buildOrderBy(
+      PlaylistsService.SORT_FIELD_MAP,
+      { id: 'asc' },
+      { order: 'name', orderBy: 'asc' },
+      orderOptions,
+    );
   }
 
   private getUniqueAlbumIds(playlistTracks: PlaylistTracksRow): string[] {

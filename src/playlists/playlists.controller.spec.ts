@@ -20,9 +20,7 @@ const artistRef = { id: 'artist-1', name: 'artist' };
 const playlist = {
   id: '1',
   name: 'test1',
-  description: '',
-  public: false,
-  position: 0,
+  description: null,
   ownerId: 'test-user',
   type: PlaylistType.USER,
   albumCoverUrls: [],
@@ -32,58 +30,36 @@ const playlists = [
   {
     id: '1',
     name: 'test1',
-    description: '',
-    public: false,
-    position: 0,
     type: PlaylistType.USER,
-    ownerId: 'test-user',
     albumCoverUrls: [],
   },
   {
     id: '2',
     name: 'test2',
-    description: '',
-    public: false,
-    position: 1,
     type: PlaylistType.USER,
-    ownerId: 'test-user',
     albumCoverUrls: [],
   },
 ];
 
+const playlistRef = { id: '1', name: 'Playlist 1' };
+
 const playlistTrack = {
   id: '1',
-  playlistId: 'playlist-1',
   trackId: '1',
-  position: 0,
   genres: [],
   duration: 300,
   trackNumber: 1,
   discNumber: 1,
-  title: 'Test 2',
+  title: 'Test 1',
   album: albumRef,
   artists: [artistRef],
 };
 
 const playlistTracks = [
-  {
-    id: '1',
-    playlistId: 'playlist-1',
-    trackId: '1',
-    position: 0,
-    genres: [],
-    duration: 300,
-    trackNumber: 1,
-    discNumber: 1,
-    title: 'Test 1',
-    album: albumRef,
-    artists: [artistRef],
-  },
+  playlistTrack,
   {
     id: '2',
-    playlistId: 'playlist-1',
     trackId: '2',
-    position: 1,
     genres: [],
     duration: 300,
     trackNumber: 1,
@@ -94,10 +70,6 @@ const playlistTracks = [
   },
 ];
 
-const playlistDto = {
-  name: 'Playlist 1',
-};
-
 describe('PlaylistsController', () => {
   let app: INestApplication<App>;
 
@@ -106,7 +78,9 @@ describe('PlaylistsController', () => {
     findAll: jest
       .fn<PlaylistsService['findAll']>()
       .mockResolvedValue(playlists),
-    create: jest.fn<PlaylistsService['create']>(),
+    create: jest
+      .fn<PlaylistsService['create']>()
+      .mockResolvedValue(playlistRef),
     update: jest.fn<PlaylistsService['update']>(),
     delete: jest.fn<PlaylistsService['delete']>(),
     findTrack: jest
@@ -156,29 +130,64 @@ describe('PlaylistsController', () => {
     await app.close();
   });
 
-  describe('find', () => {
-    it('should return a playlist', async () => {
-      return request(app.getHttpServer())
-        .get('/playlists/1234')
-        .expect(200)
-        .expect(playlist);
-    });
-  });
-
   describe('findAll', () => {
-    it('returns all playlists for the user', async () => {
-      return request(app.getHttpServer())
+    it('returns the playlists from the service', async () => {
+      await request(app.getHttpServer())
         .get('/playlists')
         .expect(200)
         .expect(playlists);
+
+      expect(playlistsService.findAll).toHaveBeenCalledWith('test-user', {
+        filters: { onlyUser: undefined },
+        orderOptions: undefined,
+        pagination: { limit: undefined, offset: undefined },
+      });
+    });
+
+    it('forwards filters, sorting, and pagination', async () => {
+      await request(app.getHttpServer())
+        .get(
+          '/playlists?onlyUser=true&order=added&orderBy=desc&limit=10&offset=5',
+        )
+        .expect(200);
+
+      expect(playlistsService.findAll).toHaveBeenCalledWith('test-user', {
+        filters: { onlyUser: true },
+        orderOptions: { order: 'added', orderBy: 'desc' },
+        pagination: { limit: 10, offset: 5 },
+      });
+    });
+  });
+
+  describe('find', () => {
+    it('returns the playlist resolved by the service for the caller', async () => {
+      await request(app.getHttpServer())
+        .get('/playlists/1234')
+        .expect(200)
+        .expect(playlist);
+
+      expect(playlistsService.find).toHaveBeenCalledWith('test-user', '1234');
     });
   });
 
   describe('create', () => {
-    it('forwards the create props to the service', async () => {
+    it('creates a playlist and returns its reference', async () => {
       await request(app.getHttpServer())
         .post('/playlists')
-        .send(playlistDto)
+        .send({ name: 'Playlist 1' })
+        .expect(201)
+        .expect(playlistRef);
+
+      expect(playlistsService.create).toHaveBeenCalledWith(
+        'test-user',
+        'Playlist 1',
+      );
+    });
+
+    it('trims the name before it reaches the service', async () => {
+      await request(app.getHttpServer())
+        .post('/playlists')
+        .send({ name: '  Playlist 1  ' })
         .expect(201);
 
       expect(playlistsService.create).toHaveBeenCalledWith(
@@ -186,13 +195,22 @@ describe('PlaylistsController', () => {
         'Playlist 1',
       );
     });
+
+    it('rejects a whitespace-only name', async () => {
+      await request(app.getHttpServer())
+        .post('/playlists')
+        .send({ name: '   ' })
+        .expect(400);
+
+      expect(playlistsService.create).not.toHaveBeenCalled();
+    });
   });
 
   describe('update', () => {
-    it('forwards the update props to the service', async () => {
+    it('forwards the new name to the service', async () => {
       await request(app.getHttpServer())
         .patch('/playlists/1234')
-        .send(playlistDto)
+        .send({ name: 'Playlist 1' })
         .expect(204);
 
       expect(playlistsService.update).toHaveBeenCalledWith(

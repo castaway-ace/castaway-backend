@@ -5,7 +5,6 @@ import {
   Get,
   HttpCode,
   HttpStatus,
-  NotFoundException,
   Param,
   Patch,
   Post,
@@ -13,19 +12,20 @@ import {
 } from '@nestjs/common';
 import { CurrentUser } from '../auth/decorators/user.decorator.js';
 import { PlaylistsService } from './playlists.service.js';
-import { PlaylistIdentity } from './playlists.types.js';
 import {
   PlaylistEntity,
   PlaylistSummaryEntity,
   PlaylistTrackEntity,
 } from './playlist.entity.js';
 import {
+  ApiBadRequestResponse,
   ApiBearerAuth,
   ApiCreatedResponse,
   ApiNoContentResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiTags,
+  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { PlaylistQueryDto } from './dto/playlist-query.dto.js';
 import { CreatePlaylistDto } from './dto/create-playlist.dto.js';
@@ -34,11 +34,13 @@ import { PlaylistRef } from '../common/entities/references.entity.js';
 @Controller('playlists')
 @ApiBearerAuth()
 @ApiTags('Playlists')
+@ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
 export class PlaylistsController {
   constructor(private readonly playlistService: PlaylistsService) {}
 
-  @Get('')
+  @Get()
   @ApiOkResponse({ type: PlaylistSummaryEntity, isArray: true })
+  @ApiBadRequestResponse({ description: 'Invalid query parameters.' })
   async findAll(
     @CurrentUser('sub') sub: string,
     @Query() query: PlaylistQueryDto,
@@ -56,24 +58,21 @@ export class PlaylistsController {
 
   @Get('/:id')
   @ApiOkResponse({ type: PlaylistEntity })
+  @ApiNotFoundResponse({ description: 'Playlist not found.' })
   async find(
     @CurrentUser('sub') sub: string,
     @Param('id') id: string,
   ): Promise<PlaylistEntity> {
-    const playlist = await this.playlistService.find(id);
-
-    if (playlist.ownerId !== sub) {
-      throw new NotFoundException('Playlist not found');
-    }
-    return playlist;
+    return this.playlistService.find(sub, id);
   }
 
-  @Post('')
+  @Post()
   @ApiCreatedResponse({ type: PlaylistRef })
+  @ApiBadRequestResponse({ description: 'Invalid playlist name.' })
   async create(
     @CurrentUser('sub') sub: string,
     @Body() playlistDto: CreatePlaylistDto,
-  ): Promise<PlaylistIdentity> {
+  ): Promise<PlaylistRef> {
     return this.playlistService.create(sub, playlistDto.name);
   }
 
@@ -118,12 +117,7 @@ export class PlaylistsController {
     @Param('id') id: string,
     @Param('trackId') trackId: string,
   ): Promise<PlaylistTrackEntity> {
-    const playlistTrack = await this.playlistService.findTrack(
-      sub,
-      id,
-      trackId,
-    );
-    return playlistTrack;
+    return await this.playlistService.findTrack(sub, id, trackId);
   }
 
   @Post('/:id/tracks/:trackId')

@@ -27,3 +27,9 @@ export function ToInt() {
     return undefined;
   });
 }
+
+export function Trim() {
+  return Transform(({ value }): unknown =>
+    typeof value === 'string' ? value.trim() : value,
+  );
+}
