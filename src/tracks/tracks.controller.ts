@@ -5,6 +5,7 @@ import {
   Get,
   HttpCode,
   Param,
+  ParseUUIDPipe,
   Post,
   Query,
   StreamableFile,
@@ -62,7 +63,7 @@ export class TracksController {
   @ApiNotFoundResponse({ description: 'Track not found.' })
   async find(
     @CurrentUser('sub') sub: string,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ): Promise<TrackEntity> {
     return this.trackService.find(sub, id);
   }
@@ -74,7 +75,7 @@ export class TracksController {
   })
   @ApiNotFoundResponse({ description: 'Track not found.' })
   async getTrackStream(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Res({ passthrough: true }) res: Response,
     @Headers('range') range?: string,
   ): Promise<StreamableFile> {
@@ -100,7 +101,7 @@ export class TracksController {
   @ApiNotFoundResponse({ description: 'Track not found.' })
   async star(
     @CurrentUser('sub') sub: string,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ): Promise<void> {
     await this.trackService.setStarred(sub, id, true);
   }
@@ -111,7 +112,7 @@ export class TracksController {
   @ApiNotFoundResponse({ description: 'Track not found.' })
   async unstar(
     @CurrentUser('sub') sub: string,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ): Promise<void> {
     await this.trackService.setStarred(sub, id, false);
   }

@@ -4,6 +4,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  ParseUUIDPipe,
   Post,
   Query,
 } from '@nestjs/common';
@@ -75,7 +76,7 @@ export class InteractionsController {
   @ApiNotFoundResponse({ description: 'Album not found.' })
   async createOrUpdateAlbum(
     @CurrentUser('sub') sub: string,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ): Promise<void> {
     await this.interactionsService.createOrUpdateAlbum(sub, id);
   }
@@ -86,7 +87,7 @@ export class InteractionsController {
   @ApiNotFoundResponse({ description: 'Artist not found.' })
   async createOrUpdateArtist(
     @CurrentUser('sub') sub: string,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ): Promise<void> {
     await this.interactionsService.createOrUpdateArtist(sub, id);
   }
@@ -97,7 +98,7 @@ export class InteractionsController {
   @ApiNotFoundResponse({ description: 'Playlist not found.' })
   async createOrUpdatePlaylist(
     @CurrentUser('sub') sub: string,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ): Promise<void> {
     await this.interactionsService.createOrUpdatePlaylist(sub, id);
   }

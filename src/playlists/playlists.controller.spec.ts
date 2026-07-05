@@ -13,6 +13,9 @@ import request from 'supertest';
 import { PlaylistType } from '../generated/prisma/client.js';
 import { APP_GUARD } from '@nestjs/core';
 
+const playlistId = '11111111-1111-1111-1111-111111111111';
+const trackId = '22222222-2222-2222-2222-222222222222';
+
 const albumRef = { id: 'album-1', title: 'album' };
 
 const artistRef = { id: 'artist-1', name: 'artist' };
@@ -162,11 +165,14 @@ describe('PlaylistsController', () => {
   describe('find', () => {
     it('returns the playlist resolved by the service for the caller', async () => {
       await request(app.getHttpServer())
-        .get('/playlists/1234')
+        .get(`/playlists/${playlistId}`)
         .expect(200)
         .expect(playlist);
 
-      expect(playlistsService.find).toHaveBeenCalledWith('test-user', '1234');
+      expect(playlistsService.find).toHaveBeenCalledWith(
+        'test-user',
+        playlistId,
+      );
     });
   });
 
@@ -209,13 +215,13 @@ describe('PlaylistsController', () => {
   describe('update', () => {
     it('forwards the new name to the service', async () => {
       await request(app.getHttpServer())
-        .patch('/playlists/1234')
+        .patch(`/playlists/${playlistId}`)
         .send({ name: 'Playlist 1' })
         .expect(204);
 
       expect(playlistsService.update).toHaveBeenCalledWith(
         'test-user',
-        '1234',
+        playlistId,
         'Playlist 1',
       );
     });
@@ -223,16 +229,21 @@ describe('PlaylistsController', () => {
 
   describe('delete', () => {
     it('forwards the playlist id to the service', async () => {
-      await request(app.getHttpServer()).delete('/playlists/1234').expect(204);
+      await request(app.getHttpServer())
+        .delete(`/playlists/${playlistId}`)
+        .expect(204);
 
-      expect(playlistsService.delete).toHaveBeenCalledWith('test-user', '1234');
+      expect(playlistsService.delete).toHaveBeenCalledWith(
+        'test-user',
+        playlistId,
+      );
     });
   });
 
   describe('findTrack', () => {
     it('returns the matching track from the service', async () => {
       return request(app.getHttpServer())
-        .get('/playlists/1234/tracks/1234')
+        .get(`/playlists/${playlistId}/tracks/${trackId}`)
         .expect(200)
         .expect(playlistTrack);
     });
@@ -241,7 +252,7 @@ describe('PlaylistsController', () => {
   describe('findTracks', () => {
     it('returns the playlist tracks from the service', async () => {
       return request(app.getHttpServer())
-        .get('/playlists/1234/tracks')
+        .get(`/playlists/${playlistId}/tracks`)
         .expect(200)
         .expect(playlistTracks);
     });
@@ -250,13 +261,13 @@ describe('PlaylistsController', () => {
   describe('addTrack', () => {
     it('forwards the track id to the service', async () => {
       await request(app.getHttpServer())
-        .post('/playlists/1234/tracks/1234')
+        .post(`/playlists/${playlistId}/tracks/${trackId}`)
         .expect(204);
 
       expect(playlistsService.addTrack).toHaveBeenCalledWith(
         'test-user',
-        '1234',
-        '1234',
+        playlistId,
+        trackId,
       );
     });
   });
@@ -264,13 +275,13 @@ describe('PlaylistsController', () => {
   describe('deleteTrack', () => {
     it('forwards the track id to the service', async () => {
       await request(app.getHttpServer())
-        .delete('/playlists/1234/tracks/1234')
+        .delete(`/playlists/${playlistId}/tracks/${trackId}`)
         .expect(204);
 
       expect(playlistsService.deleteTrack).toHaveBeenCalledWith(
         'test-user',
-        '1234',
-        '1234',
+        playlistId,
+        trackId,
       );
     });
   });

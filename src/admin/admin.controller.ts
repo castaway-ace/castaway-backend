@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  ParseUUIDPipe,
   Post,
   UploadedFile,
   UploadedFiles,
@@ -85,7 +86,7 @@ export class AdminController {
   @ApiNoContentResponse()
   @ApiNotFoundResponse({ description: 'Artist not found.' })
   async uploadArtistImage(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @UploadedFile() file: Express.Multer.File,
   ): Promise<void> {
     await this.adminService.uploadArtistImage(id, file);
@@ -95,7 +96,7 @@ export class AdminController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiNoContentResponse()
   @ApiNotFoundResponse({ description: 'Artist not found.' })
-  async deleteArtist(@Param('id') id: string): Promise<void> {
+  async deleteArtist(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
     await this.adminService.deleteArtist(id);
   }
 
@@ -128,7 +129,7 @@ export class AdminController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiNoContentResponse()
   @ApiNotFoundResponse({ description: 'Album not found.' })
-  async deleteAlbum(@Param('id') id: string): Promise<void> {
+  async deleteAlbum(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
     await this.adminService.deleteAlbum(id);
   }
 }

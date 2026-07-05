@@ -17,6 +17,9 @@ import { toJson } from '../common/test.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaClientExceptionFilter } from '../prisma/prisma.filter.js';
 
+const entityId = '11111111-1111-1111-1111-111111111111';
+const unknownId = '99999999-9999-9999-9999-999999999999';
+
 const interactions: Interaction[] = [
   {
     id: 'ai-1',
@@ -113,11 +116,11 @@ describe('InteractionsController', () => {
   describe('createOrUpdateAlbum', () => {
     it('calls createOrUpdateAlbum with the respective props', async () => {
       await request(app.getHttpServer())
-        .post('/interactions/albums/12324')
+        .post(`/interactions/albums/${entityId}`)
         .expect(204);
       expect(interactionsService.createOrUpdateAlbum).toHaveBeenCalledWith(
         'test-user',
-        '12324',
+        entityId,
       );
     });
 
@@ -130,7 +133,7 @@ describe('InteractionsController', () => {
       );
 
       const res = await request(app.getHttpServer())
-        .post('/interactions/albums/missing')
+        .post(`/interactions/albums/${unknownId}`)
         .expect(404);
 
       expect(res.body).toMatchObject({
@@ -143,11 +146,11 @@ describe('InteractionsController', () => {
   describe('createOrUpdateArtist', () => {
     it('calls createOrUpdateArtist with the respective props', async () => {
       await request(app.getHttpServer())
-        .post('/interactions/artists/12324')
+        .post(`/interactions/artists/${entityId}`)
         .expect(204);
       expect(interactionsService.createOrUpdateArtist).toHaveBeenCalledWith(
         'test-user',
-        '12324',
+        entityId,
       );
     });
   });
@@ -155,11 +158,11 @@ describe('InteractionsController', () => {
   describe('createOrUpdatePlaylist', () => {
     it('calls createOrUpdatePlaylist with the respective props', async () => {
       await request(app.getHttpServer())
-        .post('/interactions/playlists/12324')
+        .post(`/interactions/playlists/${entityId}`)
         .expect(204);
       expect(interactionsService.createOrUpdatePlaylist).toHaveBeenCalledWith(
         'test-user',
-        '12324',
+        entityId,
       );
     });
   });

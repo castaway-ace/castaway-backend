@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -61,7 +62,7 @@ export class PlaylistsController {
   @ApiNotFoundResponse({ description: 'Playlist not found.' })
   async find(
     @CurrentUser('sub') sub: string,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ): Promise<PlaylistEntity> {
     return this.playlistService.find(sub, id);
   }
@@ -82,7 +83,7 @@ export class PlaylistsController {
   @ApiNotFoundResponse({ description: 'Playlist not found.' })
   async update(
     @CurrentUser('sub') sub: string,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() playlistDto: CreatePlaylistDto,
   ): Promise<void> {
     await this.playlistService.update(sub, id, playlistDto.name);
@@ -94,7 +95,7 @@ export class PlaylistsController {
   @ApiNotFoundResponse({ description: 'Playlist not found.' })
   async delete(
     @CurrentUser('sub') sub: string,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ): Promise<void> {
     await this.playlistService.delete(sub, id);
   }
@@ -104,7 +105,7 @@ export class PlaylistsController {
   @ApiNotFoundResponse({ description: 'Playlist not found.' })
   async findTracks(
     @CurrentUser('sub') sub: string,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ): Promise<PlaylistTrackEntity[]> {
     return await this.playlistService.findTracks(sub, id);
   }
@@ -114,8 +115,8 @@ export class PlaylistsController {
   @ApiNotFoundResponse({ description: 'Playlist or track not found.' })
   async findTrack(
     @CurrentUser('sub') sub: string,
-    @Param('id') id: string,
-    @Param('trackId') trackId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('trackId', ParseUUIDPipe) trackId: string,
   ): Promise<PlaylistTrackEntity> {
     return await this.playlistService.findTrack(sub, id, trackId);
   }
@@ -126,8 +127,8 @@ export class PlaylistsController {
   @ApiNotFoundResponse({ description: 'Playlist or track not found.' })
   async addTrack(
     @CurrentUser('sub') sub: string,
-    @Param('id') playlist_id: string,
-    @Param('trackId') trackId: string,
+    @Param('id', ParseUUIDPipe) playlist_id: string,
+    @Param('trackId', ParseUUIDPipe) trackId: string,
   ): Promise<void> {
     await this.playlistService.addTrack(sub, playlist_id, trackId);
   }
@@ -138,8 +139,8 @@ export class PlaylistsController {
   @ApiNotFoundResponse({ description: 'Playlist or track not found.' })
   async deleteTrack(
     @CurrentUser('sub') sub: string,
-    @Param('id') playlist_id: string,
-    @Param('trackId') trackId: string,
+    @Param('id', ParseUUIDPipe) playlist_id: string,
+    @Param('trackId', ParseUUIDPipe) trackId: string,
   ): Promise<void> {
     await this.playlistService.deleteTrack(sub, playlist_id, trackId);
   }

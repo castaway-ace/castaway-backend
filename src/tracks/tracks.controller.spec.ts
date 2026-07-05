@@ -14,6 +14,8 @@ import type { Request } from 'express';
 import { APP_GUARD } from '@nestjs/core';
 import { toJson } from '../common/test.js';
 
+const trackId = '11111111-1111-1111-1111-111111111111';
+
 const albumRef = {
   id: '1',
   title: 'album-1',
@@ -119,12 +121,17 @@ describe('TracksController', () => {
   describe('GET /tracks/:id', () => {
     it('should return a track', async () => {
       const res = await request(app.getHttpServer())
-        .get('/tracks/track-1')
+        .get(`/tracks/${trackId}`)
         .expect(200);
 
       expect(res.body).toEqual(toJson(track));
 
-      expect(tracksService.find).toHaveBeenCalledWith('test-user', 'track-1');
+      expect(tracksService.find).toHaveBeenCalledWith('test-user', trackId);
+    });
+
+    it('rejects a non-UUID id with 400 before hitting the service', async () => {
+      await request(app.getHttpServer()).get('/tracks/starred').expect(400);
+      expect(tracksService.find).not.toHaveBeenCalled();
     });
   });
 
@@ -178,7 +185,7 @@ describe('TracksController', () => {
 
     it('returns the full stream with a 200 when no range is requested', async () => {
       const res = await request(app.getHttpServer())
-        .get('/tracks/1234/stream')
+        .get(`/tracks/${trackId}/stream`)
         .buffer(true)
         .parse(bufferParser);
 
@@ -187,7 +194,7 @@ describe('TracksController', () => {
       expect(res.headers['accept-ranges']).toBe('bytes');
       expect(res.body).toEqual(Buffer.from('audio file'));
       expect(tracksService.getTrackStream).toHaveBeenCalledWith(
-        '1234',
+        trackId,
         undefined,
       );
     });
@@ -202,7 +209,7 @@ describe('TracksController', () => {
       });
 
       const res = await request(app.getHttpServer())
-        .get('/tracks/1234/stream')
+        .get(`/tracks/${trackId}/stream`)
         .set('Range', 'bytes=0-4')
         .buffer(true)
         .parse(bufferParser);
@@ -211,7 +218,7 @@ describe('TracksController', () => {
       expect(res.headers['content-range']).toBe('bytes 0-4/10');
       expect(res.headers['content-length']).toBe('5');
       expect(tracksService.getTrackStream).toHaveBeenCalledWith(
-        '1234',
+        trackId,
         'bytes=0-4',
       );
     });
@@ -219,10 +226,12 @@ describe('TracksController', () => {
 
   describe('POST /tracks/:id/star', () => {
     it('calls setStarred with true', async () => {
-      await request(app.getHttpServer()).post('/tracks/1234/star').expect(204);
+      await request(app.getHttpServer())
+        .post(`/tracks/${trackId}/star`)
+        .expect(204);
       expect(tracksService.setStarred).toHaveBeenCalledWith(
         'test-user',
-        '1234',
+        trackId,
         true,
       );
     });
@@ -231,11 +240,11 @@ describe('TracksController', () => {
   describe('DELETE /tracks/:id/star', () => {
     it('calls setStarred with false', async () => {
       await request(app.getHttpServer())
-        .delete('/tracks/1234/star')
+        .delete(`/tracks/${trackId}/star`)
         .expect(204);
       expect(tracksService.setStarred).toHaveBeenCalledWith(
         'test-user',
-        '1234',
+        trackId,
         false,
       );
     });
