@@ -1,7 +1,6 @@
 import {
   ConflictException,
   Injectable,
-  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -34,7 +33,6 @@ interface AlbumQueryOptions {
 
 @Injectable()
 export class AlbumsService {
-  private readonly logger = new Logger(AlbumsService.name);
   constructor(
     private readonly prisma: PrismaService,
     private readonly storageService: StorageService,
@@ -171,15 +169,11 @@ export class AlbumsService {
     await this.prisma.album.delete({ where: { id } });
 
     if (album.imageKey) {
-      await this.storageService
-        .deleteObject(StorageBucket.AlbumArt, album.imageKey)
-        .catch((error: unknown) =>
-          this.logger.warn(
-            `Failed to delete cover ${album.imageKey} for album ${id}: ${
-              error instanceof Error ? error.message : String(error)
-            }`,
-          ),
-        );
+      await this.storageService.deleteObjectQuietly(
+        StorageBucket.AlbumArt,
+        album.imageKey,
+        `cover for album ${id}`,
+      );
     }
   }
 
@@ -198,15 +192,11 @@ export class AlbumsService {
   }
 
   async deleteCoverObject(coverKey: string): Promise<void> {
-    await this.storageService
-      .deleteObject(StorageBucket.AlbumArt, coverKey)
-      .catch((error: unknown) =>
-        this.logger.warn(
-          `Failed to delete cover object ${coverKey}: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        ),
-      );
+    await this.storageService.deleteObjectQuietly(
+      StorageBucket.AlbumArt,
+      coverKey,
+      'album cover cleanup',
+    );
   }
 
   async findAlbumCoverMap(ids: string[]): Promise<Map<string, string>> {

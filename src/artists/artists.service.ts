@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { StorageService } from '../storage/storage.service.js';
 import { Prisma } from '../generated/prisma/client.js';
@@ -29,7 +29,6 @@ interface ArtistQueryOptions {
 
 @Injectable()
 export class ArtistsService {
-  private readonly logger = new Logger(ArtistsService.name);
   constructor(
     private readonly prisma: PrismaService,
     private readonly storageService: StorageService,
@@ -165,15 +164,11 @@ export class ArtistsService {
     await this.prisma.artist.delete({ where: { id } });
 
     if (artist.imageKey) {
-      await this.storageService
-        .deleteObject(StorageBucket.ArtistArt, artist.imageKey)
-        .catch((error: unknown) =>
-          this.logger.warn(
-            `Failed to delete image ${artist.imageKey} for artist ${id}: ${
-              error instanceof Error ? error.message : String(error)
-            }`,
-          ),
-        );
+      await this.storageService.deleteObjectQuietly(
+        StorageBucket.ArtistArt,
+        artist.imageKey,
+        `image for artist ${id}`,
+      );
     }
   }
 
@@ -197,17 +192,11 @@ export class ArtistsService {
     try {
       await this.setImageKey(artistId, fileKey);
     } catch (error) {
-      await this.storageService
-        .deleteObject(StorageBucket.ArtistArt, fileKey)
-        .catch((cleanupError: unknown) =>
-          this.logger.warn(
-            `Failed to clean up orphaned image ${fileKey}: ${
-              cleanupError instanceof Error
-                ? cleanupError.message
-                : String(cleanupError)
-            }`,
-          ),
-        );
+      await this.storageService.deleteObjectQuietly(
+        StorageBucket.ArtistArt,
+        fileKey,
+        `orphaned image for artist ${artistId}`,
+      );
       throw error;
     }
   }

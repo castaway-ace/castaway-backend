@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { Prisma, Track as PrismaTrack } from '../generated/prisma/client.js';
 import {
@@ -34,7 +34,6 @@ interface TrackQueryOptions {
 
 @Injectable()
 export class TracksService {
-  private readonly logger = new Logger(TracksService.name);
   constructor(
     private readonly prisma: PrismaService,
     private readonly playlistService: PlaylistsService,
@@ -221,15 +220,11 @@ export class TracksService {
 
     await this.prisma.track.delete({ where: { id } });
 
-    await this.storageService
-      .deleteObject(StorageBucket.Tracks, track.fileKey)
-      .catch((error: unknown) =>
-        this.logger.warn(
-          `Failed to delete audio object ${track.fileKey}: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        ),
-      );
+    await this.storageService.deleteObjectQuietly(
+      StorageBucket.Tracks,
+      track.fileKey,
+      `audio for track ${id}`,
+    );
   }
 
   async uploadTrackFile(
@@ -251,15 +246,11 @@ export class TracksService {
   async deleteTrackObjects(fileKeys: string[]): Promise<void> {
     await Promise.all(
       fileKeys.map((fileKey) =>
-        this.storageService
-          .deleteObject(StorageBucket.Tracks, fileKey)
-          .catch((error: unknown) =>
-            this.logger.warn(
-              `Failed to delete audio object ${fileKey}: ${
-                error instanceof Error ? error.message : String(error)
-              }`,
-            ),
-          ),
+        this.storageService.deleteObjectQuietly(
+          StorageBucket.Tracks,
+          fileKey,
+          'track cleanup',
+        ),
       ),
     );
   }

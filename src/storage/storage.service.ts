@@ -145,6 +145,29 @@ export class StorageService {
     );
   }
 
+  /**
+   * Best-effort delete used for cleanup paths (rollbacks, orphaned objects).
+   * Never throws: failures are logged as warnings so they don't mask the
+   * original error or abort the surrounding operation. `context` describes the
+   * caller (e.g. "cover for album abc") to make warnings actionable.
+   */
+  async deleteObjectQuietly(
+    bucket: StorageBucket,
+    key: string,
+    context?: string,
+  ): Promise<void> {
+    try {
+      await this.deleteObject(bucket, key);
+    } catch (error) {
+      const suffix = context ? ` (${context})` : '';
+      this.logger.warn(
+        `Failed to delete object ${key} from ${bucket}${suffix}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }
+
   async checkBuckets(): Promise<BucketHealth[]> {
     return Promise.all(
       this.storageConfig.buckets.map((bucket) => this.checkBucket(bucket)),

@@ -10,6 +10,7 @@ import { PlaylistsService } from '../playlists/playlists.service.js';
 import { TrackEntity, TrackSummaryEntity } from './tracks.entity.js';
 import { Readable } from 'stream';
 import { StorageBucket } from '../storage/storage.types.js';
+import { MetadataTags } from '../admin/admin.types.js';
 
 type TrackAnnotations = { trackAnnotations: { trackId: string }[] };
 
@@ -56,7 +57,7 @@ describe('TracksService', () => {
   const mockStorageService = {
     getObjectStream: jest.fn<StorageService['getObjectStream']>(),
     putObject: jest.fn<StorageService['putObject']>(),
-    deleteObject: jest.fn<StorageService['deleteObject']>(),
+    deleteObjectQuietly: jest.fn<StorageService['deleteObjectQuietly']>(),
   };
 
   const mockPlaylistService = {
@@ -274,6 +275,91 @@ describe('TracksService', () => {
 
       expect(mockTx.trackAnnotation.upsert).not.toHaveBeenCalled();
       expect(mockPlaylistService.addTrack).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('delete', () => {
+    it('deletes the row before the audio object via the quiet helper', async () => {
+      mockPrismaService.track.findUnique.mockResolvedValue({
+        fileKey: 'album-1/1-01.flac',
+      });
+      mockPrismaService.track.delete.mockResolvedValue({} as PrismaTrack);
+
+      await tracksService.delete('track-1');
+
+      expect(mockPrismaService.track.delete).toHaveBeenCalledWith({
+        where: { id: 'track-1' },
+      });
+      expect(mockStorageService.deleteObjectQuietly).toHaveBeenCalledWith(
+        StorageBucket.Tracks,
+        'album-1/1-01.flac',
+        expect.any(String),
+      );
+
+      const rowOrder =
+        mockPrismaService.track.delete.mock.invocationCallOrder[0];
+      const objectOrder =
+        mockStorageService.deleteObjectQuietly.mock.invocationCallOrder[0];
+      expect(rowOrder).toBeLessThan(objectOrder);
+    });
+
+    it('throws NotFoundException and skips storage when the track is missing', async () => {
+      mockPrismaService.track.findUnique.mockResolvedValue(null);
+
+      await expect(tracksService.delete('missing')).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(mockPrismaService.track.delete).not.toHaveBeenCalled();
+      expect(mockStorageService.deleteObjectQuietly).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('deleteTrackObjects', () => {
+    it('deletes every key via the quiet helper', async () => {
+      await tracksService.deleteTrackObjects(['a', 'b']);
+
+      expect(mockStorageService.deleteObjectQuietly).toHaveBeenCalledTimes(2);
+      expect(mockStorageService.deleteObjectQuietly).toHaveBeenCalledWith(
+        StorageBucket.Tracks,
+        'a',
+        expect.any(String),
+      );
+      expect(mockStorageService.deleteObjectQuietly).toHaveBeenCalledWith(
+        StorageBucket.Tracks,
+        'b',
+        expect.any(String),
+      );
+    });
+
+    it('does nothing for an empty list', async () => {
+      await tracksService.deleteTrackObjects([]);
+      expect(mockStorageService.deleteObjectQuietly).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('deleteAlbumTrackFiles', () => {
+    it('deletes the audio object for every track on the album', async () => {
+      mockPrismaService.track.findMany.mockResolvedValue([
+        { fileKey: 'album-1/1-01.flac' },
+        { fileKey: 'album-1/1-02.flac' },
+      ] as unknown as (TrackSummaryRow & TrackAnnotations)[]);
+
+      await tracksService.deleteAlbumTrackFiles('album-1');
+
+      expect(mockPrismaService.track.findMany).toHaveBeenCalledWith({
+        where: { albumId: 'album-1' },
+        select: { fileKey: true },
+      });
+      expect(mockStorageService.deleteObjectQuietly).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('buildFileKey', () => {
+    it('zero-pads the track number and includes disc and suffix', () => {
+      const tags = { discNumber: 1, trackNumber: 5 } as MetadataTags;
+      expect(tracksService.buildFileKey('album-1', tags, 'flac')).toBe(
+        'album-1/1-05.flac',
+      );
     });
   });
 });

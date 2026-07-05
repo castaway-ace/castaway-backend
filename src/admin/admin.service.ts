@@ -1,11 +1,11 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
-import { mimeToSuffix } from '../common/constants.js';
-import { IAudioMetadata, parseFile } from 'music-metadata';
+import { IPicture, parseFile } from 'music-metadata';
 import { unlink } from 'fs/promises';
 import { TracksService } from '../tracks/tracks.service.js';
 import { ArtistsService } from '../artists/artists.service.js';
 import { AlbumsService } from '../albums/albums.service.js';
-import { MetadataTags, ParsedFile } from './admin.types.js';
+import { ParsedFile } from './admin.types.js';
+import { extractRequiredTags, resolveSuffix } from './metadata.js';
 import { buildAlbumIdentity } from '../common/album-identity.js';
 import { ArtistRef } from '../common/entities/references.entity.js';
 import { randomUUID } from 'crypto';
@@ -13,9 +13,23 @@ import { PrismaService } from '../prisma/prisma.service.js';
 
 const TRACK_UPLOAD_CONCURRENCY = 4;
 
+const IMPORT_TRANSACTION_TIMEOUT_MS = 30_000;
+const IMPORT_TRANSACTION_MAX_WAIT_MS = 10_000;
+
 interface TrackUploadPlan extends ParsedFile {
   fileKey: string;
   trackArtistIds: string[];
+}
+
+interface AlbumImportPlan {
+  albumId: string;
+  identityKey: string;
+  albumTitle: string;
+  releaseDate: Date;
+  albumArtistIds: string[];
+  coverKey: string | null;
+  cover: IPicture | undefined;
+  tracks: TrackUploadPlan[];
 }
 
 @Injectable()
@@ -102,120 +116,158 @@ export class AdminService {
     }
 
     try {
-      const parsedFiles = await this.parseFiles(files);
-      const artistMap = await this.resolveArtistMap(parsedFiles);
-      this.validateSingleAlbum(parsedFiles, artistMap);
-      this.validateUniqueTrackPositions(parsedFiles);
+      const plan = await this.buildImportPlan(files);
+      await this.uploadObjects(plan);
+      await this.persistImport(plan);
+    } finally {
+      await this.cleanupFiles(files);
+    }
+  }
 
-      const firstTags = parsedFiles[0].tags;
-      const albumArtistIds = this.resolveArtistIds(
-        firstTags.albumArtistNames,
+  /**
+   * Parses and validates the upload, resolves artists, and produces the set of
+   * object keys and DB rows to write. Pure planning: no storage or DB writes.
+   */
+  private async buildImportPlan(
+    files: Express.Multer.File[],
+  ): Promise<AlbumImportPlan> {
+    const parsedFiles = await this.parseFiles(files);
+    const artistMap = await this.resolveArtistMap(parsedFiles);
+    this.validateSingleAlbum(parsedFiles, artistMap);
+    this.validateUniqueTrackPositions(parsedFiles);
+
+    const firstTags = parsedFiles[0].tags;
+    const albumArtistIds = this.resolveArtistIds(
+      firstTags.albumArtistNames,
+      artistMap,
+    );
+
+    const identityKey = await this.albumService.assertNotImported(
+      firstTags.albumTitle,
+      albumArtistIds,
+    );
+
+    const albumId = randomUUID();
+
+    const cover = firstTags.picture;
+    const hasCover = cover !== undefined && cover.format.startsWith('image/');
+    const coverKey = hasCover ? this.albumService.buildCoverKey(albumId) : null;
+
+    const tracks: TrackUploadPlan[] = parsedFiles.map((parsed) => ({
+      ...parsed,
+      fileKey: this.trackService.buildFileKey(
+        albumId,
+        parsed.tags,
+        parsed.suffix,
+      ),
+      trackArtistIds: this.resolveArtistIds(
+        parsed.tags.trackArtistNames,
         artistMap,
-      );
+      ),
+    }));
 
-      const identityKey = await this.albumService.assertNotImported(
-        firstTags.albumTitle,
-        albumArtistIds,
-      );
+    return {
+      albumId,
+      identityKey,
+      albumTitle: firstTags.albumTitle,
+      releaseDate: firstTags.date,
+      albumArtistIds,
+      coverKey,
+      cover: hasCover ? cover : undefined,
+      tracks,
+    };
+  }
 
-      const albumId = randomUUID();
+  /**
+   * Uploads the cover (if any) and every track object. On partial failure it
+   * removes whatever was uploaded and throws, leaving storage clean.
+   */
+  private async uploadObjects(plan: AlbumImportPlan): Promise<void> {
+    if (plan.coverKey && plan.cover) {
+      await this.albumService.uploadCover(plan.coverKey, plan.cover);
+    }
 
-      const picture = firstTags.picture;
-      const hasCover =
-        picture !== undefined && picture.format.startsWith('image/');
-      const coverKey = hasCover
-        ? this.albumService.buildCoverKey(albumId)
-        : null;
+    const results = await this.uploadFilesWithConcurrency(plan.tracks);
 
-      const plans: TrackUploadPlan[] = parsedFiles.map((parsed) => ({
-        ...parsed,
-        fileKey: this.trackService.buildFileKey(
-          albumId,
-          parsed.tags,
-          parsed.suffix,
-        ),
-        trackArtistIds: this.resolveArtistIds(
-          parsed.tags.trackArtistNames,
-          artistMap,
-        ),
-      }));
+    const failures = results.flatMap((result, index) =>
+      result.status === 'rejected'
+        ? [
+            {
+              trackTitle: plan.tracks[index].tags.title,
+              reason:
+                result.reason instanceof Error
+                  ? result.reason.message
+                  : String(result.reason),
+            },
+          ]
+        : [],
+    );
 
-      if (coverKey && picture) {
-        await this.albumService.uploadCover(coverKey, picture);
-      }
+    if (failures.length > 0) {
+      const uploadedKeys = plan.tracks
+        .filter((_, index) => results[index].status === 'fulfilled')
+        .map((track) => track.fileKey);
+      await this.cleanupObjects(uploadedKeys, plan.coverKey);
+      throw new BadRequestException({
+        message: `${failures.length} of ${plan.tracks.length} tracks failed to upload`,
+        failures,
+      });
+    }
+  }
 
-      const results = await this.uploadFilesWithConcurrency(plans);
-
-      const failures = results.flatMap((result, index) =>
-        result.status === 'rejected'
-          ? [
-              {
-                trackTitle: plans[index].tags.title,
-                reason:
-                  result.reason instanceof Error
-                    ? result.reason.message
-                    : String(result.reason),
-              },
-            ]
-          : [],
-      );
-
-      if (failures.length > 0) {
-        const uploadedKeys = plans
-          .filter((_, index) => results[index].status === 'fulfilled')
-          .map((plan) => plan.fileKey);
-        await this.cleanupObjects(uploadedKeys, coverKey);
-        throw new BadRequestException({
-          message: `${failures.length} of ${plans.length} tracks failed to upload`,
-          failures,
-        });
-      }
-
-      try {
-        await this.prisma.$transaction(async (tx) => {
+  /**
+   * Persists the album and its tracks in a single transaction. If the write
+   * fails, the already-uploaded objects are removed before rethrowing.
+   */
+  private async persistImport(plan: AlbumImportPlan): Promise<void> {
+    try {
+      await this.prisma.$transaction(
+        async (tx) => {
           await this.albumService.create(
             {
-              id: albumId,
-              title: firstTags.albumTitle,
-              releaseDate: firstTags.date,
-              identityKey,
-              imageKey: coverKey,
-              artistIds: albumArtistIds,
+              id: plan.albumId,
+              title: plan.albumTitle,
+              releaseDate: plan.releaseDate,
+              identityKey: plan.identityKey,
+              imageKey: plan.coverKey,
+              artistIds: plan.albumArtistIds,
             },
             tx,
           );
 
-          for (const plan of plans) {
+          for (const track of plan.tracks) {
             await this.trackService.create(
               {
-                title: plan.tags.title,
-                albumId,
-                fileKey: plan.fileKey,
-                trackNumber: plan.tags.trackNumber,
-                discNumber: plan.tags.discNumber,
-                duration: plan.tags.duration,
-                size: plan.file.size,
-                suffix: plan.suffix,
-                genres: plan.tags.genres,
-                bitRate: plan.tags.bitRate,
-                sampleRate: plan.tags.sampleRate,
-                bitDepth: plan.tags.bitDepth,
-                releaseDate: plan.tags.date,
-                artistIds: plan.trackArtistIds,
+                title: track.tags.title,
+                albumId: plan.albumId,
+                fileKey: track.fileKey,
+                trackNumber: track.tags.trackNumber,
+                discNumber: track.tags.discNumber,
+                duration: track.tags.duration,
+                size: track.file.size,
+                suffix: track.suffix,
+                genres: track.tags.genres,
+                bitRate: track.tags.bitRate,
+                sampleRate: track.tags.sampleRate,
+                bitDepth: track.tags.bitDepth,
+                releaseDate: track.tags.date,
+                artistIds: track.trackArtistIds,
               },
               tx,
             );
           }
-        });
-      } catch (error) {
-        await this.cleanupObjects(
-          plans.map((plan) => plan.fileKey),
-          coverKey,
-        );
-        throw error;
-      }
-    } finally {
-      await this.cleanupFiles(files);
+        },
+        {
+          timeout: IMPORT_TRANSACTION_TIMEOUT_MS,
+          maxWait: IMPORT_TRANSACTION_MAX_WAIT_MS,
+        },
+      );
+    } catch (error) {
+      await this.cleanupObjects(
+        plan.tracks.map((track) => track.fileKey),
+        plan.coverKey,
+      );
+      throw error;
     }
   }
 
@@ -283,15 +335,10 @@ export class AdminService {
   ): Promise<ParsedFile[]> {
     return Promise.all(
       files.map(async (file) => {
-        const suffix = mimeToSuffix[file.mimetype];
-        if (!suffix) {
-          throw new BadRequestException(
-            `Unsupported file type: ${file.mimetype}`,
-          );
-        }
+        const suffix = resolveSuffix(file.mimetype);
         return {
           file,
-          tags: this.extractRequiredTags(await parseFile(file.path)),
+          tags: extractRequiredTags(await parseFile(file.path)),
           suffix,
         };
       }),
@@ -385,60 +432,5 @@ export class AdminService {
         collisions,
       });
     }
-  }
-
-  private extractRequiredTags(metadata: IAudioMetadata): MetadataTags {
-    const {
-      title,
-      artists,
-      albumartists,
-      album,
-      track,
-      disk,
-      date,
-      genre,
-      picture,
-    } = metadata.common;
-
-    const { duration, sampleRate, bitsPerSample, bitrate } = metadata.format;
-
-    if (!title) throw new BadRequestException('Missing track title');
-    if (!album) throw new BadRequestException('Missing album title');
-    if (!albumartists || albumartists.length === 0) {
-      throw new BadRequestException('Missing album artists');
-    }
-    if (!artists || artists.length === 0) {
-      throw new BadRequestException('Missing track artists');
-    }
-    if (!genre || genre.length === 0) {
-      throw new BadRequestException('Missing genres');
-    }
-    if (!date) throw new BadRequestException('Missing date');
-    if (!bitsPerSample) throw new BadRequestException('Missing bit depth');
-
-    const releaseDate = new Date(date);
-    if (Number.isNaN(releaseDate.getTime())) {
-      throw new BadRequestException(`Invalid date: ${date}`);
-    }
-
-    if (track.no === null || track.no === undefined) {
-      throw new BadRequestException('Missing track number');
-    }
-
-    return {
-      title,
-      albumTitle: album,
-      albumArtistNames: albumartists,
-      trackArtistNames: artists,
-      trackNumber: track.no ?? 1,
-      discNumber: disk.no ?? 1,
-      genres: genre,
-      date: releaseDate,
-      duration: Math.round(duration ?? 0),
-      sampleRate: sampleRate ?? 0,
-      bitDepth: bitsPerSample ?? 0,
-      bitRate: Math.round((bitrate ?? 0) / 1000),
-      picture: picture?.[0],
-    };
   }
 }

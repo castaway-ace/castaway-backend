@@ -62,7 +62,7 @@ describe('AlbumService', () => {
   const mockStorageService = {
     getPresignedUrl: jest.fn<StorageService['getPresignedUrl']>(),
     putObject: jest.fn<StorageService['putObject']>(),
-    deleteObject: jest.fn<StorageService['deleteObject']>(),
+    deleteObjectQuietly: jest.fn<StorageService['deleteObjectQuietly']>(),
   };
 
   beforeEach(async () => {
@@ -356,22 +356,23 @@ describe('AlbumService', () => {
         imageKey: 'album-1/cover.jpg',
       });
       mockPrismaService.album.delete.mockResolvedValue(albumRow);
-      mockStorageService.deleteObject.mockResolvedValue(undefined);
+      mockStorageService.deleteObjectQuietly.mockResolvedValue(undefined);
 
       await albumService.delete('album-1');
 
       expect(mockPrismaService.album.delete).toHaveBeenCalledWith({
         where: { id: 'album-1' },
       });
-      expect(mockStorageService.deleteObject).toHaveBeenCalledWith(
+      expect(mockStorageService.deleteObjectQuietly).toHaveBeenCalledWith(
         StorageBucket.AlbumArt,
         'album-1/cover.jpg',
+        expect.any(String),
       );
 
       const rowDeleteOrder =
         mockPrismaService.album.delete.mock.invocationCallOrder[0];
       const objectDeleteOrder =
-        mockStorageService.deleteObject.mock.invocationCallOrder[0];
+        mockStorageService.deleteObjectQuietly.mock.invocationCallOrder[0];
       expect(rowDeleteOrder).toBeLessThan(objectDeleteOrder);
     });
 
@@ -381,7 +382,7 @@ describe('AlbumService', () => {
 
       await albumService.delete('album-1');
 
-      expect(mockStorageService.deleteObject).not.toHaveBeenCalled();
+      expect(mockStorageService.deleteObjectQuietly).not.toHaveBeenCalled();
       expect(mockPrismaService.album.delete).toHaveBeenCalled();
     });
 
@@ -402,23 +403,19 @@ describe('AlbumService', () => {
       mockPrismaService.album.delete.mockRejectedValue(dbError);
 
       await expect(albumService.delete('album-1')).rejects.toThrow(dbError);
-      expect(mockStorageService.deleteObject).not.toHaveBeenCalled();
+      expect(mockStorageService.deleteObjectQuietly).not.toHaveBeenCalled();
     });
 
-    it('completes even when the cover object deletion fails', async () => {
+    it('deletes the cover via the best-effort (quiet) helper', async () => {
       mockPrismaService.album.findUnique.mockResolvedValue({
         imageKey: 'album-1/cover.jpg',
       });
       mockPrismaService.album.delete.mockResolvedValue(albumRow);
-      mockStorageService.deleteObject.mockRejectedValue(
-        new Error('storage unavailable'),
-      );
+      mockStorageService.deleteObjectQuietly.mockResolvedValue(undefined);
 
       await expect(albumService.delete('album-1')).resolves.toBeUndefined();
 
-      expect(mockPrismaService.album.delete).toHaveBeenCalledWith({
-        where: { id: 'album-1' },
-      });
+      expect(mockStorageService.deleteObjectQuietly).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -442,25 +439,16 @@ describe('AlbumService', () => {
   });
 
   describe('deleteCoverObject', () => {
-    it('deletes the cover object', async () => {
-      mockStorageService.deleteObject.mockResolvedValue(undefined);
+    it('deletes the cover object via the quiet helper', async () => {
+      mockStorageService.deleteObjectQuietly.mockResolvedValue(undefined);
 
       await albumService.deleteCoverObject('album-1/cover.jpg');
 
-      expect(mockStorageService.deleteObject).toHaveBeenCalledWith(
+      expect(mockStorageService.deleteObjectQuietly).toHaveBeenCalledWith(
         StorageBucket.AlbumArt,
         'album-1/cover.jpg',
+        expect.any(String),
       );
-    });
-
-    it('swallows a storage failure without throwing', async () => {
-      mockStorageService.deleteObject.mockRejectedValue(
-        new Error('storage unavailable'),
-      );
-
-      await expect(
-        albumService.deleteCoverObject('album-1/cover.jpg'),
-      ).resolves.toBeUndefined();
     });
   });
 });

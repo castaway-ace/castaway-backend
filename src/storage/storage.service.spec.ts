@@ -10,6 +10,7 @@ import {
 } from '@aws-sdk/client-s3';
 import {
   InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -192,6 +193,39 @@ describe('StorageService', () => {
           Key: 'album-1/cover.jpg',
         });
       }
+    });
+  });
+
+  describe('deleteObjectQuietly', () => {
+    it('deletes the object on the happy path', async () => {
+      send.mockResolvedValue({});
+
+      await storageService.deleteObjectQuietly(
+        StorageBucket.Tracks,
+        'track-1/song.flac',
+      );
+
+      const command = send.mock.calls[0][0];
+      expect(command).toBeInstanceOf(DeleteObjectCommand);
+    });
+
+    it('swallows failures and logs a warning instead of throwing', async () => {
+      const warn = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+      send.mockRejectedValue(new Error('bucket unreachable'));
+
+      await expect(
+        storageService.deleteObjectQuietly(
+          StorageBucket.AlbumArt,
+          'album-1/cover.jpg',
+          'cover for album-1',
+        ),
+      ).resolves.toBeUndefined();
+
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls[0][0]).toContain('album-1/cover.jpg');
+      expect(warn.mock.calls[0][0]).toContain('cover for album-1');
     });
   });
 
