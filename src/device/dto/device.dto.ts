@@ -1,5 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+} from 'class-validator';
+
+const DEVICE_TEXT_MAX_LENGTH = 120;
 
 export class DeviceDto {
   @ApiProperty({ format: 'uuid' })
@@ -7,13 +15,15 @@ export class DeviceDto {
   @IsUUID()
   readonly clientId!: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ maxLength: DEVICE_TEXT_MAX_LENGTH })
   @IsOptional()
   @IsString()
+  @MaxLength(DEVICE_TEXT_MAX_LENGTH)
   readonly name?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ maxLength: DEVICE_TEXT_MAX_LENGTH })
   @IsOptional()
   @IsString()
+  @MaxLength(DEVICE_TEXT_MAX_LENGTH)
   readonly model?: string;
 }

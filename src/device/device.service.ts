@@ -10,7 +10,11 @@ export class DeviceService {
   async findOrCreate(userId: string, deviceInfo: DeviceDto): Promise<Device> {
     return this.prisma.device.upsert({
       where: { userId_clientId: { userId, clientId: deviceInfo.clientId } },
-      update: { lastSeenAt: new Date() },
+      update: {
+        lastSeenAt: new Date(),
+        name: deviceInfo.name,
+        model: deviceInfo.model,
+      },
       create: {
         userId,
         clientId: deviceInfo.clientId,
