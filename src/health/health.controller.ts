@@ -2,6 +2,7 @@ import { Controller, Get } from '@nestjs/common';
 import {
   HealthCheckService,
   HealthCheck,
+  HealthCheckResult,
   PrismaHealthIndicator,
 } from '@nestjs/terminus';
 import { StorageHealthIndicator } from './storage.health.js';
@@ -20,7 +21,7 @@ export class HealthController {
   @Public()
   @Get()
   @HealthCheck()
-  check() {
+  check(): Promise<HealthCheckResult> {
     return this.health.check([
       () => this.prismaIndicator.pingCheck('database', this.prisma),
       () => this.storage.isHealthy(),

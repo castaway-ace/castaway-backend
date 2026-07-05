@@ -1,8 +1,8 @@
 import {
   DeleteObjectCommand,
   GetObjectCommand,
+  GetObjectCommandOutput,
   HeadBucketCommand,
-  HeadObjectCommand,
   PutObjectCommand,
   S3Client,
   S3ServiceException,
@@ -88,7 +88,7 @@ export class StorageService {
   ): Promise<ObjectStreamResult> {
     this.assertKey(key);
 
-    let response;
+    let response: GetObjectCommandOutput;
     try {
       response = await this.client.send(
         new GetObjectCommand({ Bucket: bucket, Key: key, Range: range }),
@@ -134,23 +134,6 @@ export class StorageService {
     return getSignedUrl(this.preSignedClient, command, {
       expiresIn: PRESIGNED_URL_TTL_SECONDS,
     });
-  }
-
-  async objectExists(bucket: string, key: string): Promise<boolean> {
-    try {
-      await this.client.send(
-        new HeadObjectCommand({
-          Bucket: bucket,
-          Key: key,
-        }),
-      );
-      return true;
-    } catch (err) {
-      if (this.isNotFound(err)) {
-        return false;
-      }
-      throw err;
-    }
   }
 
   async deleteObject(bucket: StorageBucket, key: string): Promise<void> {

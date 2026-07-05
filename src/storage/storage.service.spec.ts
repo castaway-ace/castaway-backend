@@ -1,52 +1,231 @@
 import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
-import { MockMetadata, ModuleMocker } from 'jest-mock';
-import { StorageService } from './storage.service.js';
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  HeadBucketCommand,
+  PutObjectCommand,
+  S3Client,
+  S3ServiceException,
+} from '@aws-sdk/client-s3';
+import {
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Readable } from 'stream';
+import { StorageService } from './storage.service.js';
+import { StorageBucket } from './storage.types.js';
 
-const moduleMocker = new ModuleMocker(global);
+type SendMock = jest.Mock<(command: unknown) => Promise<unknown>>;
 
 const configValues: Readonly<Record<string, unknown>> = {
-  STORAGE_ENDPOINT: 'https://storage.example.com',
-  STORAGE_PRESIGNED_ENDPOINT: 'https://storage.example.com',
+  STORAGE_ENDPOINT: 'https://internal.example.com',
+  STORAGE_PRESIGNED_ENDPOINT: 'https://public.example.com',
   STORAGE_REGION: 'us-east-1',
   STORAGE_ACCESS_KEY: 'access-key',
   STORAGE_SECRET_ACCESS_KEY: 'secret-access-key',
-  STORAGE_TRACKS_BUCKET: 'storage-tracks-bucket',
-  STORAGE_ALBUM_ART_BUCKET: 'storage-album-art-bucket',
-  STORAGE_ARTIST_IMAGE_BUCKET: 'storage-artist-image-bucket',
+  STORAGE_TRACKS_BUCKET: 'tracks',
+  STORAGE_ALBUM_ART_BUCKET: 'album-art',
+  STORAGE_ARTIST_IMAGE_BUCKET: 'artist-image',
 };
+
+function makeS3Error(name: string, httpStatusCode: number): S3ServiceException {
+  return new S3ServiceException({
+    name,
+    $fault: 'client',
+    $metadata: { httpStatusCode },
+    message: name,
+  });
+}
 
 describe('StorageService', () => {
   let storageService: StorageService;
+  let send: SendMock;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [StorageService],
-    })
-      .useMocker((token) => {
-        if (token === ConfigService) {
-          return {
+      providers: [
+        StorageService,
+        {
+          provide: ConfigService,
+          useValue: {
             get: jest.fn((key: string): unknown => configValues[key]),
-          };
-        }
-        if (typeof token === 'function') {
-          const mockMetadata = moduleMocker.getMetadata(token) as MockMetadata<
-            any,
-            any
-          >;
-          const Mock = moduleMocker.generateFromMetadata(
-            mockMetadata,
-          ) as ObjectConstructor;
-          return new Mock();
-        }
-      })
-      .compile();
+          },
+        },
+      ],
+    }).compile();
 
     storageService = module.get(StorageService);
+    send = jest.spyOn(S3Client.prototype, 'send') as unknown as SendMock;
   });
 
-  it('should be defined', () => {
-    expect(storageService).toBeDefined();
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  describe('getObjectStream', () => {
+    it('throws NotFoundException for a null key without calling the client', async () => {
+      await expect(
+        storageService.getObjectStream(StorageBucket.Tracks, null),
+      ).rejects.toThrow(NotFoundException);
+      expect(send).not.toHaveBeenCalled();
+    });
+
+    it('returns the stream and metadata on success', async () => {
+      const body = Readable.from(Buffer.from('audio'));
+      send.mockResolvedValue({
+        Body: body,
+        ContentType: 'audio/flac',
+        ContentLength: 5,
+        ContentRange: 'bytes 0-4/5',
+        AcceptRanges: 'bytes',
+      });
+
+      const result = await storageService.getObjectStream(
+        StorageBucket.Tracks,
+        'track-1/song.flac',
+        'bytes=0-4',
+      );
+
+      expect(result).toEqual({
+        stream: body,
+        contentType: 'audio/flac',
+        contentLength: 5,
+        contentRange: 'bytes 0-4/5',
+        acceptRanges: 'bytes',
+      });
+
+      const command = send.mock.calls[0][0];
+      expect(command).toBeInstanceOf(GetObjectCommand);
+      if (command instanceof GetObjectCommand) {
+        expect(command.input).toMatchObject({
+          Bucket: StorageBucket.Tracks,
+          Key: 'track-1/song.flac',
+          Range: 'bytes=0-4',
+        });
+      }
+    });
+
+    it('maps a not-found S3 error to NotFoundException', async () => {
+      send.mockRejectedValue(makeS3Error('NoSuchKey', 404));
+
+      await expect(
+        storageService.getObjectStream(StorageBucket.Tracks, 'missing'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('rethrows a non-not-found error unchanged', async () => {
+      const failure = new Error('connection reset');
+      send.mockRejectedValue(failure);
+
+      await expect(
+        storageService.getObjectStream(StorageBucket.Tracks, 'track-1'),
+      ).rejects.toBe(failure);
+    });
+
+    it('throws InternalServerErrorException when the response has no body', async () => {
+      send.mockResolvedValue({});
+
+      await expect(
+        storageService.getObjectStream(StorageBucket.Tracks, 'track-1'),
+      ).rejects.toThrow(InternalServerErrorException);
+    });
+
+    it('throws InternalServerErrorException when the body is not a Node stream', async () => {
+      send.mockResolvedValue({ Body: 'not-a-stream' });
+
+      await expect(
+        storageService.getObjectStream(StorageBucket.Tracks, 'track-1'),
+      ).rejects.toThrow(InternalServerErrorException);
+    });
+  });
+
+  describe('getPresignedUrl', () => {
+    it('throws NotFoundException for a null key', async () => {
+      await expect(
+        storageService.getPresignedUrl(StorageBucket.AlbumArt, null),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('putObject', () => {
+    it('sends a PutObjectCommand with the body and options', async () => {
+      send.mockResolvedValue({});
+      const body = Buffer.from('data');
+
+      await storageService.putObject(StorageBucket.Tracks, 'track-1', body, {
+        contentType: 'audio/flac',
+        size: 4,
+        metadata: { originalName: 'song.flac' },
+      });
+
+      const command = send.mock.calls[0][0];
+      expect(command).toBeInstanceOf(PutObjectCommand);
+      if (command instanceof PutObjectCommand) {
+        expect(command.input).toMatchObject({
+          Bucket: StorageBucket.Tracks,
+          Key: 'track-1',
+          Body: body,
+          ContentType: 'audio/flac',
+          ContentLength: 4,
+          Metadata: { originalName: 'song.flac' },
+        });
+      }
+    });
+  });
+
+  describe('deleteObject', () => {
+    it('sends a DeleteObjectCommand for the key', async () => {
+      send.mockResolvedValue({});
+
+      await storageService.deleteObject(
+        StorageBucket.AlbumArt,
+        'album-1/cover.jpg',
+      );
+
+      const command = send.mock.calls[0][0];
+      expect(command).toBeInstanceOf(DeleteObjectCommand);
+      if (command instanceof DeleteObjectCommand) {
+        expect(command.input).toMatchObject({
+          Bucket: StorageBucket.AlbumArt,
+          Key: 'album-1/cover.jpg',
+        });
+      }
+    });
+  });
+
+  describe('checkBuckets', () => {
+    it('reports every bucket healthy when each head succeeds', async () => {
+      send.mockResolvedValue({});
+
+      const result = await storageService.checkBuckets();
+
+      expect(result).toEqual([
+        { bucket: 'tracks', healthy: true },
+        { bucket: 'album-art', healthy: true },
+        { bucket: 'artist-image', healthy: true },
+      ]);
+    });
+
+    it('marks only the failing bucket unhealthy and does not throw', async () => {
+      send.mockImplementation((command) => {
+        if (
+          command instanceof HeadBucketCommand &&
+          command.input.Bucket === 'album-art'
+        ) {
+          return Promise.reject(new Error('bucket missing'));
+        }
+        return Promise.resolve({});
+      });
+
+      const result = await storageService.checkBuckets();
+
+      expect(result).toEqual([
+        { bucket: 'tracks', healthy: true },
+        { bucket: 'album-art', healthy: false },
+        { bucket: 'artist-image', healthy: true },
+      ]);
+    });
   });
 });
