@@ -1,8 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import * as argon2 from 'argon2';
 import { UsersService } from '../users/users.service.js';
 import { RefreshTokenService } from '../refresh-token/refresh-token.service.js';
@@ -37,7 +33,7 @@ export class AuthService {
   }
 
   async signUp(signUpDto: SignUpDto): Promise<AuthTokensEntity> {
-    const { email, userName, password, deviceInfo, referralCode } = signUpDto;
+    const { email, userName, password, deviceInfo } = signUpDto;
 
     const passwordHash = await argon2.hash(password);
 
@@ -46,17 +42,6 @@ export class AuthService {
         const user = await tx.user.create({
           data: { email, userName, passwordHash },
         });
-
-        const claim = await tx.referralCode.updateMany({
-          where: { code: referralCode, usedAt: null },
-          data: { usedAt: new Date(), usedById: user.id },
-        });
-
-        if (claim.count === 0) {
-          throw new BadRequestException(
-            'Invalid or already used referral code',
-          );
-        }
 
         await tx.playlist.create({
           data: {

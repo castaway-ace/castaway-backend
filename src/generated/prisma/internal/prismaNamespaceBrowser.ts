@@ -66,8 +66,7 @@ export const ModelName = {
   ArtistInteraction: 'ArtistInteraction',
   TrackAnnotation: 'TrackAnnotation',
   AlbumAnnotation: 'AlbumAnnotation',
-  ArtistAnnotation: 'ArtistAnnotation',
-  ReferralCode: 'ReferralCode'
+  ArtistAnnotation: 'ArtistAnnotation'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -280,18 +279,6 @@ export const ArtistAnnotationScalarFieldEnum = {
 } as const
 
 export type ArtistAnnotationScalarFieldEnum = (typeof ArtistAnnotationScalarFieldEnum)[keyof typeof ArtistAnnotationScalarFieldEnum]
-
-
-export const ReferralCodeScalarFieldEnum = {
-  id: 'id',
-  code: 'code',
-  createdById: 'createdById',
-  usedById: 'usedById',
-  usedAt: 'usedAt',
-  createdAt: 'createdAt'
-} as const
-
-export type ReferralCodeScalarFieldEnum = (typeof ReferralCodeScalarFieldEnum)[keyof typeof ReferralCodeScalarFieldEnum]
 
 
 export const SortOrder = {

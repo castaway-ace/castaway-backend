@@ -36,9 +36,6 @@ model User {
   playlistInteractions PlaylistInteraction[]
   artistInteractions   ArtistInteraction[]
 
-  referralCodesCreated ReferralCode[] @relation("ReferralCodesCreated")
-  referralCodeUsed     ReferralCode?  @relation("ReferralCodeUsed")
-
   @@map("users")
 }
 
@@ -305,20 +302,4 @@ model ArtistAnnotation {
   @@unique([userId, artistId])
   @@index([userId, starred])
   @@map("artist_annotations")
-}
-
-// ─── Referral Codes ───────────────────────────────────────────────────────────────
-
-model ReferralCode {
-  id          String    @id @default(uuid()) @db.Uuid
-  code        String    @unique
-  createdById String    @db.Uuid
-  createdBy   User      @relation("ReferralCodesCreated", fields: [createdById], references: [id])
-  usedById    String?   @unique @db.Uuid
-  usedBy      User?     @relation("ReferralCodeUsed", fields: [usedById], references: [id])
-  usedAt      DateTime?
-  createdAt   DateTime  @default(now())
-
-  @@index([createdById])
-  @@map("referral_codes")
 }

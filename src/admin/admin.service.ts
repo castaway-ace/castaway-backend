@@ -7,9 +7,7 @@ import { ArtistsService } from '../artists/artists.service.js';
 import { AlbumsService } from '../albums/albums.service.js';
 import { MetadataTags, ParsedFile } from './admin.types.js';
 import { buildAlbumIdentity } from '../common/album-identity.js';
-import { ReferralCodeService } from '../referral-code/referral-code.service.js';
 import { ArtistRef } from '../common/entities/references.entity.js';
-import { ReferralCodeEntity } from '../referral-code/referral-code.entity.js';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
 
@@ -27,7 +25,6 @@ export class AdminService {
     private readonly trackService: TracksService,
     private readonly artistService: ArtistsService,
     private readonly albumService: AlbumsService,
-    private readonly referralCodeService: ReferralCodeService,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -78,10 +75,6 @@ export class AdminService {
   async deleteAlbum(id: string): Promise<void> {
     await this.trackService.deleteAlbumTrackFiles(id);
     await this.albumService.delete(id);
-  }
-
-  async createReferralCode(userId: string): Promise<ReferralCodeEntity> {
-    return this.referralCodeService.create(userId);
   }
 
   async uploadArtistImage(

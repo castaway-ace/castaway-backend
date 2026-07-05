@@ -119,8 +119,3 @@ export type AlbumAnnotation = Prisma.AlbumAnnotationModel
  * 
  */
 export type ArtistAnnotation = Prisma.ArtistAnnotationModel
-/**
- * Model ReferralCode
- * 
- */
-export type ReferralCode = Prisma.ReferralCodeModel

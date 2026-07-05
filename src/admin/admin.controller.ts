@@ -14,7 +14,6 @@ import {
 import { AdminGuard } from '../auth/guards/admin.guard.js';
 import { AdminService } from './admin.service.js';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
-import { CurrentUser } from '../auth/decorators/user.decorator.js';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -30,7 +29,6 @@ import {
 } from '@nestjs/swagger';
 import { CreateArtistDto } from '../artists/dto/create-artist.dto.js';
 import { ArtistRef } from '../common/entities/references.entity.js';
-import { ReferralCodeEntity } from '../referral-code/referral-code.entity.js';
 
 @Controller('admin')
 @UseGuards(AdminGuard)
@@ -132,13 +130,5 @@ export class AdminController {
   @ApiNotFoundResponse({ description: 'Album not found.' })
   async deleteAlbum(@Param('id') id: string): Promise<void> {
     await this.adminService.deleteAlbum(id);
-  }
-
-  @Post('referral-codes')
-  @ApiCreatedResponse({ type: ReferralCodeEntity })
-  async createReferralCode(
-    @CurrentUser('sub') sub: string,
-  ): Promise<ReferralCodeEntity> {
-    return this.adminService.createReferralCode(sub);
   }
 }

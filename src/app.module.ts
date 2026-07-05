@@ -14,7 +14,6 @@ import { DeviceModule } from './device/device.module.js';
 import { RefreshTokenModule } from './refresh-token/refresh-token.module.js';
 import { InteractionsModule } from './interactions/interactions.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
-import { ReferralCodeModule } from './referral-code/referral-code.module.js';
 
 @Module({
   imports: [
@@ -33,7 +32,6 @@ import { ReferralCodeModule } from './referral-code/referral-code.module.js';
     StorageModule,
     RefreshTokenModule,
     InteractionsModule,
-    ReferralCodeModule,
   ],
 })
 export class AppModule {}

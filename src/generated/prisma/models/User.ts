@@ -206,8 +206,6 @@ export type UserWhereInput = {
   albumInteractions?: Prisma.AlbumInteractionListRelationFilter
   playlistInteractions?: Prisma.PlaylistInteractionListRelationFilter
   artistInteractions?: Prisma.ArtistInteractionListRelationFilter
-  referralCodesCreated?: Prisma.ReferralCodeListRelationFilter
-  referralCodeUsed?: Prisma.XOR<Prisma.ReferralCodeNullableScalarRelationFilter, Prisma.ReferralCodeWhereInput> | null
 }
 
 export type UserOrderByWithRelationInput = {
@@ -226,8 +224,6 @@ export type UserOrderByWithRelationInput = {
   albumInteractions?: Prisma.AlbumInteractionOrderByRelationAggregateInput
   playlistInteractions?: Prisma.PlaylistInteractionOrderByRelationAggregateInput
   artistInteractions?: Prisma.ArtistInteractionOrderByRelationAggregateInput
-  referralCodesCreated?: Prisma.ReferralCodeOrderByRelationAggregateInput
-  referralCodeUsed?: Prisma.ReferralCodeOrderByWithRelationInput
 }
 
 export type UserWhereUniqueInput = Prisma.AtLeast<{
@@ -249,8 +245,6 @@ export type UserWhereUniqueInput = Prisma.AtLeast<{
   albumInteractions?: Prisma.AlbumInteractionListRelationFilter
   playlistInteractions?: Prisma.PlaylistInteractionListRelationFilter
   artistInteractions?: Prisma.ArtistInteractionListRelationFilter
-  referralCodesCreated?: Prisma.ReferralCodeListRelationFilter
-  referralCodeUsed?: Prisma.XOR<Prisma.ReferralCodeNullableScalarRelationFilter, Prisma.ReferralCodeWhereInput> | null
 }, "id" | "email" | "userName">
 
 export type UserOrderByWithAggregationInput = {
@@ -295,8 +289,6 @@ export type UserCreateInput = {
   albumInteractions?: Prisma.AlbumInteractionCreateNestedManyWithoutUserInput
   playlistInteractions?: Prisma.PlaylistInteractionCreateNestedManyWithoutUserInput
   artistInteractions?: Prisma.ArtistInteractionCreateNestedManyWithoutUserInput
-  referralCodesCreated?: Prisma.ReferralCodeCreateNestedManyWithoutCreatedByInput
-  referralCodeUsed?: Prisma.ReferralCodeCreateNestedOneWithoutUsedByInput
 }
 
 export type UserUncheckedCreateInput = {
@@ -315,8 +307,6 @@ export type UserUncheckedCreateInput = {
   albumInteractions?: Prisma.AlbumInteractionUncheckedCreateNestedManyWithoutUserInput
   playlistInteractions?: Prisma.PlaylistInteractionUncheckedCreateNestedManyWithoutUserInput
   artistInteractions?: Prisma.ArtistInteractionUncheckedCreateNestedManyWithoutUserInput
-  referralCodesCreated?: Prisma.ReferralCodeUncheckedCreateNestedManyWithoutCreatedByInput
-  referralCodeUsed?: Prisma.ReferralCodeUncheckedCreateNestedOneWithoutUsedByInput
 }
 
 export type UserUpdateInput = {
@@ -335,8 +325,6 @@ export type UserUpdateInput = {
   albumInteractions?: Prisma.AlbumInteractionUpdateManyWithoutUserNestedInput
   playlistInteractions?: Prisma.PlaylistInteractionUpdateManyWithoutUserNestedInput
   artistInteractions?: Prisma.ArtistInteractionUpdateManyWithoutUserNestedInput
-  referralCodesCreated?: Prisma.ReferralCodeUpdateManyWithoutCreatedByNestedInput
-  referralCodeUsed?: Prisma.ReferralCodeUpdateOneWithoutUsedByNestedInput
 }
 
 export type UserUncheckedUpdateInput = {
@@ -355,8 +343,6 @@ export type UserUncheckedUpdateInput = {
   albumInteractions?: Prisma.AlbumInteractionUncheckedUpdateManyWithoutUserNestedInput
   playlistInteractions?: Prisma.PlaylistInteractionUncheckedUpdateManyWithoutUserNestedInput
   artistInteractions?: Prisma.ArtistInteractionUncheckedUpdateManyWithoutUserNestedInput
-  referralCodesCreated?: Prisma.ReferralCodeUncheckedUpdateManyWithoutCreatedByNestedInput
-  referralCodeUsed?: Prisma.ReferralCodeUncheckedUpdateOneWithoutUsedByNestedInput
 }
 
 export type UserCreateManyInput = {
@@ -422,11 +408,6 @@ export type UserMinOrderByAggregateInput = {
 export type UserScalarRelationFilter = {
   is?: Prisma.UserWhereInput
   isNot?: Prisma.UserWhereInput
-}
-
-export type UserNullableScalarRelationFilter = {
-  is?: Prisma.UserWhereInput | null
-  isNot?: Prisma.UserWhereInput | null
 }
 
 export type StringFieldUpdateOperationsInput = {
@@ -553,36 +534,6 @@ export type UserUpdateOneRequiredWithoutArtistAnnotationsNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutArtistAnnotationsInput, Prisma.UserUpdateWithoutArtistAnnotationsInput>, Prisma.UserUncheckedUpdateWithoutArtistAnnotationsInput>
 }
 
-export type UserCreateNestedOneWithoutReferralCodesCreatedInput = {
-  create?: Prisma.XOR<Prisma.UserCreateWithoutReferralCodesCreatedInput, Prisma.UserUncheckedCreateWithoutReferralCodesCreatedInput>
-  connectOrCreate?: Prisma.UserCreateOrConnectWithoutReferralCodesCreatedInput
-  connect?: Prisma.UserWhereUniqueInput
-}
-
-export type UserCreateNestedOneWithoutReferralCodeUsedInput = {
-  create?: Prisma.XOR<Prisma.UserCreateWithoutReferralCodeUsedInput, Prisma.UserUncheckedCreateWithoutReferralCodeUsedInput>
-  connectOrCreate?: Prisma.UserCreateOrConnectWithoutReferralCodeUsedInput
-  connect?: Prisma.UserWhereUniqueInput
-}
-
-export type UserUpdateOneRequiredWithoutReferralCodesCreatedNestedInput = {
-  create?: Prisma.XOR<Prisma.UserCreateWithoutReferralCodesCreatedInput, Prisma.UserUncheckedCreateWithoutReferralCodesCreatedInput>
-  connectOrCreate?: Prisma.UserCreateOrConnectWithoutReferralCodesCreatedInput
-  upsert?: Prisma.UserUpsertWithoutReferralCodesCreatedInput
-  connect?: Prisma.UserWhereUniqueInput
-  update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutReferralCodesCreatedInput, Prisma.UserUpdateWithoutReferralCodesCreatedInput>, Prisma.UserUncheckedUpdateWithoutReferralCodesCreatedInput>
-}
-
-export type UserUpdateOneWithoutReferralCodeUsedNestedInput = {
-  create?: Prisma.XOR<Prisma.UserCreateWithoutReferralCodeUsedInput, Prisma.UserUncheckedCreateWithoutReferralCodeUsedInput>
-  connectOrCreate?: Prisma.UserCreateOrConnectWithoutReferralCodeUsedInput
-  upsert?: Prisma.UserUpsertWithoutReferralCodeUsedInput
-  disconnect?: Prisma.UserWhereInput | boolean
-  delete?: Prisma.UserWhereInput | boolean
-  connect?: Prisma.UserWhereUniqueInput
-  update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutReferralCodeUsedInput, Prisma.UserUpdateWithoutReferralCodeUsedInput>, Prisma.UserUncheckedUpdateWithoutReferralCodeUsedInput>
-}
-
 export type UserCreateWithoutDevicesInput = {
   id?: string
   email: string
@@ -598,8 +549,6 @@ export type UserCreateWithoutDevicesInput = {
   albumInteractions?: Prisma.AlbumInteractionCreateNestedManyWithoutUserInput
   playlistInteractions?: Prisma.PlaylistInteractionCreateNestedManyWithoutUserInput
   artistInteractions?: Prisma.ArtistInteractionCreateNestedManyWithoutUserInput
-  referralCodesCreated?: Prisma.ReferralCodeCreateNestedManyWithoutCreatedByInput
-  referralCodeUsed?: Prisma.ReferralCodeCreateNestedOneWithoutUsedByInput
 }
 
 export type UserUncheckedCreateWithoutDevicesInput = {
@@ -617,8 +566,6 @@ export type UserUncheckedCreateWithoutDevicesInput = {
   albumInteractions?: Prisma.AlbumInteractionUncheckedCreateNestedManyWithoutUserInput
   playlistInteractions?: Prisma.PlaylistInteractionUncheckedCreateNestedManyWithoutUserInput
   artistInteractions?: Prisma.ArtistInteractionUncheckedCreateNestedManyWithoutUserInput
-  referralCodesCreated?: Prisma.ReferralCodeUncheckedCreateNestedManyWithoutCreatedByInput
-  referralCodeUsed?: Prisma.ReferralCodeUncheckedCreateNestedOneWithoutUsedByInput
 }
 
 export type UserCreateOrConnectWithoutDevicesInput = {
@@ -652,8 +599,6 @@ export type UserUpdateWithoutDevicesInput = {
   albumInteractions?: Prisma.AlbumInteractionUpdateManyWithoutUserNestedInput
   playlistInteractions?: Prisma.PlaylistInteractionUpdateManyWithoutUserNestedInput
   artistInteractions?: Prisma.ArtistInteractionUpdateManyWithoutUserNestedInput
-  referralCodesCreated?: Prisma.ReferralCodeUpdateManyWithoutCreatedByNestedInput
-  referralCodeUsed?: Prisma.ReferralCodeUpdateOneWithoutUsedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutDevicesInput = {
@@ -671,8 +616,6 @@ export type UserUncheckedUpdateWithoutDevicesInput = {
   albumInteractions?: Prisma.AlbumInteractionUncheckedUpdateManyWithoutUserNestedInput
   playlistInteractions?: Prisma.PlaylistInteractionUncheckedUpdateManyWithoutUserNestedInput
   artistInteractions?: Prisma.ArtistInteractionUncheckedUpdateManyWithoutUserNestedInput
-  referralCodesCreated?: Prisma.ReferralCodeUncheckedUpdateManyWithoutCreatedByNestedInput
-  referralCodeUsed?: Prisma.ReferralCodeUncheckedUpdateOneWithoutUsedByNestedInput
 }
 
 export type UserCreateWithoutPlaylistsInput = {
@@ -690,8 +633,6 @@ export type UserCreateWithoutPlaylistsInput = {
   albumInteractions?: Prisma.AlbumInteractionCreateNestedManyWithoutUserInput
   playlistInteractions?: Prisma.PlaylistInteractionCreateNestedManyWithoutUserInput
   artistInteractions?: Prisma.ArtistInteractionCreateNestedManyWithoutUserInput
-  referralCodesCreated?: Prisma.ReferralCodeCreateNestedManyWithoutCreatedByInput
-  referralCodeUsed?: Prisma.ReferralCodeCreateNestedOneWithoutUsedByInput
 }
 
 export type UserUncheckedCreateWithoutPlaylistsInput = {
@@ -709,8 +650,6 @@ export type UserUncheckedCreateWithoutPlaylistsInput = {
   albumInteractions?: Prisma.AlbumInteractionUncheckedCreateNestedManyWithoutUserInput
   playlistInteractions?: Prisma.PlaylistInteractionUncheckedCreateNestedManyWithoutUserInput
   artistInteractions?: Prisma.ArtistInteractionUncheckedCreateNestedManyWithoutUserInput
-  referralCodesCreated?: Prisma.ReferralCodeUncheckedCreateNestedManyWithoutCreatedByInput
-  referralCodeUsed?: Prisma.ReferralCodeUncheckedCreateNestedOneWithoutUsedByInput
 }
 
 export type UserCreateOrConnectWithoutPlaylistsInput = {
@@ -744,8 +683,6 @@ export type UserUpdateWithoutPlaylistsInput = {
   albumInteractions?: Prisma.AlbumInteractionUpdateManyWithoutUserNestedInput
   playlistInteractions?: Prisma.PlaylistInteractionUpdateManyWithoutUserNestedInput
   artistInteractions?: Prisma.ArtistInteractionUpdateManyWithoutUserNestedInput
-  referralCodesCreated?: Prisma.ReferralCodeUpdateManyWithoutCreatedByNestedInput
-  referralCodeUsed?: Prisma.ReferralCodeUpdateOneWithoutUsedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutPlaylistsInput = {
@@ -763,8 +700,6 @@ export type UserUncheckedUpdateWithoutPlaylistsInput = {
   albumInteractions?: Prisma.AlbumInteractionUncheckedUpdateManyWithoutUserNestedInput
   playlistInteractions?: Prisma.PlaylistInteractionUncheckedUpdateManyWithoutUserNestedInput
   artistInteractions?: Prisma.ArtistInteractionUncheckedUpdateManyWithoutUserNestedInput
-  referralCodesCreated?: Prisma.ReferralCodeUncheckedUpdateManyWithoutCreatedByNestedInput
-  referralCodeUsed?: Prisma.ReferralCodeUncheckedUpdateOneWithoutUsedByNestedInput
 }
 
 export type UserCreateWithoutAlbumInteractionsInput = {
@@ -782,8 +717,6 @@ export type UserCreateWithoutAlbumInteractionsInput = {
   artistAnnotations?: Prisma.ArtistAnnotationCreateNestedManyWithoutUserInput
   playlistInteractions?: Prisma.PlaylistInteractionCreateNestedManyWithoutUserInput
   artistInteractions?: Prisma.ArtistInteractionCreateNestedManyWithoutUserInput
-  referralCodesCreated?: Prisma.ReferralCodeCreateNestedManyWithoutCreatedByInput
-  referralCodeUsed?: Prisma.ReferralCodeCreateNestedOneWithoutUsedByInput
 }
 
 export type UserUncheckedCreateWithoutAlbumInteractionsInput = {
@@ -801,8 +734,6 @@ export type UserUncheckedCreateWithoutAlbumInteractionsInput = {
   artistAnnotations?: Prisma.ArtistAnnotationUncheckedCreateNestedManyWithoutUserInput
   playlistInteractions?: Prisma.PlaylistInteractionUncheckedCreateNestedManyWithoutUserInput
   artistInteractions?: Prisma.ArtistInteractionUncheckedCreateNestedManyWithoutUserInput
-  referralCodesCreated?: Prisma.ReferralCodeUncheckedCreateNestedManyWithoutCreatedByInput
-  referralCodeUsed?: Prisma.ReferralCodeUncheckedCreateNestedOneWithoutUsedByInput
 }
 
 export type UserCreateOrConnectWithoutAlbumInteractionsInput = {
@@ -836,8 +767,6 @@ export type UserUpdateWithoutAlbumInteractionsInput = {
   artistAnnotations?: Prisma.ArtistAnnotationUpdateManyWithoutUserNestedInput
   playlistInteractions?: Prisma.PlaylistInteractionUpdateManyWithoutUserNestedInput
   artistInteractions?: Prisma.ArtistInteractionUpdateManyWithoutUserNestedInput
-  referralCodesCreated?: Prisma.ReferralCodeUpdateManyWithoutCreatedByNestedInput
-  referralCodeUsed?: Prisma.ReferralCodeUpdateOneWithoutUsedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutAlbumInteractionsInput = {
@@ -855,8 +784,6 @@ export type UserUncheckedUpdateWithoutAlbumInteractionsInput = {
   artistAnnotations?: Prisma.ArtistAnnotationUncheckedUpdateManyWithoutUserNestedInput
   playlistInteractions?: Prisma.PlaylistInteractionUncheckedUpdateManyWithoutUserNestedInput
   artistInteractions?: Prisma.ArtistInteractionUncheckedUpdateManyWithoutUserNestedInput
-  referralCodesCreated?: Prisma.ReferralCodeUncheckedUpdateManyWithoutCreatedByNestedInput
-  referralCodeUsed?: Prisma.ReferralCodeUncheckedUpdateOneWithoutUsedByNestedInput
 }
 
 export type UserCreateWithoutPlaylistInteractionsInput = {
@@ -874,8 +801,6 @@ export type UserCreateWithoutPlaylistInteractionsInput = {
   artistAnnotations?: Prisma.ArtistAnnotationCreateNestedManyWithoutUserInput
   albumInteractions?: Prisma.AlbumInteractionCreateNestedManyWithoutUserInput
   artistInteractions?: Prisma.ArtistInteractionCreateNestedManyWithoutUserInput
-  referralCodesCreated?: Prisma.ReferralCodeCreateNestedManyWithoutCreatedByInput
-  referralCodeUsed?: Prisma.ReferralCodeCreateNestedOneWithoutUsedByInput
 }
 
 export type UserUncheckedCreateWithoutPlaylistInteractionsInput = {
@@ -893,8 +818,6 @@ export type UserUncheckedCreateWithoutPlaylistInteractionsInput = {
   artistAnnotations?: Prisma.ArtistAnnotationUncheckedCreateNestedManyWithoutUserInput
   albumInteractions?: Prisma.AlbumInteractionUncheckedCreateNestedManyWithoutUserInput
   artistInteractions?: Prisma.ArtistInteractionUncheckedCreateNestedManyWithoutUserInput
-  referralCodesCreated?: Prisma.ReferralCodeUncheckedCreateNestedManyWithoutCreatedByInput
-  referralCodeUsed?: Prisma.ReferralCodeUncheckedCreateNestedOneWithoutUsedByInput
 }
 
 export type UserCreateOrConnectWithoutPlaylistInteractionsInput = {
@@ -928,8 +851,6 @@ export type UserUpdateWithoutPlaylistInteractionsInput = {
   artistAnnotations?: Prisma.ArtistAnnotationUpdateManyWithoutUserNestedInput
   albumInteractions?: Prisma.AlbumInteractionUpdateManyWithoutUserNestedInput
   artistInteractions?: Prisma.ArtistInteractionUpdateManyWithoutUserNestedInput
-  referralCodesCreated?: Prisma.ReferralCodeUpdateManyWithoutCreatedByNestedInput
-  referralCodeUsed?: Prisma.ReferralCodeUpdateOneWithoutUsedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutPlaylistInteractionsInput = {
@@ -947,8 +868,6 @@ export type UserUncheckedUpdateWithoutPlaylistInteractionsInput = {
   artistAnnotations?: Prisma.ArtistAnnotationUncheckedUpdateManyWithoutUserNestedInput
   albumInteractions?: Prisma.AlbumInteractionUncheckedUpdateManyWithoutUserNestedInput
   artistInteractions?: Prisma.ArtistInteractionUncheckedUpdateManyWithoutUserNestedInput
-  referralCodesCreated?: Prisma.ReferralCodeUncheckedUpdateManyWithoutCreatedByNestedInput
-  referralCodeUsed?: Prisma.ReferralCodeUncheckedUpdateOneWithoutUsedByNestedInput
 }
 
 export type UserCreateWithoutArtistInteractionsInput = {
@@ -966,8 +885,6 @@ export type UserCreateWithoutArtistInteractionsInput = {
   artistAnnotations?: Prisma.ArtistAnnotationCreateNestedManyWithoutUserInput
   albumInteractions?: Prisma.AlbumInteractionCreateNestedManyWithoutUserInput
   playlistInteractions?: Prisma.PlaylistInteractionCreateNestedManyWithoutUserInput
-  referralCodesCreated?: Prisma.ReferralCodeCreateNestedManyWithoutCreatedByInput
-  referralCodeUsed?: Prisma.ReferralCodeCreateNestedOneWithoutUsedByInput
 }
 
 export type UserUncheckedCreateWithoutArtistInteractionsInput = {
@@ -985,8 +902,6 @@ export type UserUncheckedCreateWithoutArtistInteractionsInput = {
   artistAnnotations?: Prisma.ArtistAnnotationUncheckedCreateNestedManyWithoutUserInput
   albumInteractions?: Prisma.AlbumInteractionUncheckedCreateNestedManyWithoutUserInput
   playlistInteractions?: Prisma.PlaylistInteractionUncheckedCreateNestedManyWithoutUserInput
-  referralCodesCreated?: Prisma.ReferralCodeUncheckedCreateNestedManyWithoutCreatedByInput
-  referralCodeUsed?: Prisma.ReferralCodeUncheckedCreateNestedOneWithoutUsedByInput
 }
 
 export type UserCreateOrConnectWithoutArtistInteractionsInput = {
@@ -1020,8 +935,6 @@ export type UserUpdateWithoutArtistInteractionsInput = {
   artistAnnotations?: Prisma.ArtistAnnotationUpdateManyWithoutUserNestedInput
   albumInteractions?: Prisma.AlbumInteractionUpdateManyWithoutUserNestedInput
   playlistInteractions?: Prisma.PlaylistInteractionUpdateManyWithoutUserNestedInput
-  referralCodesCreated?: Prisma.ReferralCodeUpdateManyWithoutCreatedByNestedInput
-  referralCodeUsed?: Prisma.ReferralCodeUpdateOneWithoutUsedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutArtistInteractionsInput = {
@@ -1039,8 +952,6 @@ export type UserUncheckedUpdateWithoutArtistInteractionsInput = {
   artistAnnotations?: Prisma.ArtistAnnotationUncheckedUpdateManyWithoutUserNestedInput
   albumInteractions?: Prisma.AlbumInteractionUncheckedUpdateManyWithoutUserNestedInput
   playlistInteractions?: Prisma.PlaylistInteractionUncheckedUpdateManyWithoutUserNestedInput
-  referralCodesCreated?: Prisma.ReferralCodeUncheckedUpdateManyWithoutCreatedByNestedInput
-  referralCodeUsed?: Prisma.ReferralCodeUncheckedUpdateOneWithoutUsedByNestedInput
 }
 
 export type UserCreateWithoutTrackAnnotationsInput = {
@@ -1058,8 +969,6 @@ export type UserCreateWithoutTrackAnnotationsInput = {
   albumInteractions?: Prisma.AlbumInteractionCreateNestedManyWithoutUserInput
   playlistInteractions?: Prisma.PlaylistInteractionCreateNestedManyWithoutUserInput
   artistInteractions?: Prisma.ArtistInteractionCreateNestedManyWithoutUserInput
-  referralCodesCreated?: Prisma.ReferralCodeCreateNestedManyWithoutCreatedByInput
-  referralCodeUsed?: Prisma.ReferralCodeCreateNestedOneWithoutUsedByInput
 }
 
 export type UserUncheckedCreateWithoutTrackAnnotationsInput = {
@@ -1077,8 +986,6 @@ export type UserUncheckedCreateWithoutTrackAnnotationsInput = {
   albumInteractions?: Prisma.AlbumInteractionUncheckedCreateNestedManyWithoutUserInput
   playlistInteractions?: Prisma.PlaylistInteractionUncheckedCreateNestedManyWithoutUserInput
   artistInteractions?: Prisma.ArtistInteractionUncheckedCreateNestedManyWithoutUserInput
-  referralCodesCreated?: Prisma.ReferralCodeUncheckedCreateNestedManyWithoutCreatedByInput
-  referralCodeUsed?: Prisma.ReferralCodeUncheckedCreateNestedOneWithoutUsedByInput
 }
 
 export type UserCreateOrConnectWithoutTrackAnnotationsInput = {
@@ -1112,8 +1019,6 @@ export type UserUpdateWithoutTrackAnnotationsInput = {
   albumInteractions?: Prisma.AlbumInteractionUpdateManyWithoutUserNestedInput
   playlistInteractions?: Prisma.PlaylistInteractionUpdateManyWithoutUserNestedInput
   artistInteractions?: Prisma.ArtistInteractionUpdateManyWithoutUserNestedInput
-  referralCodesCreated?: Prisma.ReferralCodeUpdateManyWithoutCreatedByNestedInput
-  referralCodeUsed?: Prisma.ReferralCodeUpdateOneWithoutUsedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutTrackAnnotationsInput = {
@@ -1131,8 +1036,6 @@ export type UserUncheckedUpdateWithoutTrackAnnotationsInput = {
   albumInteractions?: Prisma.AlbumInteractionUncheckedUpdateManyWithoutUserNestedInput
   playlistInteractions?: Prisma.PlaylistInteractionUncheckedUpdateManyWithoutUserNestedInput
   artistInteractions?: Prisma.ArtistInteractionUncheckedUpdateManyWithoutUserNestedInput
-  referralCodesCreated?: Prisma.ReferralCodeUncheckedUpdateManyWithoutCreatedByNestedInput
-  referralCodeUsed?: Prisma.ReferralCodeUncheckedUpdateOneWithoutUsedByNestedInput
 }
 
 export type UserCreateWithoutAlbumAnnotationsInput = {
@@ -1150,8 +1053,6 @@ export type UserCreateWithoutAlbumAnnotationsInput = {
   albumInteractions?: Prisma.AlbumInteractionCreateNestedManyWithoutUserInput
   playlistInteractions?: Prisma.PlaylistInteractionCreateNestedManyWithoutUserInput
   artistInteractions?: Prisma.ArtistInteractionCreateNestedManyWithoutUserInput
-  referralCodesCreated?: Prisma.ReferralCodeCreateNestedManyWithoutCreatedByInput
-  referralCodeUsed?: Prisma.ReferralCodeCreateNestedOneWithoutUsedByInput
 }
 
 export type UserUncheckedCreateWithoutAlbumAnnotationsInput = {
@@ -1169,8 +1070,6 @@ export type UserUncheckedCreateWithoutAlbumAnnotationsInput = {
   albumInteractions?: Prisma.AlbumInteractionUncheckedCreateNestedManyWithoutUserInput
   playlistInteractions?: Prisma.PlaylistInteractionUncheckedCreateNestedManyWithoutUserInput
   artistInteractions?: Prisma.ArtistInteractionUncheckedCreateNestedManyWithoutUserInput
-  referralCodesCreated?: Prisma.ReferralCodeUncheckedCreateNestedManyWithoutCreatedByInput
-  referralCodeUsed?: Prisma.ReferralCodeUncheckedCreateNestedOneWithoutUsedByInput
 }
 
 export type UserCreateOrConnectWithoutAlbumAnnotationsInput = {
@@ -1204,8 +1103,6 @@ export type UserUpdateWithoutAlbumAnnotationsInput = {
   albumInteractions?: Prisma.AlbumInteractionUpdateManyWithoutUserNestedInput
   playlistInteractions?: Prisma.PlaylistInteractionUpdateManyWithoutUserNestedInput
   artistInteractions?: Prisma.ArtistInteractionUpdateManyWithoutUserNestedInput
-  referralCodesCreated?: Prisma.ReferralCodeUpdateManyWithoutCreatedByNestedInput
-  referralCodeUsed?: Prisma.ReferralCodeUpdateOneWithoutUsedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutAlbumAnnotationsInput = {
@@ -1223,8 +1120,6 @@ export type UserUncheckedUpdateWithoutAlbumAnnotationsInput = {
   albumInteractions?: Prisma.AlbumInteractionUncheckedUpdateManyWithoutUserNestedInput
   playlistInteractions?: Prisma.PlaylistInteractionUncheckedUpdateManyWithoutUserNestedInput
   artistInteractions?: Prisma.ArtistInteractionUncheckedUpdateManyWithoutUserNestedInput
-  referralCodesCreated?: Prisma.ReferralCodeUncheckedUpdateManyWithoutCreatedByNestedInput
-  referralCodeUsed?: Prisma.ReferralCodeUncheckedUpdateOneWithoutUsedByNestedInput
 }
 
 export type UserCreateWithoutArtistAnnotationsInput = {
@@ -1242,8 +1137,6 @@ export type UserCreateWithoutArtistAnnotationsInput = {
   albumInteractions?: Prisma.AlbumInteractionCreateNestedManyWithoutUserInput
   playlistInteractions?: Prisma.PlaylistInteractionCreateNestedManyWithoutUserInput
   artistInteractions?: Prisma.ArtistInteractionCreateNestedManyWithoutUserInput
-  referralCodesCreated?: Prisma.ReferralCodeCreateNestedManyWithoutCreatedByInput
-  referralCodeUsed?: Prisma.ReferralCodeCreateNestedOneWithoutUsedByInput
 }
 
 export type UserUncheckedCreateWithoutArtistAnnotationsInput = {
@@ -1261,8 +1154,6 @@ export type UserUncheckedCreateWithoutArtistAnnotationsInput = {
   albumInteractions?: Prisma.AlbumInteractionUncheckedCreateNestedManyWithoutUserInput
   playlistInteractions?: Prisma.PlaylistInteractionUncheckedCreateNestedManyWithoutUserInput
   artistInteractions?: Prisma.ArtistInteractionUncheckedCreateNestedManyWithoutUserInput
-  referralCodesCreated?: Prisma.ReferralCodeUncheckedCreateNestedManyWithoutCreatedByInput
-  referralCodeUsed?: Prisma.ReferralCodeUncheckedCreateNestedOneWithoutUsedByInput
 }
 
 export type UserCreateOrConnectWithoutArtistAnnotationsInput = {
@@ -1296,8 +1187,6 @@ export type UserUpdateWithoutArtistAnnotationsInput = {
   albumInteractions?: Prisma.AlbumInteractionUpdateManyWithoutUserNestedInput
   playlistInteractions?: Prisma.PlaylistInteractionUpdateManyWithoutUserNestedInput
   artistInteractions?: Prisma.ArtistInteractionUpdateManyWithoutUserNestedInput
-  referralCodesCreated?: Prisma.ReferralCodeUpdateManyWithoutCreatedByNestedInput
-  referralCodeUsed?: Prisma.ReferralCodeUpdateOneWithoutUsedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutArtistAnnotationsInput = {
@@ -1315,192 +1204,6 @@ export type UserUncheckedUpdateWithoutArtistAnnotationsInput = {
   albumInteractions?: Prisma.AlbumInteractionUncheckedUpdateManyWithoutUserNestedInput
   playlistInteractions?: Prisma.PlaylistInteractionUncheckedUpdateManyWithoutUserNestedInput
   artistInteractions?: Prisma.ArtistInteractionUncheckedUpdateManyWithoutUserNestedInput
-  referralCodesCreated?: Prisma.ReferralCodeUncheckedUpdateManyWithoutCreatedByNestedInput
-  referralCodeUsed?: Prisma.ReferralCodeUncheckedUpdateOneWithoutUsedByNestedInput
-}
-
-export type UserCreateWithoutReferralCodesCreatedInput = {
-  id?: string
-  email: string
-  userName: string
-  passwordHash: string
-  isAdmin?: boolean
-  createdAt?: Date | string
-  updatedAt?: Date | string
-  devices?: Prisma.DeviceCreateNestedManyWithoutUserInput
-  playlists?: Prisma.PlaylistCreateNestedManyWithoutOwnerInput
-  trackAnnotations?: Prisma.TrackAnnotationCreateNestedManyWithoutUserInput
-  albumAnnotations?: Prisma.AlbumAnnotationCreateNestedManyWithoutUserInput
-  artistAnnotations?: Prisma.ArtistAnnotationCreateNestedManyWithoutUserInput
-  albumInteractions?: Prisma.AlbumInteractionCreateNestedManyWithoutUserInput
-  playlistInteractions?: Prisma.PlaylistInteractionCreateNestedManyWithoutUserInput
-  artistInteractions?: Prisma.ArtistInteractionCreateNestedManyWithoutUserInput
-  referralCodeUsed?: Prisma.ReferralCodeCreateNestedOneWithoutUsedByInput
-}
-
-export type UserUncheckedCreateWithoutReferralCodesCreatedInput = {
-  id?: string
-  email: string
-  userName: string
-  passwordHash: string
-  isAdmin?: boolean
-  createdAt?: Date | string
-  updatedAt?: Date | string
-  devices?: Prisma.DeviceUncheckedCreateNestedManyWithoutUserInput
-  playlists?: Prisma.PlaylistUncheckedCreateNestedManyWithoutOwnerInput
-  trackAnnotations?: Prisma.TrackAnnotationUncheckedCreateNestedManyWithoutUserInput
-  albumAnnotations?: Prisma.AlbumAnnotationUncheckedCreateNestedManyWithoutUserInput
-  artistAnnotations?: Prisma.ArtistAnnotationUncheckedCreateNestedManyWithoutUserInput
-  albumInteractions?: Prisma.AlbumInteractionUncheckedCreateNestedManyWithoutUserInput
-  playlistInteractions?: Prisma.PlaylistInteractionUncheckedCreateNestedManyWithoutUserInput
-  artistInteractions?: Prisma.ArtistInteractionUncheckedCreateNestedManyWithoutUserInput
-  referralCodeUsed?: Prisma.ReferralCodeUncheckedCreateNestedOneWithoutUsedByInput
-}
-
-export type UserCreateOrConnectWithoutReferralCodesCreatedInput = {
-  where: Prisma.UserWhereUniqueInput
-  create: Prisma.XOR<Prisma.UserCreateWithoutReferralCodesCreatedInput, Prisma.UserUncheckedCreateWithoutReferralCodesCreatedInput>
-}
-
-export type UserCreateWithoutReferralCodeUsedInput = {
-  id?: string
-  email: string
-  userName: string
-  passwordHash: string
-  isAdmin?: boolean
-  createdAt?: Date | string
-  updatedAt?: Date | string
-  devices?: Prisma.DeviceCreateNestedManyWithoutUserInput
-  playlists?: Prisma.PlaylistCreateNestedManyWithoutOwnerInput
-  trackAnnotations?: Prisma.TrackAnnotationCreateNestedManyWithoutUserInput
-  albumAnnotations?: Prisma.AlbumAnnotationCreateNestedManyWithoutUserInput
-  artistAnnotations?: Prisma.ArtistAnnotationCreateNestedManyWithoutUserInput
-  albumInteractions?: Prisma.AlbumInteractionCreateNestedManyWithoutUserInput
-  playlistInteractions?: Prisma.PlaylistInteractionCreateNestedManyWithoutUserInput
-  artistInteractions?: Prisma.ArtistInteractionCreateNestedManyWithoutUserInput
-  referralCodesCreated?: Prisma.ReferralCodeCreateNestedManyWithoutCreatedByInput
-}
-
-export type UserUncheckedCreateWithoutReferralCodeUsedInput = {
-  id?: string
-  email: string
-  userName: string
-  passwordHash: string
-  isAdmin?: boolean
-  createdAt?: Date | string
-  updatedAt?: Date | string
-  devices?: Prisma.DeviceUncheckedCreateNestedManyWithoutUserInput
-  playlists?: Prisma.PlaylistUncheckedCreateNestedManyWithoutOwnerInput
-  trackAnnotations?: Prisma.TrackAnnotationUncheckedCreateNestedManyWithoutUserInput
-  albumAnnotations?: Prisma.AlbumAnnotationUncheckedCreateNestedManyWithoutUserInput
-  artistAnnotations?: Prisma.ArtistAnnotationUncheckedCreateNestedManyWithoutUserInput
-  albumInteractions?: Prisma.AlbumInteractionUncheckedCreateNestedManyWithoutUserInput
-  playlistInteractions?: Prisma.PlaylistInteractionUncheckedCreateNestedManyWithoutUserInput
-  artistInteractions?: Prisma.ArtistInteractionUncheckedCreateNestedManyWithoutUserInput
-  referralCodesCreated?: Prisma.ReferralCodeUncheckedCreateNestedManyWithoutCreatedByInput
-}
-
-export type UserCreateOrConnectWithoutReferralCodeUsedInput = {
-  where: Prisma.UserWhereUniqueInput
-  create: Prisma.XOR<Prisma.UserCreateWithoutReferralCodeUsedInput, Prisma.UserUncheckedCreateWithoutReferralCodeUsedInput>
-}
-
-export type UserUpsertWithoutReferralCodesCreatedInput = {
-  update: Prisma.XOR<Prisma.UserUpdateWithoutReferralCodesCreatedInput, Prisma.UserUncheckedUpdateWithoutReferralCodesCreatedInput>
-  create: Prisma.XOR<Prisma.UserCreateWithoutReferralCodesCreatedInput, Prisma.UserUncheckedCreateWithoutReferralCodesCreatedInput>
-  where?: Prisma.UserWhereInput
-}
-
-export type UserUpdateToOneWithWhereWithoutReferralCodesCreatedInput = {
-  where?: Prisma.UserWhereInput
-  data: Prisma.XOR<Prisma.UserUpdateWithoutReferralCodesCreatedInput, Prisma.UserUncheckedUpdateWithoutReferralCodesCreatedInput>
-}
-
-export type UserUpdateWithoutReferralCodesCreatedInput = {
-  id?: Prisma.StringFieldUpdateOperationsInput | string
-  email?: Prisma.StringFieldUpdateOperationsInput | string
-  userName?: Prisma.StringFieldUpdateOperationsInput | string
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
-  isAdmin?: Prisma.BoolFieldUpdateOperationsInput | boolean
-  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  devices?: Prisma.DeviceUpdateManyWithoutUserNestedInput
-  playlists?: Prisma.PlaylistUpdateManyWithoutOwnerNestedInput
-  trackAnnotations?: Prisma.TrackAnnotationUpdateManyWithoutUserNestedInput
-  albumAnnotations?: Prisma.AlbumAnnotationUpdateManyWithoutUserNestedInput
-  artistAnnotations?: Prisma.ArtistAnnotationUpdateManyWithoutUserNestedInput
-  albumInteractions?: Prisma.AlbumInteractionUpdateManyWithoutUserNestedInput
-  playlistInteractions?: Prisma.PlaylistInteractionUpdateManyWithoutUserNestedInput
-  artistInteractions?: Prisma.ArtistInteractionUpdateManyWithoutUserNestedInput
-  referralCodeUsed?: Prisma.ReferralCodeUpdateOneWithoutUsedByNestedInput
-}
-
-export type UserUncheckedUpdateWithoutReferralCodesCreatedInput = {
-  id?: Prisma.StringFieldUpdateOperationsInput | string
-  email?: Prisma.StringFieldUpdateOperationsInput | string
-  userName?: Prisma.StringFieldUpdateOperationsInput | string
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
-  isAdmin?: Prisma.BoolFieldUpdateOperationsInput | boolean
-  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  devices?: Prisma.DeviceUncheckedUpdateManyWithoutUserNestedInput
-  playlists?: Prisma.PlaylistUncheckedUpdateManyWithoutOwnerNestedInput
-  trackAnnotations?: Prisma.TrackAnnotationUncheckedUpdateManyWithoutUserNestedInput
-  albumAnnotations?: Prisma.AlbumAnnotationUncheckedUpdateManyWithoutUserNestedInput
-  artistAnnotations?: Prisma.ArtistAnnotationUncheckedUpdateManyWithoutUserNestedInput
-  albumInteractions?: Prisma.AlbumInteractionUncheckedUpdateManyWithoutUserNestedInput
-  playlistInteractions?: Prisma.PlaylistInteractionUncheckedUpdateManyWithoutUserNestedInput
-  artistInteractions?: Prisma.ArtistInteractionUncheckedUpdateManyWithoutUserNestedInput
-  referralCodeUsed?: Prisma.ReferralCodeUncheckedUpdateOneWithoutUsedByNestedInput
-}
-
-export type UserUpsertWithoutReferralCodeUsedInput = {
-  update: Prisma.XOR<Prisma.UserUpdateWithoutReferralCodeUsedInput, Prisma.UserUncheckedUpdateWithoutReferralCodeUsedInput>
-  create: Prisma.XOR<Prisma.UserCreateWithoutReferralCodeUsedInput, Prisma.UserUncheckedCreateWithoutReferralCodeUsedInput>
-  where?: Prisma.UserWhereInput
-}
-
-export type UserUpdateToOneWithWhereWithoutReferralCodeUsedInput = {
-  where?: Prisma.UserWhereInput
-  data: Prisma.XOR<Prisma.UserUpdateWithoutReferralCodeUsedInput, Prisma.UserUncheckedUpdateWithoutReferralCodeUsedInput>
-}
-
-export type UserUpdateWithoutReferralCodeUsedInput = {
-  id?: Prisma.StringFieldUpdateOperationsInput | string
-  email?: Prisma.StringFieldUpdateOperationsInput | string
-  userName?: Prisma.StringFieldUpdateOperationsInput | string
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
-  isAdmin?: Prisma.BoolFieldUpdateOperationsInput | boolean
-  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  devices?: Prisma.DeviceUpdateManyWithoutUserNestedInput
-  playlists?: Prisma.PlaylistUpdateManyWithoutOwnerNestedInput
-  trackAnnotations?: Prisma.TrackAnnotationUpdateManyWithoutUserNestedInput
-  albumAnnotations?: Prisma.AlbumAnnotationUpdateManyWithoutUserNestedInput
-  artistAnnotations?: Prisma.ArtistAnnotationUpdateManyWithoutUserNestedInput
-  albumInteractions?: Prisma.AlbumInteractionUpdateManyWithoutUserNestedInput
-  playlistInteractions?: Prisma.PlaylistInteractionUpdateManyWithoutUserNestedInput
-  artistInteractions?: Prisma.ArtistInteractionUpdateManyWithoutUserNestedInput
-  referralCodesCreated?: Prisma.ReferralCodeUpdateManyWithoutCreatedByNestedInput
-}
-
-export type UserUncheckedUpdateWithoutReferralCodeUsedInput = {
-  id?: Prisma.StringFieldUpdateOperationsInput | string
-  email?: Prisma.StringFieldUpdateOperationsInput | string
-  userName?: Prisma.StringFieldUpdateOperationsInput | string
-  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
-  isAdmin?: Prisma.BoolFieldUpdateOperationsInput | boolean
-  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  devices?: Prisma.DeviceUncheckedUpdateManyWithoutUserNestedInput
-  playlists?: Prisma.PlaylistUncheckedUpdateManyWithoutOwnerNestedInput
-  trackAnnotations?: Prisma.TrackAnnotationUncheckedUpdateManyWithoutUserNestedInput
-  albumAnnotations?: Prisma.AlbumAnnotationUncheckedUpdateManyWithoutUserNestedInput
-  artistAnnotations?: Prisma.ArtistAnnotationUncheckedUpdateManyWithoutUserNestedInput
-  albumInteractions?: Prisma.AlbumInteractionUncheckedUpdateManyWithoutUserNestedInput
-  playlistInteractions?: Prisma.PlaylistInteractionUncheckedUpdateManyWithoutUserNestedInput
-  artistInteractions?: Prisma.ArtistInteractionUncheckedUpdateManyWithoutUserNestedInput
-  referralCodesCreated?: Prisma.ReferralCodeUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
 
@@ -1517,7 +1220,6 @@ export type UserCountOutputType = {
   albumInteractions: number
   playlistInteractions: number
   artistInteractions: number
-  referralCodesCreated: number
 }
 
 export type UserCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -1529,7 +1231,6 @@ export type UserCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.I
   albumInteractions?: boolean | UserCountOutputTypeCountAlbumInteractionsArgs
   playlistInteractions?: boolean | UserCountOutputTypeCountPlaylistInteractionsArgs
   artistInteractions?: boolean | UserCountOutputTypeCountArtistInteractionsArgs
-  referralCodesCreated?: boolean | UserCountOutputTypeCountReferralCodesCreatedArgs
 }
 
 /**
@@ -1598,13 +1299,6 @@ export type UserCountOutputTypeCountArtistInteractionsArgs<ExtArgs extends runti
   where?: Prisma.ArtistInteractionWhereInput
 }
 
-/**
- * UserCountOutputType without action
- */
-export type UserCountOutputTypeCountReferralCodesCreatedArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
-  where?: Prisma.ReferralCodeWhereInput
-}
-
 
 export type UserSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
@@ -1622,8 +1316,6 @@ export type UserSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = r
   albumInteractions?: boolean | Prisma.User$albumInteractionsArgs<ExtArgs>
   playlistInteractions?: boolean | Prisma.User$playlistInteractionsArgs<ExtArgs>
   artistInteractions?: boolean | Prisma.User$artistInteractionsArgs<ExtArgs>
-  referralCodesCreated?: boolean | Prisma.User$referralCodesCreatedArgs<ExtArgs>
-  referralCodeUsed?: boolean | Prisma.User$referralCodeUsedArgs<ExtArgs>
   _count?: boolean | Prisma.UserCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["user"]>
 
@@ -1667,8 +1359,6 @@ export type UserInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = 
   albumInteractions?: boolean | Prisma.User$albumInteractionsArgs<ExtArgs>
   playlistInteractions?: boolean | Prisma.User$playlistInteractionsArgs<ExtArgs>
   artistInteractions?: boolean | Prisma.User$artistInteractionsArgs<ExtArgs>
-  referralCodesCreated?: boolean | Prisma.User$referralCodesCreatedArgs<ExtArgs>
-  referralCodeUsed?: boolean | Prisma.User$referralCodeUsedArgs<ExtArgs>
   _count?: boolean | Prisma.UserCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type UserIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
@@ -1685,8 +1375,6 @@ export type $UserPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
     albumInteractions: Prisma.$AlbumInteractionPayload<ExtArgs>[]
     playlistInteractions: Prisma.$PlaylistInteractionPayload<ExtArgs>[]
     artistInteractions: Prisma.$ArtistInteractionPayload<ExtArgs>[]
-    referralCodesCreated: Prisma.$ReferralCodePayload<ExtArgs>[]
-    referralCodeUsed: Prisma.$ReferralCodePayload<ExtArgs> | null
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
@@ -2098,8 +1786,6 @@ export interface Prisma__UserClient<T, Null = never, ExtArgs extends runtime.Typ
   albumInteractions<T extends Prisma.User$albumInteractionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$albumInteractionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$AlbumInteractionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   playlistInteractions<T extends Prisma.User$playlistInteractionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$playlistInteractionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$PlaylistInteractionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   artistInteractions<T extends Prisma.User$artistInteractionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$artistInteractionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ArtistInteractionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
-  referralCodesCreated<T extends Prisma.User$referralCodesCreatedArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$referralCodesCreatedArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ReferralCodePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
-  referralCodeUsed<T extends Prisma.User$referralCodeUsedArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$referralCodeUsedArgs<ExtArgs>>): Prisma.Prisma__ReferralCodeClient<runtime.Types.Result.GetResult<Prisma.$ReferralCodePayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -2718,49 +2404,6 @@ export type User$artistInteractionsArgs<ExtArgs extends runtime.Types.Extensions
   take?: number
   skip?: number
   distinct?: Prisma.ArtistInteractionScalarFieldEnum | Prisma.ArtistInteractionScalarFieldEnum[]
-}
-
-/**
- * User.referralCodesCreated
- */
-export type User$referralCodesCreatedArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
-  /**
-   * Select specific fields to fetch from the ReferralCode
-   */
-  select?: Prisma.ReferralCodeSelect<ExtArgs> | null
-  /**
-   * Omit specific fields from the ReferralCode
-   */
-  omit?: Prisma.ReferralCodeOmit<ExtArgs> | null
-  /**
-   * Choose, which related nodes to fetch as well
-   */
-  include?: Prisma.ReferralCodeInclude<ExtArgs> | null
-  where?: Prisma.ReferralCodeWhereInput
-  orderBy?: Prisma.ReferralCodeOrderByWithRelationInput | Prisma.ReferralCodeOrderByWithRelationInput[]
-  cursor?: Prisma.ReferralCodeWhereUniqueInput
-  take?: number
-  skip?: number
-  distinct?: Prisma.ReferralCodeScalarFieldEnum | Prisma.ReferralCodeScalarFieldEnum[]
-}
-
-/**
- * User.referralCodeUsed
- */
-export type User$referralCodeUsedArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
-  /**
-   * Select specific fields to fetch from the ReferralCode
-   */
-  select?: Prisma.ReferralCodeSelect<ExtArgs> | null
-  /**
-   * Omit specific fields from the ReferralCode
-   */
-  omit?: Prisma.ReferralCodeOmit<ExtArgs> | null
-  /**
-   * Choose, which related nodes to fetch as well
-   */
-  include?: Prisma.ReferralCodeInclude<ExtArgs> | null
-  where?: Prisma.ReferralCodeWhereInput
 }
 
 /**

@@ -4,7 +4,6 @@ import { AdminService } from './admin.service.js';
 import { AlbumsModule } from '../albums/albums.module.js';
 import { ArtistsModule } from '../artists/artists.module.js';
 import { TracksModule } from '../tracks/tracks.module.js';
-import { ReferralCodeModule } from '../referral-code/referral-code.module.js';
 import { MulterModule } from '@nestjs/platform-express';
 import { ConfigService } from '@nestjs/config';
 import { diskStorage } from 'multer';
@@ -35,7 +34,6 @@ import { PrismaModule } from '../prisma/prisma.module.js';
     TracksModule,
     AlbumsModule,
     ArtistsModule,
-    ReferralCodeModule,
     PrismaModule,
   ],
   controllers: [AdminController],

@@ -43,7 +43,7 @@ export class AuthController {
   @Post('signup')
   @ApiCreatedResponse({ type: AuthTokensEntity })
   @ApiBadRequestResponse({
-    description: 'Invalid request body or referral code.',
+    description: 'Invalid request body.',
   })
   @ApiConflictResponse({ description: 'Email already registered.' })
   signup(@Body() signUpDto: SignUpDto): Promise<AuthTokensEntity> {

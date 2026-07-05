@@ -30,12 +30,6 @@ export class SignUpDto {
   @Matches(/[0-9]/, { message: 'Password must contain a number' })
   readonly password!: string;
 
-  @ApiProperty({ minLength: 8, maxLength: 8 })
-  @IsString()
-  @MinLength(8)
-  @MaxLength(8)
-  readonly referralCode!: string;
-
   @ApiProperty({ type: () => DeviceDto })
   @ValidateNested()
   @Type(() => DeviceDto)

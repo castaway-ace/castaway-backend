@@ -399,8 +399,7 @@ export const ModelName = {
   ArtistInteraction: 'ArtistInteraction',
   TrackAnnotation: 'TrackAnnotation',
   AlbumAnnotation: 'AlbumAnnotation',
-  ArtistAnnotation: 'ArtistAnnotation',
-  ReferralCode: 'ReferralCode'
+  ArtistAnnotation: 'ArtistAnnotation'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -416,7 +415,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "device" | "refreshToken" | "artist" | "album" | "albumArtist" | "track" | "trackArtist" | "playlist" | "playlistTrack" | "albumInteraction" | "playlistInteraction" | "artistInteraction" | "trackAnnotation" | "albumAnnotation" | "artistAnnotation" | "referralCode"
+    modelProps: "user" | "device" | "refreshToken" | "artist" | "album" | "albumArtist" | "track" | "trackArtist" | "playlist" | "playlistTrack" | "albumInteraction" | "playlistInteraction" | "artistInteraction" | "trackAnnotation" | "albumAnnotation" | "artistAnnotation"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1604,80 +1603,6 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
-    ReferralCode: {
-      payload: Prisma.$ReferralCodePayload<ExtArgs>
-      fields: Prisma.ReferralCodeFieldRefs
-      operations: {
-        findUnique: {
-          args: Prisma.ReferralCodeFindUniqueArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReferralCodePayload> | null
-        }
-        findUniqueOrThrow: {
-          args: Prisma.ReferralCodeFindUniqueOrThrowArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReferralCodePayload>
-        }
-        findFirst: {
-          args: Prisma.ReferralCodeFindFirstArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReferralCodePayload> | null
-        }
-        findFirstOrThrow: {
-          args: Prisma.ReferralCodeFindFirstOrThrowArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReferralCodePayload>
-        }
-        findMany: {
-          args: Prisma.ReferralCodeFindManyArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReferralCodePayload>[]
-        }
-        create: {
-          args: Prisma.ReferralCodeCreateArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReferralCodePayload>
-        }
-        createMany: {
-          args: Prisma.ReferralCodeCreateManyArgs<ExtArgs>
-          result: BatchPayload
-        }
-        createManyAndReturn: {
-          args: Prisma.ReferralCodeCreateManyAndReturnArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReferralCodePayload>[]
-        }
-        delete: {
-          args: Prisma.ReferralCodeDeleteArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReferralCodePayload>
-        }
-        update: {
-          args: Prisma.ReferralCodeUpdateArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReferralCodePayload>
-        }
-        deleteMany: {
-          args: Prisma.ReferralCodeDeleteManyArgs<ExtArgs>
-          result: BatchPayload
-        }
-        updateMany: {
-          args: Prisma.ReferralCodeUpdateManyArgs<ExtArgs>
-          result: BatchPayload
-        }
-        updateManyAndReturn: {
-          args: Prisma.ReferralCodeUpdateManyAndReturnArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReferralCodePayload>[]
-        }
-        upsert: {
-          args: Prisma.ReferralCodeUpsertArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReferralCodePayload>
-        }
-        aggregate: {
-          args: Prisma.ReferralCodeAggregateArgs<ExtArgs>
-          result: runtime.Types.Utils.Optional<Prisma.AggregateReferralCode>
-        }
-        groupBy: {
-          args: Prisma.ReferralCodeGroupByArgs<ExtArgs>
-          result: runtime.Types.Utils.Optional<Prisma.ReferralCodeGroupByOutputType>[]
-        }
-        count: {
-          args: Prisma.ReferralCodeCountArgs<ExtArgs>
-          result: runtime.Types.Utils.Optional<Prisma.ReferralCodeCountAggregateOutputType> | number
-        }
-      }
-    }
   }
 } & {
   other: {
@@ -1913,18 +1838,6 @@ export const ArtistAnnotationScalarFieldEnum = {
 export type ArtistAnnotationScalarFieldEnum = (typeof ArtistAnnotationScalarFieldEnum)[keyof typeof ArtistAnnotationScalarFieldEnum]
 
 
-export const ReferralCodeScalarFieldEnum = {
-  id: 'id',
-  code: 'code',
-  createdById: 'createdById',
-  usedById: 'usedById',
-  usedAt: 'usedAt',
-  createdAt: 'createdAt'
-} as const
-
-export type ReferralCodeScalarFieldEnum = (typeof ReferralCodeScalarFieldEnum)[keyof typeof ReferralCodeScalarFieldEnum]
-
-
 export const SortOrder = {
   asc: 'asc',
   desc: 'desc'
@@ -2157,7 +2070,6 @@ export type GlobalOmitConfig = {
   trackAnnotation?: Prisma.TrackAnnotationOmit
   albumAnnotation?: Prisma.AlbumAnnotationOmit
   artistAnnotation?: Prisma.ArtistAnnotationOmit
-  referralCode?: Prisma.ReferralCodeOmit
 }
 
 /* Types for Logging */
