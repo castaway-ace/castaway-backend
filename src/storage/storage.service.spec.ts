@@ -1,6 +1,7 @@
 import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
+  CreateBucketCommand,
   DeleteObjectCommand,
   GetObjectCommand,
   HeadBucketCommand,
@@ -260,6 +261,58 @@ describe('StorageService', () => {
         { bucket: 'album-art', healthy: false },
         { bucket: 'artist-image', healthy: true },
       ]);
+    });
+  });
+
+  describe('ensureBuckets', () => {
+    const createdBuckets = (): (string | undefined)[] =>
+      send.mock.calls
+        .map((call) => call[0])
+        .filter(
+          (c): c is CreateBucketCommand => c instanceof CreateBucketCommand,
+        )
+        .map((c) => c.input.Bucket);
+
+    it('creates every configured bucket that does not exist', async () => {
+      send.mockImplementation((command) =>
+        command instanceof HeadBucketCommand
+          ? Promise.reject(makeS3Error('NotFound', 404))
+          : Promise.resolve({}),
+      );
+
+      await storageService.ensureBuckets();
+
+      expect(createdBuckets()).toEqual(['tracks', 'album-art', 'artist-image']);
+    });
+
+    it('skips buckets that already exist', async () => {
+      send.mockResolvedValue({});
+
+      await storageService.ensureBuckets();
+
+      expect(createdBuckets()).toHaveLength(0);
+    });
+
+    it('ignores a lost create race (bucket already owned)', async () => {
+      send.mockImplementation((command) =>
+        command instanceof HeadBucketCommand
+          ? Promise.reject(makeS3Error('NotFound', 404))
+          : Promise.reject(makeS3Error('BucketAlreadyOwnedByYou', 409)),
+      );
+
+      await expect(storageService.ensureBuckets()).resolves.toBeUndefined();
+    });
+
+    it('rethrows unexpected errors from the head check', async () => {
+      send.mockImplementation((command) =>
+        command instanceof HeadBucketCommand
+          ? Promise.reject(makeS3Error('AccessDenied', 403))
+          : Promise.resolve({}),
+      );
+
+      await expect(storageService.ensureBuckets()).rejects.toThrow(
+        S3ServiceException,
+      );
     });
   });
 });

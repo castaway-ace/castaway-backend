@@ -9,6 +9,23 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    command: ["npx", "prisma", "migrate", "deploy"]
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
 
   app:
     build:
@@ -20,6 +37,7 @@ services:
     environment:
       - NODE_ENV=development
       - DATABASE_URL=${DATABASE_URL}
+      - UPLOAD_TMP_DIR=/mnt/data/castaway/tmp
       - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET}
       - JWT_ACCESS_EXPIRATION=${JWT_ACCESS_EXPIRATION}
       - JWT_REFRESH_EXPIRATION=${JWT_REFRESH_EXPIRATION}
@@ -37,12 +55,28 @@ services:
       - SWAGGER_USERNAME=${SWAGGER_USERNAME}
       - SWAGGER_PASSWORD=${SWAGGER_PASSWORD}
     depends_on:
-      - db
-      - storage
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      storage:
+        condition: service_started
     volumes:
       - .:/usr/src/app
       - /usr/src/app/node_modules
       - tmp:/mnt/data/castaway/tmp
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
 
   storage:
     image: minio/minio:RELEASE.2025-04-22T22-12-26Z
@@ -55,14 +89,15 @@ services:
     volumes:
       - storage_data:/data
     command: [ "server", "--console-address", ":9001", "/data" ]
-  
+
   cloudflared:
-    image: cloudflare/cloudflared:latest
+    image: cloudflare/cloudflared:2024.12.2
     command: tunnel --no-autoupdate run
     environment:
       - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
     depends_on:
-      - app
+      app:
+        condition: service_healthy
 
 volumes:
   db_data:

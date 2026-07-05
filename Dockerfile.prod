@@ -1,32 +1,47 @@
+# ---- Build stage: full deps, generate Prisma client, compile TS ----
 FROM node:22-alpine AS build
 
-# Working directory inside the container
 WORKDIR /usr/src/app
 
-# Copy package.json and package-lock.json
+# Install all dependencies (incl. devDependencies needed to build)
 COPY package*.json ./
-
-# Install dependencies
 RUN npm ci
 
-# Copy the application code
 COPY . .
 
-# Build the application
-RUN npm run build
 RUN npx prisma generate
+RUN npm run build
 
-# Production Stage
+# ---- Production dependencies only ----
+FROM node:22-alpine AS prod-deps
+
+WORKDIR /usr/src/app
+COPY package*.json ./
+RUN npm ci --omit=dev
+
+# ---- Production runtime ----
 FROM node:22-alpine AS production
 
-# Working directory inside the container
 WORKDIR /usr/src/app
+ENV NODE_ENV=production
 
+# Runtime deps (no devDependencies) + compiled app + Prisma assets
+COPY --from=prod-deps /usr/src/app/node_modules ./node_modules
 COPY --from=build /usr/src/app/dist ./dist
-COPY --from=build /usr/src/app/node_modules ./node_modules
 COPY --from=build /usr/src/app/prisma ./prisma
 COPY --from=build /usr/src/app/prisma.config.ts ./
 COPY package*.json ./
+
+# Upload scratch dir owned by the non-root runtime user. A fresh named volume
+# mounted here inherits this ownership, so uploads land on the volume.
+RUN mkdir -p /mnt/data/castaway/tmp && chown -R node:node /mnt/data/castaway
+
+# Drop root privileges.
+USER node
+
+# Liveness/readiness via the app's own aggregated health endpoint.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+  CMD node -e "fetch('http://localhost:'+(process.env.PORT||3000)+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 # Start the application
 CMD ["npm", "run", "start:prod"]

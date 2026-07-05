@@ -1,4 +1,5 @@
 import {
+  CreateBucketCommand,
   DeleteObjectCommand,
   GetObjectCommand,
   GetObjectCommandOutput,
@@ -12,6 +13,7 @@ import {
   InternalServerErrorException,
   Logger,
   NotFoundException,
+  OnApplicationBootstrap,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { StorageBucket } from './storage.types.js';
@@ -19,6 +21,8 @@ import { Readable } from 'stream';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 const PRESIGNED_URL_TTL_SECONDS = 3600;
+const BUCKET_ENSURE_MAX_ATTEMPTS = 10;
+const BUCKET_ENSURE_RETRY_DELAY_MS = 2000;
 
 interface StorageConfig {
   endpoint: string;
@@ -49,7 +53,7 @@ export interface ObjectStreamResult {
 }
 
 @Injectable()
-export class StorageService {
+export class StorageService implements OnApplicationBootstrap {
   private readonly logger = new Logger(StorageService.name);
   private readonly client: S3Client;
   private readonly preSignedClient: S3Client;
@@ -168,6 +172,58 @@ export class StorageService {
     }
   }
 
+  /**
+   * Ensure the required buckets exist once the app has started. Retries to
+   * absorb MinIO/S3 startup lag; on final failure it logs and lets the app
+   * start anyway (the /health check reports storage status).
+   */
+  async onApplicationBootstrap(): Promise<void> {
+    for (let attempt = 1; attempt <= BUCKET_ENSURE_MAX_ATTEMPTS; attempt++) {
+      try {
+        await this.ensureBuckets();
+        return;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        if (attempt === BUCKET_ENSURE_MAX_ATTEMPTS) {
+          this.logger.error(
+            `Could not ensure storage buckets after ${attempt} attempts: ${message}. ` +
+              `Continuing startup; /health will report storage status.`,
+          );
+          return;
+        }
+        this.logger.warn(
+          `Storage not ready (attempt ${attempt}/${BUCKET_ENSURE_MAX_ATTEMPTS}): ${message}; ` +
+            `retrying in ${BUCKET_ENSURE_RETRY_DELAY_MS}ms`,
+        );
+        await this.delay(BUCKET_ENSURE_RETRY_DELAY_MS);
+      }
+    }
+  }
+
+  /** Creates any of the configured buckets that don't already exist. */
+  async ensureBuckets(): Promise<void> {
+    for (const bucket of this.storageConfig.buckets) {
+      await this.ensureBucket(bucket);
+    }
+  }
+
+  private async ensureBucket(bucket: string): Promise<void> {
+    try {
+      await this.client.send(new HeadBucketCommand({ Bucket: bucket }));
+      return;
+    } catch (err) {
+      if (!this.isNotFound(err)) throw err;
+    }
+
+    try {
+      await this.client.send(new CreateBucketCommand({ Bucket: bucket }));
+      this.logger.log(`Created storage bucket "${bucket}"`);
+    } catch (err) {
+      if (this.isBucketAlreadyOwned(err)) return;
+      throw err;
+    }
+  }
+
   async checkBuckets(): Promise<BucketHealth[]> {
     return Promise.all(
       this.storageConfig.buckets.map((bucket) => this.checkBucket(bucket)),
@@ -212,6 +268,18 @@ export class StorageService {
         err.name === 'NoSuchKey' ||
         err.$metadata?.httpStatusCode === 404)
     );
+  }
+
+  private isBucketAlreadyOwned(err: unknown): boolean {
+    return (
+      err instanceof S3ServiceException &&
+      (err.name === 'BucketAlreadyOwnedByYou' ||
+        err.name === 'BucketAlreadyExists')
+    );
+  }
+
+  private delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   private loadStorageConfig(configService: ConfigService): StorageConfig {
