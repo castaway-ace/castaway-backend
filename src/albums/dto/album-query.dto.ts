@@ -4,6 +4,7 @@ import {
   IsBoolean,
   IsIn,
   IsInt,
+  IsUUID,
   Min,
   Max,
   MaxLength,
@@ -29,7 +30,7 @@ export interface AlbumSortOptions {
 export class AlbumQueryDto {
   @ApiPropertyOptional({ type: [String], format: 'uuid' })
   @IsOptional()
-  @IsString({ each: true })
+  @IsUUID('all', { each: true })
   @ToStringArray()
   artistIds?: string[];
 

@@ -6,6 +6,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -26,12 +27,15 @@ import { Public } from './decorators/public.decorator.js';
 
 @Controller('auth')
 @ApiTags('Auth')
+@UseGuards(ThrottlerGuard)
+@Throttle({ default: { limit: 10, ttl: 60_000 } })
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Public()
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @ApiOkResponse({ type: AuthTokensEntity })
   @ApiBadRequestResponse({ description: 'Invalid request body.' })
   @ApiUnauthorizedResponse({ description: 'Invalid credentials.' })
@@ -41,6 +45,7 @@ export class AuthController {
 
   @Public()
   @Post('signup')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @ApiCreatedResponse({ type: AuthTokensEntity })
   @ApiBadRequestResponse({
     description: 'Invalid request body.',

@@ -102,6 +102,11 @@ describe('PlaylistsService', () => {
     track: {
       findUnique: jest.fn<() => Promise<{ id: string } | null>>(),
     },
+    $queryRaw: jest.fn<() => Promise<unknown>>(),
+    $transaction:
+      jest.fn<
+        (cb: (client: unknown) => Promise<unknown>) => Promise<unknown>
+      >(),
   };
 
   const mockAlbumService = {
@@ -112,6 +117,10 @@ describe('PlaylistsService', () => {
     jest.clearAllMocks();
     mockAlbumService.findAlbumCoverMap.mockResolvedValue(
       new Map([['album-1', 'https://cdn/album-1.jpg']]),
+    );
+    mockPrismaService.$queryRaw.mockResolvedValue([]);
+    mockPrismaService.$transaction.mockImplementation((cb) =>
+      cb(mockPrismaService),
     );
 
     const module: TestingModule = await Test.createTestingModule({

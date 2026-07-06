@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { ScheduleModule } from '@nestjs/schedule';
 import { HealthModule } from './health/health.module.js';
 import { UsersModule } from './users/users.module.js';
 import { AuthModule } from './auth/auth.module.js';
@@ -18,6 +20,8 @@ import { PrismaModule } from './prisma/prisma.module.js';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 20 }]),
+    ScheduleModule.forRoot(),
     PrismaModule,
     HealthModule,
     UsersModule,

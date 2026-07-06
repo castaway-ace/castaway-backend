@@ -171,6 +171,13 @@ describe('TracksController', () => {
         pagination: { limit: 50, offset: 20 },
       });
     });
+
+    it('rejects a non-UUID artistIds filter with 400', async () => {
+      await request(app.getHttpServer())
+        .get('/tracks?artistIds=not-a-uuid')
+        .expect(400);
+      expect(tracksService.findAll).not.toHaveBeenCalled();
+    });
   });
 
   describe('GET /tracks/:id/stream', () => {

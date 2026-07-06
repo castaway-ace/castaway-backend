@@ -8,6 +8,7 @@ import {
 import request from 'supertest';
 import { App } from 'supertest/types.js';
 import { MockMetadata, ModuleMocker } from 'jest-mock';
+import { ThrottlerGuard } from '@nestjs/throttler';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 import { AuthGuard } from './guards/auth.guard.js';
@@ -59,6 +60,12 @@ describe('AuthController', () => {
         }
       })
       .overrideGuard(AuthGuard)
+      .useValue({
+        canActivate: (): boolean => {
+          return true;
+        },
+      })
+      .overrideGuard(ThrottlerGuard)
       .useValue({
         canActivate: (): boolean => {
           return true;

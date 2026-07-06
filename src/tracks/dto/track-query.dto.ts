@@ -4,6 +4,7 @@ import {
   IsBoolean,
   IsIn,
   IsInt,
+  IsUUID,
   Min,
   Max,
   MaxLength,
@@ -29,13 +30,13 @@ export interface TrackOrderOptions {
 export class TrackQueryDto {
   @ApiPropertyOptional({ type: [String], format: 'uuid' })
   @IsOptional()
-  @IsString({ each: true })
+  @IsUUID('all', { each: true })
   @ToStringArray()
   artistIds?: string[];
 
   @ApiPropertyOptional({ type: [String], format: 'uuid' })
   @IsOptional()
-  @IsString({ each: true })
+  @IsUUID('all', { each: true })
   @ToStringArray()
   albumIds?: string[];
 

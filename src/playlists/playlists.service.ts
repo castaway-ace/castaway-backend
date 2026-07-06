@@ -197,8 +197,22 @@ export class PlaylistsService {
     trackId: string,
     tx?: Prisma.TransactionClient,
   ): Promise<void> {
-    const client = tx ?? this.prisma;
-    const playlist = await this.findPlaylistRecord(playlist_id, tx);
+    if (tx) {
+      return this.addTrackWithClient(userId, playlist_id, trackId, tx);
+    }
+
+    return this.prisma.$transaction((client) =>
+      this.addTrackWithClient(userId, playlist_id, trackId, client),
+    );
+  }
+
+  private async addTrackWithClient(
+    userId: string,
+    playlist_id: string,
+    trackId: string,
+    client: Prisma.TransactionClient,
+  ): Promise<void> {
+    const playlist = await this.findPlaylistRecord(playlist_id, client);
 
     if (playlist.ownerId !== userId) {
       throw new NotFoundException('Playlist not found');
@@ -212,6 +226,8 @@ export class PlaylistsService {
     if (!track) {
       throw new NotFoundException('Track not found');
     }
+
+    await client.$queryRaw`SELECT id FROM playlists WHERE id = ${playlist.id}::uuid FOR UPDATE`;
 
     const lastPlaylistTrack = await client.playlistTrack.findFirst({
       where: { playlistId: playlist.id },

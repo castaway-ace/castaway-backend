@@ -46,6 +46,10 @@ describe('RefreshTokenService', () => {
     jest.fn<
       (args: Prisma.RefreshTokenUpdateManyArgs) => Promise<{ count: number }>
     >();
+  const deleteMany =
+    jest.fn<
+      (args: Prisma.RefreshTokenDeleteManyArgs) => Promise<{ count: number }>
+    >();
 
   const claimUpdateMany = jest.fn<() => Promise<{ count: number }>>();
   const claimCreate = jest.fn<() => Promise<{ id: string }>>();
@@ -91,7 +95,11 @@ describe('RefreshTokenService', () => {
         {
           provide: PrismaService,
           useValue: {
-            refreshToken: { findUnique, updateMany: revokeUpdateMany },
+            refreshToken: {
+              findUnique,
+              updateMany: revokeUpdateMany,
+              deleteMany,
+            },
             $transaction,
           },
         },
@@ -114,6 +122,20 @@ describe('RefreshTokenService', () => {
     await expect(refreshTokenService.rotate('raw')).rejects.toThrow(
       'Invalid refresh token',
     );
+  });
+
+  it('prunes expired and long-invalidated tokens', async () => {
+    deleteMany.mockResolvedValue({ count: 3 });
+
+    const count = await refreshTokenService.pruneExpiredTokens();
+
+    expect(count).toBe(3);
+    expect(deleteMany).toHaveBeenCalledTimes(1);
+    const where = deleteMany.mock.calls[0][0].where as unknown as {
+      OR: { expiresAt?: { lt: Date }; invalidatedAt?: { lt: Date } }[];
+    };
+    expect(where.OR[0].expiresAt?.lt).toBeInstanceOf(Date);
+    expect(where.OR[1].invalidatedAt?.lt).toBeInstanceOf(Date);
   });
 
   it('throws an Expired error when the refresh token has expired', async () => {

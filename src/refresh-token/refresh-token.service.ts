@@ -1,4 +1,5 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -23,8 +24,11 @@ interface IssuedTokens {
   refreshExpiresAt: Date;
 }
 
+const INVALIDATED_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+
 @Injectable()
 export class RefreshTokenService {
+  private readonly logger = new Logger(RefreshTokenService.name);
   private readonly jwtConfig: JwtConfig;
 
   constructor(
@@ -171,6 +175,29 @@ export class RefreshTokenService {
       where: { familyId, invalidatedAt: null },
       data: { invalidatedAt: new Date() },
     });
+  }
+
+  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
+  async pruneExpiredTokens(): Promise<number> {
+    const now = new Date();
+    const invalidatedCutoff = new Date(
+      now.getTime() - INVALIDATED_RETENTION_MS,
+    );
+
+    const { count } = await this.prisma.refreshToken.deleteMany({
+      where: {
+        OR: [
+          { expiresAt: { lt: now } },
+          { invalidatedAt: { lt: invalidatedCutoff } },
+        ],
+      },
+    });
+
+    if (count > 0) {
+      this.logger.log(`Pruned ${count} stale refresh token(s)`);
+    }
+
+    return count;
   }
 
   private hashToken(token: string): string {
