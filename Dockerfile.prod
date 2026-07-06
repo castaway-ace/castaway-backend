@@ -1,5 +1,7 @@
+FROM node:24-alpine AS base
+
 # ---- Build stage: full deps, generate Prisma client, compile TS ----
-FROM node:22-alpine AS build
+FROM base AS build
 
 WORKDIR /usr/src/app
 
@@ -13,14 +15,14 @@ RUN npx prisma generate
 RUN npm run build
 
 # ---- Production dependencies only ----
-FROM node:22-alpine AS prod-deps
+FROM base AS prod-deps
 
 WORKDIR /usr/src/app
 COPY package*.json ./
 RUN npm ci --omit=dev
 
 # ---- Production runtime ----
-FROM node:22-alpine AS production
+FROM node:24-alpine AS production
 
 WORKDIR /usr/src/app
 ENV NODE_ENV=production
