@@ -52,6 +52,7 @@ export const AnyNull = runtime.AnyNull
 
 export const ModelName = {
   User: 'User',
+  EmailWhitelist: 'EmailWhitelist',
   Device: 'Device',
   RefreshToken: 'RefreshToken',
   Artist: 'Artist',
@@ -96,6 +97,17 @@ export const UserScalarFieldEnum = {
 } as const
 
 export type UserScalarFieldEnum = (typeof UserScalarFieldEnum)[keyof typeof UserScalarFieldEnum]
+
+
+export const EmailWhitelistScalarFieldEnum = {
+  id: 'id',
+  email: 'email',
+  note: 'note',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type EmailWhitelistScalarFieldEnum = (typeof EmailWhitelistScalarFieldEnum)[keyof typeof EmailWhitelistScalarFieldEnum]
 
 
 export const DeviceScalarFieldEnum = {

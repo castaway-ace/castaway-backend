@@ -6,6 +6,7 @@ import { RefreshTokenWithDevice } from './refresh-token.types.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { UsersService } from '../users/users.service.js';
+import { WhitelistService } from '../whitelist/whitelist.service.js';
 import { JwtService } from '@nestjs/jwt';
 
 const configValues: Readonly<Record<string, unknown>> = {
@@ -59,7 +60,11 @@ describe('RefreshTokenService', () => {
   const signAsync = jest.fn<JwtService['signAsync']>();
 
   const findById =
-    jest.fn<() => Promise<{ id: string; isAdmin: boolean } | null>>();
+    jest.fn<
+      () => Promise<{ id: string; email: string; isAdmin: boolean } | null>
+    >();
+
+  const isWhitelisted = jest.fn<WhitelistService['isWhitelisted']>();
 
   type TxClient = {
     refreshToken: {
@@ -88,6 +93,7 @@ describe('RefreshTokenService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    isWhitelisted.mockResolvedValue(true);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -104,6 +110,7 @@ describe('RefreshTokenService', () => {
           },
         },
         { provide: UsersService, useValue: { findById } },
+        { provide: WhitelistService, useValue: { isWhitelisted } },
         { provide: JwtService, useValue: { signAsync } },
         {
           provide: ConfigService,
@@ -171,7 +178,11 @@ describe('RefreshTokenService', () => {
 
   it('rejects a lost concurrent claim without revoking the family', async () => {
     findUnique.mockResolvedValue(makeMockDevice());
-    findById.mockResolvedValue({ id: 'user-1', isAdmin: false });
+    findById.mockResolvedValue({
+      id: 'user-1',
+      email: 'a@b.com',
+      isAdmin: false,
+    });
     signAsync.mockResolvedValue('access-user-1');
     claimUpdateMany.mockResolvedValue({ count: 0 });
 
@@ -181,9 +192,28 @@ describe('RefreshTokenService', () => {
     expect(revokeUpdateMany).not.toHaveBeenCalled();
   });
 
+  it('rejects rotation when the user is no longer whitelisted', async () => {
+    findUnique.mockResolvedValue(makeMockDevice());
+    findById.mockResolvedValue({
+      id: 'user-1',
+      email: 'a@b.com',
+      isAdmin: false,
+    });
+    isWhitelisted.mockResolvedValue(false);
+
+    await expect(refreshTokenService.rotate('raw')).rejects.toThrow(
+      'Access has been revoked',
+    );
+    expect(claimUpdateMany).not.toHaveBeenCalled();
+  });
+
   it('rotates successfully', async () => {
     findUnique.mockResolvedValue(makeMockDevice());
-    findById.mockResolvedValue({ id: 'user-1', isAdmin: false });
+    findById.mockResolvedValue({
+      id: 'user-1',
+      email: 'a@b.com',
+      isAdmin: false,
+    });
     claimUpdateMany.mockResolvedValue({ count: 1 });
     claimCreate.mockResolvedValue({ id: 'rt-2' });
     claimUpdate.mockResolvedValue(undefined);

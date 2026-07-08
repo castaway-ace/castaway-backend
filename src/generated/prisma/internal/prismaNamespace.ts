@@ -385,6 +385,7 @@ type FieldRefInputType<Model, FieldType> = Model extends never ? never : FieldRe
 
 export const ModelName = {
   User: 'User',
+  EmailWhitelist: 'EmailWhitelist',
   Device: 'Device',
   RefreshToken: 'RefreshToken',
   Artist: 'Artist',
@@ -415,7 +416,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "device" | "refreshToken" | "artist" | "album" | "albumArtist" | "track" | "trackArtist" | "playlist" | "playlistTrack" | "albumInteraction" | "playlistInteraction" | "artistInteraction" | "trackAnnotation" | "albumAnnotation" | "artistAnnotation"
+    modelProps: "user" | "emailWhitelist" | "device" | "refreshToken" | "artist" | "album" | "albumArtist" | "track" | "trackArtist" | "playlist" | "playlistTrack" | "albumInteraction" | "playlistInteraction" | "artistInteraction" | "trackAnnotation" | "albumAnnotation" | "artistAnnotation"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -490,6 +491,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         count: {
           args: Prisma.UserCountArgs<ExtArgs>
           result: runtime.Types.Utils.Optional<Prisma.UserCountAggregateOutputType> | number
+        }
+      }
+    }
+    EmailWhitelist: {
+      payload: Prisma.$EmailWhitelistPayload<ExtArgs>
+      fields: Prisma.EmailWhitelistFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.EmailWhitelistFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$EmailWhitelistPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.EmailWhitelistFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$EmailWhitelistPayload>
+        }
+        findFirst: {
+          args: Prisma.EmailWhitelistFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$EmailWhitelistPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.EmailWhitelistFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$EmailWhitelistPayload>
+        }
+        findMany: {
+          args: Prisma.EmailWhitelistFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$EmailWhitelistPayload>[]
+        }
+        create: {
+          args: Prisma.EmailWhitelistCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$EmailWhitelistPayload>
+        }
+        createMany: {
+          args: Prisma.EmailWhitelistCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.EmailWhitelistCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$EmailWhitelistPayload>[]
+        }
+        delete: {
+          args: Prisma.EmailWhitelistDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$EmailWhitelistPayload>
+        }
+        update: {
+          args: Prisma.EmailWhitelistUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$EmailWhitelistPayload>
+        }
+        deleteMany: {
+          args: Prisma.EmailWhitelistDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.EmailWhitelistUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.EmailWhitelistUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$EmailWhitelistPayload>[]
+        }
+        upsert: {
+          args: Prisma.EmailWhitelistUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$EmailWhitelistPayload>
+        }
+        aggregate: {
+          args: Prisma.EmailWhitelistAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateEmailWhitelist>
+        }
+        groupBy: {
+          args: Prisma.EmailWhitelistGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.EmailWhitelistGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.EmailWhitelistCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.EmailWhitelistCountAggregateOutputType> | number
         }
       }
     }
@@ -1655,6 +1730,17 @@ export const UserScalarFieldEnum = {
 export type UserScalarFieldEnum = (typeof UserScalarFieldEnum)[keyof typeof UserScalarFieldEnum]
 
 
+export const EmailWhitelistScalarFieldEnum = {
+  id: 'id',
+  email: 'email',
+  note: 'note',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type EmailWhitelistScalarFieldEnum = (typeof EmailWhitelistScalarFieldEnum)[keyof typeof EmailWhitelistScalarFieldEnum]
+
+
 export const DeviceScalarFieldEnum = {
   id: 'id',
   userId: 'userId',
@@ -2055,6 +2141,7 @@ export type PrismaClientOptions = ({
 }
 export type GlobalOmitConfig = {
   user?: Prisma.UserOmit
+  emailWhitelist?: Prisma.EmailWhitelistOmit
   device?: Prisma.DeviceOmit
   refreshToken?: Prisma.RefreshTokenOmit
   artist?: Prisma.ArtistOmit

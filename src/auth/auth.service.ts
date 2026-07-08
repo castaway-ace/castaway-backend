@@ -1,10 +1,15 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import * as argon2 from 'argon2';
 import { UsersService } from '../users/users.service.js';
 import { RefreshTokenService } from '../refresh-token/refresh-token.service.js';
 import { DeviceService } from '../device/device.service.js';
 import { DeviceDto } from '../device/dto/device.dto.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { WhitelistService } from '../whitelist/whitelist.service.js';
 import { PlaylistType } from '../generated/prisma/client.js';
 import { User, userSelect } from '../users/users.types.js';
 import { SignUpDto } from './dto/sign-up.dto.js';
@@ -18,6 +23,7 @@ export class AuthService {
     private readonly refreshTokensService: RefreshTokenService,
     private readonly devicesService: DeviceService,
     private readonly prisma: PrismaService,
+    private readonly whitelistService: WhitelistService,
   ) {}
 
   async login(loginDto: LoginDto): Promise<AuthTokensEntity> {
@@ -29,11 +35,19 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    if (!user.isAdmin && !(await this.whitelistService.isWhitelisted(email))) {
+      throw new ForbiddenException('Access has been revoked');
+    }
+
     return this.issueTokensForDevice(user, deviceInfo);
   }
 
   async signUp(signUpDto: SignUpDto): Promise<AuthTokensEntity> {
     const { email, userName, password, deviceInfo } = signUpDto;
+
+    if (!(await this.whitelistService.isWhitelisted(email))) {
+      throw new ForbiddenException('Email is not permitted to register');
+    }
 
     const passwordHash = await argon2.hash(password);
 

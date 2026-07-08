@@ -7,9 +7,16 @@ import { RefreshTokenModule } from '../refresh-token/refresh-token.module.js';
 import { APP_GUARD } from '@nestjs/core';
 import { AuthGuard } from './guards/auth.guard.js';
 import { JwtModule } from '@nestjs/jwt';
+import { WhitelistModule } from '../whitelist/whitelist.module.js';
 
 @Module({
-  imports: [JwtModule, UsersModule, DeviceModule, RefreshTokenModule],
+  imports: [
+    JwtModule,
+    UsersModule,
+    DeviceModule,
+    RefreshTokenModule,
+    WhitelistModule,
+  ],
   controllers: [AuthController],
   providers: [
     AuthService,

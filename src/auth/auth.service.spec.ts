@@ -1,12 +1,13 @@
 import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
-import { UnauthorizedException } from '@nestjs/common';
+import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import * as argon2 from 'argon2';
 import { AuthService } from './auth.service.js';
 import { UsersService } from '../users/users.service.js';
 import { RefreshTokenService } from '../refresh-token/refresh-token.service.js';
 import { DeviceService } from '../device/device.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { WhitelistService } from '../whitelist/whitelist.service.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { AuthTokensEntity } from './entities/auth-tokens.entity.js';
 import { User, UserWithPassword } from '../users/users.types.js';
@@ -74,6 +75,10 @@ describe('AuthService', () => {
     findOrCreate: jest.fn<() => Promise<{ id: string }>>(),
   };
 
+  const whitelistService = {
+    isWhitelisted: jest.fn<WhitelistService['isWhitelisted']>(),
+  };
+
   const txMock: TxMock = {
     user: { create: txUserCreate },
     playlist: { create: txPlaylistCreate },
@@ -94,6 +99,7 @@ describe('AuthService', () => {
     refreshTokensService.issueForDevice.mockResolvedValue(tokens);
     refreshTokensService.rotate.mockResolvedValue(tokens);
     devicesService.findOrCreate.mockResolvedValue({ id: 'dev-1' });
+    whitelistService.isWhitelisted.mockResolvedValue(true);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -102,6 +108,7 @@ describe('AuthService', () => {
         { provide: RefreshTokenService, useValue: refreshTokensService },
         { provide: DeviceService, useValue: devicesService },
         { provide: PrismaService, useValue: prismaService },
+        { provide: WhitelistService, useValue: whitelistService },
       ],
     }).compile();
 
@@ -147,6 +154,33 @@ describe('AuthService', () => {
 
       expect(refreshTokensService.issueForDevice).not.toHaveBeenCalled();
     });
+
+    it('rejects a non-whitelisted user even with valid credentials', async () => {
+      const stored: UserWithPassword = { ...userRecord, passwordHash };
+      usersService.findByEmail.mockResolvedValue(stored);
+      whitelistService.isWhitelisted.mockResolvedValue(false);
+
+      await expect(authService.login(loginDto)).rejects.toThrow(
+        ForbiddenException,
+      );
+
+      expect(refreshTokensService.issueForDevice).not.toHaveBeenCalled();
+    });
+
+    it('lets an admin log in even when not whitelisted', async () => {
+      const stored: UserWithPassword = {
+        ...userRecord,
+        isAdmin: true,
+        passwordHash,
+      };
+      usersService.findByEmail.mockResolvedValue(stored);
+      whitelistService.isWhitelisted.mockResolvedValue(false);
+
+      const result = await authService.login(loginDto);
+
+      expect(result).toEqual(tokens);
+      expect(whitelistService.isWhitelisted).not.toHaveBeenCalled();
+    });
   });
 
   describe('signUp', () => {
@@ -177,6 +211,17 @@ describe('AuthService', () => {
       txUserCreate.mockRejectedValue(failure);
 
       await expect(authService.signUp(signUpDto)).rejects.toBe(failure);
+    });
+
+    it('rejects a non-whitelisted email before creating the user', async () => {
+      whitelistService.isWhitelisted.mockResolvedValue(false);
+
+      await expect(authService.signUp(signUpDto)).rejects.toThrow(
+        ForbiddenException,
+      );
+
+      expect(txUserCreate).not.toHaveBeenCalled();
+      expect(refreshTokensService.issueForDevice).not.toHaveBeenCalled();
     });
   });
 

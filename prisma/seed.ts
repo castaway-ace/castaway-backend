@@ -26,6 +26,14 @@ async function main() {
     },
   });
 
+  // Admins bypass the whitelist, but list the admin email so it shows up in the
+  // admin UI alongside the emails they manage.
+  await prisma.emailWhitelist.upsert({
+    where: { email: email.toLowerCase() },
+    update: {},
+    create: { email: email.toLowerCase(), note: 'Seeded admin' },
+  });
+
   const likedPlaylist = await prisma.playlist.findFirst({
     where: { ownerId: user.id, type: PlaylistType.LIKED },
     select: { id: true },

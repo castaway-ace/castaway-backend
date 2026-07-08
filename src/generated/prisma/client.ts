@@ -45,6 +45,11 @@ export { Prisma }
  */
 export type User = Prisma.UserModel
 /**
+ * Model EmailWhitelist
+ * 
+ */
+export type EmailWhitelist = Prisma.EmailWhitelistModel
+/**
  * Model Device
  * 
  */

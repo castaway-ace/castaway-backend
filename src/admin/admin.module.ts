@@ -9,7 +9,6 @@ import { ConfigService } from '@nestjs/config';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { randomUUID } from 'crypto';
-import { PrismaModule } from '../prisma/prisma.module.js';
 
 @Module({
   imports: [
@@ -34,7 +33,6 @@ import { PrismaModule } from '../prisma/prisma.module.js';
     TracksModule,
     AlbumsModule,
     ArtistsModule,
-    PrismaModule,
   ],
   controllers: [AdminController],
   providers: [AdminService],

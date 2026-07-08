@@ -9,6 +9,7 @@ import { createHash, randomBytes, randomUUID } from 'crypto';
 import { UsersService } from '../users/users.service.js';
 import { AuthTokensEntity } from '../auth/entities/auth-tokens.entity.js';
 import { TokenPayload } from './refresh-token.types.js';
+import { WhitelistService } from '../whitelist/whitelist.service.js';
 
 interface JwtConfig {
   accessSecret: string;
@@ -36,6 +37,7 @@ export class RefreshTokenService {
     private readonly prisma: PrismaService,
     private readonly userService: UsersService,
     private readonly configService: ConfigService,
+    private readonly whitelistService: WhitelistService,
   ) {
     this.jwtConfig = this.loadJwtConfig(configService);
   }
@@ -68,6 +70,13 @@ export class RefreshTokenService {
     const user = await this.userService.findById(
       existingRefreshToken.device.userId,
     );
+
+    if (
+      !user.isAdmin &&
+      !(await this.whitelistService.isWhitelisted(user.email))
+    ) {
+      throw new UnauthorizedException('Access has been revoked');
+    }
 
     const issued = await this.generateTokens({
       sub: user.id,

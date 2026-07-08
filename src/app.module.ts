@@ -16,6 +16,7 @@ import { DeviceModule } from './device/device.module.js';
 import { RefreshTokenModule } from './refresh-token/refresh-token.module.js';
 import { InteractionsModule } from './interactions/interactions.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
+import { WhitelistModule } from './whitelist/whitelist.module.js';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
     StorageModule,
     RefreshTokenModule,
     InteractionsModule,
+    WhitelistModule,
   ],
 })
 export class AppModule {}
