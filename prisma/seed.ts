@@ -1,6 +1,7 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import * as argon2 from 'argon2';
 import { PlaylistType, PrismaClient } from '../src/generated/prisma/client.js';
+import { VARIOUS_ARTISTS_NAME } from '../src/common/constants.js';
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!,
@@ -32,6 +33,12 @@ async function main() {
     where: { email: email.toLowerCase() },
     update: {},
     create: { email: email.toLowerCase(), note: 'Seeded admin' },
+  });
+
+  await prisma.artist.upsert({
+    where: { name: VARIOUS_ARTISTS_NAME },
+    update: {},
+    create: { name: VARIOUS_ARTISTS_NAME },
   });
 
   const likedPlaylist = await prisma.playlist.findFirst({

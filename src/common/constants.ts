@@ -1,3 +1,5 @@
+export const VARIOUS_ARTISTS_NAME = 'Various Artists';
+
 export const mimeToSuffix: Record<string, string> = {
   'audio/flac': 'flac',
   'audio/x-flac': 'flac',
