@@ -62,7 +62,7 @@ services:
       storage:
         condition: service_started
     volumes:
-      - tmp:/mnt/data/castaway/tmp
+      - /mnt/data/castaway/tmp:/mnt/data/castaway/tmp
 
   storage:
     image: minio/minio:RELEASE.2025-04-22T22-12-26Z
@@ -83,6 +83,3 @@ services:
     depends_on:
       app:
         condition: service_healthy
-
-volumes:
-  tmp:
