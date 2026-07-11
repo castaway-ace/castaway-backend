@@ -19,10 +19,15 @@ import { ConfigService } from '@nestjs/config';
 import { StorageBucket } from './storage.types.js';
 import { Readable } from 'stream';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { NodeHttpHandler } from '@smithy/node-http-handler';
+import { Agent as HttpAgent } from 'http';
+import { Agent as HttpsAgent } from 'https';
 
 const PRESIGNED_URL_TTL_SECONDS = 3600;
 const BUCKET_ENSURE_MAX_ATTEMPTS = 10;
 const BUCKET_ENSURE_RETRY_DELAY_MS = 2000;
+
+const DEFAULT_MAX_SOCKETS = 200;
 
 interface StorageConfig {
   endpoint: string;
@@ -31,6 +36,7 @@ interface StorageConfig {
   accessKey: string;
   secretKey: string;
   buckets: string[];
+  maxSockets: number;
 }
 
 export interface BucketHealth {
@@ -244,6 +250,7 @@ export class StorageService implements OnApplicationBootstrap {
   }
 
   private createClient(endpoint: string): S3Client {
+    const { maxSockets } = this.storageConfig;
     return new S3Client({
       endpoint,
       region: this.storageConfig.region,
@@ -252,6 +259,10 @@ export class StorageService implements OnApplicationBootstrap {
         secretAccessKey: this.storageConfig.secretKey,
       },
       forcePathStyle: true,
+      requestHandler: new NodeHttpHandler({
+        httpAgent: new HttpAgent({ keepAlive: true, maxSockets }),
+        httpsAgent: new HttpsAgent({ keepAlive: true, maxSockets }),
+      }),
     });
   }
 
@@ -318,6 +329,24 @@ export class StorageService implements OnApplicationBootstrap {
       accessKey,
       secretKey,
       buckets: [tracksBucket, albumArtBucket, artistImageBucket],
+      maxSockets: this.parseMaxSockets(
+        configService.get<string>('STORAGE_MAX_SOCKETS'),
+      ),
     };
+  }
+
+  private parseMaxSockets(raw: string | undefined): number {
+    if (raw === undefined || raw === '') {
+      return DEFAULT_MAX_SOCKETS;
+    }
+
+    const value = Number(raw);
+    if (!Number.isInteger(value) || value <= 0) {
+      throw new Error(
+        `Invalid STORAGE_MAX_SOCKETS "${raw}": expected a positive integer`,
+      );
+    }
+
+    return value;
   }
 }

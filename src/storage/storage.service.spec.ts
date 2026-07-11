@@ -264,6 +264,51 @@ describe('StorageService', () => {
     });
   });
 
+  describe('maxSockets configuration', () => {
+    const buildService = async (
+      overrides: Record<string, unknown>,
+    ): Promise<StorageService> => {
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          StorageService,
+          {
+            provide: ConfigService,
+            useValue: {
+              get: jest.fn(
+                (key: string): unknown =>
+                  ({ ...configValues, ...overrides })[key],
+              ),
+            },
+          },
+        ],
+      }).compile();
+      return module.get(StorageService);
+    };
+
+    const resolvedMaxSockets = (service: StorageService): number =>
+      (service as unknown as { storageConfig: { maxSockets: number } })
+        .storageConfig.maxSockets;
+
+    it('defaults to 200 sockets when STORAGE_MAX_SOCKETS is unset', async () => {
+      const service = await buildService({});
+      expect(resolvedMaxSockets(service)).toBe(200);
+    });
+
+    it('honors a valid STORAGE_MAX_SOCKETS override', async () => {
+      const service = await buildService({ STORAGE_MAX_SOCKETS: '500' });
+      expect(resolvedMaxSockets(service)).toBe(500);
+    });
+
+    it.each(['abc', '0', '-5', '2.5'])(
+      'rejects a non-positive-integer STORAGE_MAX_SOCKETS (%s)',
+      async (bad) => {
+        await expect(
+          buildService({ STORAGE_MAX_SOCKETS: bad }),
+        ).rejects.toThrow('Invalid STORAGE_MAX_SOCKETS');
+      },
+    );
+  });
+
   describe('ensureBuckets', () => {
     const createdBuckets = (): (string | undefined)[] =>
       send.mock.calls
