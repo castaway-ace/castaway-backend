@@ -64,7 +64,7 @@ services:
     volumes:
       - .:/usr/src/app
       - /usr/src/app/node_modules
-      - castaway_tmp:/mnt/data/castaway/tmp
+      - tmp:/mnt/data/castaway/tmp
     healthcheck:
       test:
         [
@@ -102,4 +102,4 @@ services:
 volumes:
   db_data:
   storage_data:
-  castaway_tmp:
+  tmp:
