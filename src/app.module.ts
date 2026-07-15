@@ -15,6 +15,7 @@ import { StorageModule } from './storage/storage.module.js';
 import { DeviceModule } from './device/device.module.js';
 import { RefreshTokenModule } from './refresh-token/refresh-token.module.js';
 import { InteractionsModule } from './interactions/interactions.module.js';
+import { LibraryModule } from './library/library.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { WhitelistModule } from './whitelist/whitelist.module.js';
 
@@ -37,6 +38,7 @@ import { WhitelistModule } from './whitelist/whitelist.module.js';
     StorageModule,
     RefreshTokenModule,
     InteractionsModule,
+    LibraryModule,
     WhitelistModule,
   ],
 })

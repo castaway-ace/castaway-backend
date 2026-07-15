@@ -188,6 +188,106 @@ describe('PlaylistsService', () => {
     });
   });
 
+  describe('findPlaylistCoverMap', () => {
+    it('resolves covers for many playlists in a single cover lookup', async () => {
+      mockPrismaService.playlist.findMany.mockResolvedValue([
+        {
+          id: 'playlist-1',
+          name: 'One',
+          type: PlaylistType.USER,
+          tracks: [{ track: { albumId: 'album-1' } }],
+        },
+        {
+          id: 'playlist-2',
+          name: 'Two',
+          type: PlaylistType.USER,
+          tracks: [{ track: { albumId: 'album-2' } }],
+        },
+      ]);
+      mockAlbumService.findAlbumCoverMap.mockResolvedValue(
+        new Map([
+          ['album-1', 'https://cdn/album-1.jpg'],
+          ['album-2', 'https://cdn/album-2.jpg'],
+        ]),
+      );
+
+      const result = await playlistsService.findPlaylistCoverMap([
+        'playlist-1',
+        'playlist-2',
+      ]);
+
+      expect(result).toEqual(
+        new Map([
+          ['playlist-1', ['https://cdn/album-1.jpg']],
+          ['playlist-2', ['https://cdn/album-2.jpg']],
+        ]),
+      );
+      // The point of the helper: one batched lookup, not one per playlist.
+      expect(mockAlbumService.findAlbumCoverMap).toHaveBeenCalledTimes(1);
+      expect(mockAlbumService.findAlbumCoverMap).toHaveBeenCalledWith([
+        'album-1',
+        'album-2',
+      ]);
+    });
+
+    it('dedupes an album shared across playlists', async () => {
+      mockPrismaService.playlist.findMany.mockResolvedValue([
+        {
+          id: 'playlist-1',
+          name: 'One',
+          type: PlaylistType.USER,
+          tracks: [{ track: { albumId: 'shared' } }],
+        },
+        {
+          id: 'playlist-2',
+          name: 'Two',
+          type: PlaylistType.USER,
+          tracks: [{ track: { albumId: 'shared' } }],
+        },
+      ]);
+      mockAlbumService.findAlbumCoverMap.mockResolvedValue(
+        new Map([['shared', 'https://cdn/shared.jpg']]),
+      );
+
+      const result = await playlistsService.findPlaylistCoverMap([
+        'playlist-1',
+        'playlist-2',
+      ]);
+
+      expect(mockAlbumService.findAlbumCoverMap).toHaveBeenCalledWith([
+        'shared',
+      ]);
+      expect(result.get('playlist-1')).toEqual(['https://cdn/shared.jpg']);
+      expect(result.get('playlist-2')).toEqual(['https://cdn/shared.jpg']);
+    });
+
+    it('still returns an entry for a playlist with no resolvable art', async () => {
+      mockPrismaService.playlist.findMany.mockResolvedValue([
+        {
+          id: 'playlist-1',
+          name: 'Empty',
+          type: PlaylistType.USER,
+          tracks: [],
+        },
+      ]);
+      mockAlbumService.findAlbumCoverMap.mockResolvedValue(new Map());
+
+      const result = await playlistsService.findPlaylistCoverMap([
+        'playlist-1',
+      ]);
+
+      expect(result.get('playlist-1')).toEqual([]);
+    });
+
+    it('short-circuits on an empty id list', async () => {
+      const result = await playlistsService.findPlaylistCoverMap([]);
+
+      expect(result).toEqual(new Map());
+      expect(mockPrismaService.playlist.findMany).not.toHaveBeenCalled();
+      expect(mockAlbumService.findAlbumCoverMap).not.toHaveBeenCalled();
+    });
+  });
+
   describe('find', () => {
     it('returns the enriched playlist for its owner', async () => {
       mockPrismaService.playlist.findUnique.mockResolvedValue(playlistRow);

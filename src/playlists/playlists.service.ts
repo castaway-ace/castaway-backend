@@ -149,6 +149,53 @@ export class PlaylistsService {
     });
   }
 
+  /**
+   * Resolves cover tiles for many playlists at once, keyed by playlist id.
+   *
+   * @remarks
+   * The batched counterpart to {@link findPlaylistCovers}: every playlist's
+   * album ids are gathered up front and presigned through a single
+   * {@link AlbumsService.findAlbumCoverMap} call, so resolving a whole list
+   * costs two queries instead of two per playlist. Callers rendering more than
+   * one playlist should prefer this.
+   *
+   * Playlists with no resolvable art still get an entry (an empty array), so a
+   * caller can map over its ids without a missing-key branch.
+   */
+  async findPlaylistCoverMap(ids: string[]): Promise<Map<string, string[]>> {
+    if (!ids.length) return new Map();
+
+    const playlists = await this.prisma.playlist.findMany({
+      where: { id: { in: ids } },
+      select: {
+        id: true,
+        tracks: {
+          select: { track: { select: { albumId: true } } },
+        },
+      },
+    });
+
+    const albumIdsByPlaylist = new Map(
+      playlists.map((playlist) => [
+        playlist.id,
+        this.getUniqueAlbumIds(playlist.tracks),
+      ]),
+    );
+
+    const coverByAlbumId = await this.albumService.findAlbumCoverMap([
+      ...new Set([...albumIdsByPlaylist.values()].flat()),
+    ]);
+
+    return new Map(
+      ids.map((id) => [
+        id,
+        (albumIdsByPlaylist.get(id) ?? [])
+          .map((albumId) => coverByAlbumId.get(albumId))
+          .filter((url): url is string => url !== undefined),
+      ]),
+    );
+  }
+
   async findPlaylistCovers(id: string): Promise<string[]> {
     const playlist = await this.prisma.playlist.findUnique({
       where: { id },
