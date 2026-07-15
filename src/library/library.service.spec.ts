@@ -94,6 +94,98 @@ describe('LibraryService', () => {
       );
     });
 
+    it('queries only the requested type, skipping the other tables', async () => {
+      await libraryService.findAll(userId, { type: LibraryItemType.ARTIST });
+
+      expect(mockPrismaService.artist.findMany).toHaveBeenCalled();
+      // The point of the filter: the other two tables are never touched, rather
+      // than fetched and then discarded.
+      expect(mockPrismaService.playlist.findMany).not.toHaveBeenCalled();
+      expect(mockPrismaService.album.findMany).not.toHaveBeenCalled();
+    });
+
+    it('queries all three tables when no type is given', async () => {
+      await libraryService.findAll(userId);
+
+      expect(mockPrismaService.playlist.findMany).toHaveBeenCalled();
+      expect(mockPrismaService.album.findMany).toHaveBeenCalled();
+      expect(mockPrismaService.artist.findMany).toHaveBeenCalled();
+    });
+
+    it('returns only items of the requested type', async () => {
+      mockPrismaService.playlist.findMany.mockResolvedValue([
+        { id: 'pl-1', name: 'A Playlist', playlistInteractions: [] },
+      ]);
+      mockPrismaService.album.findMany.mockResolvedValue([
+        {
+          id: 'al-1',
+          title: 'An Album',
+          albumArtists: [],
+          albumInteractions: [],
+        },
+      ]);
+      mockPrismaService.artist.findMany.mockResolvedValue([
+        { id: 'ar-1', name: 'An Artist', artistInteractions: [] },
+        { id: 'ar-2', name: 'Another Artist', artistInteractions: [] },
+      ]);
+
+      const result = await libraryService.findAll(userId, {
+        type: LibraryItemType.ARTIST,
+      });
+
+      expect(result).toHaveLength(2);
+      expect(result.every((item) => item.type === LibraryItemType.ARTIST)).toBe(
+        true,
+      );
+    });
+
+    it('resolves artwork only for the filtered type', async () => {
+      mockPrismaService.artist.findMany.mockResolvedValue([
+        { id: 'ar-1', name: 'An Artist', artistInteractions: [] },
+      ]);
+
+      await libraryService.findAll(userId, { type: LibraryItemType.ARTIST });
+
+      expect(mockArtistService.findArtistImageMap).toHaveBeenCalledWith([
+        'ar-1',
+      ]);
+      expect(mockAlbumService.findAlbumCoverMap).not.toHaveBeenCalled();
+      expect(mockPlaylistService.findPlaylistCoverMap).not.toHaveBeenCalled();
+    });
+
+    it('still sorts a single-type library by recency', async () => {
+      mockPrismaService.album.findMany.mockResolvedValue([
+        {
+          id: 'al-older',
+          title: 'Older',
+          albumArtists: [],
+          albumInteractions: at('2026-06-06T01:00:00.000Z'),
+        },
+        {
+          id: 'al-newer',
+          title: 'Newer',
+          albumArtists: [],
+          albumInteractions: at('2026-06-06T02:00:00.000Z'),
+        },
+        {
+          id: 'al-untouched',
+          title: 'Aaa Untouched',
+          albumArtists: [],
+          albumInteractions: [],
+        },
+      ]);
+
+      const result = await libraryService.findAll(userId, {
+        type: LibraryItemType.ALBUM,
+      });
+
+      expect(
+        result.map((item) =>
+          item.type === LibraryItemType.ALBUM ? item.album.title : null,
+        ),
+      ).toEqual(['Newer', 'Older', 'Aaa Untouched']);
+    });
+
     it('merges all three types, most recently interacted with first', async () => {
       mockPrismaService.playlist.findMany.mockResolvedValue([
         {

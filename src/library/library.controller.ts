@@ -58,6 +58,7 @@ export class LibraryController {
   ): Promise<LibraryItem[]> {
     return this.libraryService.findAll(sub, {
       pagination: { limit: query.limit, offset: query.offset },
+      type: query.type,
     });
   }
 }

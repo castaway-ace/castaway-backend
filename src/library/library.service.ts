@@ -17,6 +17,8 @@ import {
 
 interface LibraryQueryOptions {
   pagination?: { limit?: number; offset?: number };
+  /** Restricts the library to one entity type; omitted returns all three. */
+  type?: LibraryItemType;
 }
 
 /** A merged row, tagged with the two fields the ordering is decided on. */
@@ -84,24 +86,37 @@ export class LibraryService {
    *
    * Artwork is resolved only for the page being returned, and in two batched
    * lookups rather than per item.
+   *
+   * Filtering by `type` skips the other types' queries outright rather than
+   * discarding their rows afterward. Everything below the fetch is already
+   * type-agnostic, so a single-type library sorts and paginates unchanged.
    */
   async findAll(
     userId: string,
     options: LibraryQueryOptions = {},
   ): Promise<LibraryItem[]> {
+    const includes = (kind: LibraryItemType) =>
+      options.type === undefined || options.type === kind;
+
     const [playlists, albums, artists] = await Promise.all([
-      this.prisma.playlist.findMany({
-        where: { ownerId: userId },
-        select: libraryPlaylistSelect(userId),
-      }),
-      this.prisma.album.findMany({
-        where: { albumAnnotations: { some: { userId, starred: true } } },
-        select: libraryAlbumSelect(userId),
-      }),
-      this.prisma.artist.findMany({
-        where: { artistAnnotations: { some: { userId, starred: true } } },
-        select: libraryArtistSelect(userId),
-      }),
+      includes(LibraryItemType.PLAYLIST)
+        ? this.prisma.playlist.findMany({
+            where: { ownerId: userId },
+            select: libraryPlaylistSelect(userId),
+          })
+        : Promise.resolve<LibraryPlaylistRow[]>([]),
+      includes(LibraryItemType.ALBUM)
+        ? this.prisma.album.findMany({
+            where: { albumAnnotations: { some: { userId, starred: true } } },
+            select: libraryAlbumSelect(userId),
+          })
+        : Promise.resolve<LibraryAlbumRow[]>([]),
+      includes(LibraryItemType.ARTIST)
+        ? this.prisma.artist.findMany({
+            where: { artistAnnotations: { some: { userId, starred: true } } },
+            select: libraryArtistSelect(userId),
+          })
+        : Promise.resolve<LibraryArtistRow[]>([]),
     ]);
 
     const candidates: Candidate[] = [
@@ -152,7 +167,9 @@ export class LibraryService {
       artistIds.length
         ? this.artistService.findArtistImageMap(artistIds)
         : new Map<string, string>(),
-      this.playlistService.findPlaylistCoverMap(playlistIds),
+      playlistIds.length
+        ? this.playlistService.findPlaylistCoverMap(playlistIds)
+        : new Map<string, string[]>(),
     ]);
 
     return page.map((candidate): LibraryItem => {

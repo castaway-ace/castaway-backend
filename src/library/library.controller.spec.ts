@@ -86,6 +86,7 @@ describe('LibraryController', () => {
       expect(res.body).toEqual(toJson(items));
       expect(libraryService.findAll).toHaveBeenCalledWith('test-user', {
         pagination: { limit: undefined, offset: undefined },
+        type: undefined,
       });
     });
 
@@ -96,7 +97,25 @@ describe('LibraryController', () => {
 
       expect(libraryService.findAll).toHaveBeenCalledWith('test-user', {
         pagination: { limit: 5, offset: 10 },
+        type: undefined,
       });
+    });
+
+    it('forwards the type filter to the service', async () => {
+      await request(app.getHttpServer())
+        .get('/library?type=artist')
+        .expect(200);
+
+      expect(libraryService.findAll).toHaveBeenCalledWith('test-user', {
+        pagination: { limit: undefined, offset: undefined },
+        type: LibraryItemType.ARTIST,
+      });
+    });
+
+    it('rejects a type outside the enum', async () => {
+      await request(app.getHttpServer()).get('/library?type=song').expect(400);
+
+      expect(libraryService.findAll).not.toHaveBeenCalled();
     });
 
     it('rejects a limit above the maximum', async () => {
