@@ -14,6 +14,7 @@ import {
   libraryArtistSelect,
   libraryPlaylistSelect,
 } from './library.types.js';
+import { toArtistRef } from '../common/artist-ref.js';
 
 interface LibraryQueryOptions {
   pagination?: { limit?: number; offset?: number };
@@ -189,7 +190,9 @@ export class LibraryService {
           return {
             type: LibraryItemType.ALBUM,
             album: { id, title },
-            artists: albumArtists.map((albumArtist) => albumArtist.artist),
+            artists: albumArtists.map((albumArtist) =>
+              toArtistRef(albumArtist.artist),
+            ),
             coverUrl: albumCovers.get(id) ?? null,
             lastInteractedAt: candidate.lastInteractedAt,
           };
@@ -198,7 +201,7 @@ export class LibraryService {
           const { id, name } = candidate.raw;
           return {
             type: LibraryItemType.ARTIST,
-            artist: { id, name },
+            artist: toArtistRef({ id, name }),
             coverUrl: artistImages.get(id) ?? null,
             lastInteractedAt: candidate.lastInteractedAt,
           };

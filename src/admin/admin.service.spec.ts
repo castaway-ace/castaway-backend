@@ -143,7 +143,7 @@ describe('AdminService', () => {
     tmpDir = await mkdtemp(join(tmpdir(), 'admin-spec-'));
 
     mockArtistService.create.mockImplementation((data) =>
-      Promise.resolve({ id: data.id, name: data.name }),
+      Promise.resolve({ id: data.id, name: data.name, isVarious: false }),
     );
     mockArtistService.uploadImage.mockResolvedValue(undefined);
     mockArtistService.delete.mockResolvedValue(undefined);

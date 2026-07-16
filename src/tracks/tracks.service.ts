@@ -16,6 +16,7 @@ import { PlaylistsService } from '../playlists/playlists.service.js';
 import { TrackEntity, TrackSummaryEntity } from './tracks.entity.js';
 import { createReadStream } from 'fs';
 import { buildOrderBy, clampPagination } from '../common/query.js';
+import { toArtistRef } from '../common/artist-ref.js';
 import type { MetadataTags } from '../admin/admin.types.js';
 
 interface TrackFilters {
@@ -66,7 +67,7 @@ export class TracksService {
     return tracks.map(
       ({ trackAnnotations, trackArtists, album, ...track }) => ({
         ...track,
-        artists: trackArtists.map((ta) => ta.artist),
+        artists: trackArtists.map((ta) => toArtistRef(ta.artist)),
         album,
         starred: trackAnnotations.length > 0,
       }),
@@ -95,7 +96,7 @@ export class TracksService {
     return {
       ...rest,
       album,
-      artists: trackArtists.map((ta) => ta.artist),
+      artists: trackArtists.map((ta) => toArtistRef(ta.artist)),
       starred: trackAnnotations.length > 0,
     };
   }

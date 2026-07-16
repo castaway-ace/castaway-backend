@@ -10,6 +10,7 @@ import {
 import { PlaylistsService } from '../playlists/playlists.service.js';
 import { ArtistsService } from '../artists/artists.service.js';
 import { AlbumsService } from '../albums/albums.service.js';
+import { toArtistRef } from '../common/artist-ref.js';
 
 const DEFAULT_INTERACTION_LIMIT = 20;
 
@@ -95,6 +96,7 @@ export class InteractionsService {
             return {
               ...candidate.raw,
               type: InteractionType.ARTIST,
+              artist: toArtistRef(candidate.raw.artist),
               coverUrl: artistImages.get(candidate.raw.artist.id) ?? null,
             };
           }
@@ -107,7 +109,7 @@ export class InteractionsService {
                 id: album.id,
                 title: album.title,
               },
-              artists: album.albumArtists.map((aa) => aa.artist),
+              artists: album.albumArtists.map((aa) => toArtistRef(aa.artist)),
               coverUrl: albumCovers.get(album.id) ?? null,
             };
           }

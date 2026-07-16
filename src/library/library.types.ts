@@ -1,6 +1,6 @@
 import { Prisma } from '../generated/prisma/client.js';
 import { PlaylistType } from '../generated/prisma/enums.js';
-import { ArtistRef } from '../common/entities/references.entity.js';
+import { ArtistRefData } from '../common/artist-ref.js';
 
 export enum LibraryItemType {
   ALBUM = 'album',
@@ -76,13 +76,13 @@ interface LibraryItemBase {
 export interface AlbumLibraryItem extends LibraryItemBase {
   type: LibraryItemType.ALBUM;
   album: { id: string; title: string };
-  artists: ArtistRef[];
+  artists: ArtistRefData[];
   coverUrl: string | null;
 }
 
 export interface ArtistLibraryItem extends LibraryItemBase {
   type: LibraryItemType.ARTIST;
-  artist: { id: string; name: string };
+  artist: ArtistRefData;
   coverUrl: string | null;
 }
 

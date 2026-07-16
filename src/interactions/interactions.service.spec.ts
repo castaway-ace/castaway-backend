@@ -32,7 +32,7 @@ type AlbumInteractionRow = {
 
 const userId = 'user-1';
 
-const artistRef = { id: 'artist-1', name: 'Test Artist' };
+const artistRef = { id: 'artist-1', name: 'Test Artist', isVarious: false };
 
 const artistInteraction: ArtistInteractionRow = {
   id: 'ai-1',

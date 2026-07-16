@@ -17,6 +17,7 @@ import { AlbumSortOptions, AlbumSortOrder } from './dto/album-query.dto.js';
 import { buildOrderBy, clampPagination } from '../common/query.js';
 import { AlbumEntity, AlbumSummaryEntity } from './albums.entity.js';
 import { buildAlbumIdentity } from '../common/album-identity.js';
+import { toArtistRef } from '../common/artist-ref.js';
 
 interface AlbumFilters {
   artistIds?: string[];
@@ -63,7 +64,7 @@ export class AlbumsService {
 
     return albums.map(({ albumAnnotations, albumArtists, ...album }) => ({
       ...album,
-      artists: albumArtists.map((ta) => ta.artist),
+      artists: albumArtists.map((ta) => toArtistRef(ta.artist)),
       starred: albumAnnotations.length > 0,
     }));
   }
@@ -88,7 +89,7 @@ export class AlbumsService {
     const tracks = album.tracks
       .map(({ trackArtists, ...track }) => ({
         ...track,
-        artists: trackArtists.map((ta) => ta.artist),
+        artists: trackArtists.map((ta) => toArtistRef(ta.artist)),
       }))
       .sort(
         (a, b) => a.discNumber - b.discNumber || a.trackNumber - b.trackNumber,
@@ -103,7 +104,7 @@ export class AlbumsService {
       compilation: album.compilation,
       genres: album.genres,
       starred,
-      artists: album.albumArtists.map((ta) => ta.artist),
+      artists: album.albumArtists.map((ta) => toArtistRef(ta.artist)),
       tracks,
     };
   }

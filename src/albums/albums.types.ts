@@ -1,4 +1,5 @@
 import { Prisma } from '../generated/prisma/client.js';
+import { ArtistRefData } from '../common/artist-ref.js';
 
 export const albumSelect = {
   id: true,
@@ -59,20 +60,19 @@ export type AlbumSummaryRow = Prisma.AlbumGetPayload<{
   select: typeof albumSummarySelect;
 }>;
 type AlbumTrackRow = AlbumRow['tracks'][number];
-type AlbumArtistRow = AlbumRow['albumArtists'][number]['artist'];
 
 export type AlbumTrack = Omit<AlbumTrackRow, 'trackArtists'> & {
-  artists: AlbumArtistRow[];
+  artists: ArtistRefData[];
 };
 
 export type Album = Omit<AlbumRow, 'albumArtists' | 'tracks'> & {
-  artists: AlbumArtistRow[];
+  artists: ArtistRefData[];
   tracks: AlbumTrack[];
   starred: boolean;
 };
 
 export type AlbumSummary = Omit<AlbumSummaryRow, 'albumArtists'> & {
-  artists: AlbumArtistRow[];
+  artists: ArtistRefData[];
   starred: boolean;
 };
 

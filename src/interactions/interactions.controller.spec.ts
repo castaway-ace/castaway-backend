@@ -25,7 +25,7 @@ const interactions: Interaction[] = [
     id: 'ai-1',
     updatedAt: new Date('2026-06-06T03:00:00.000Z'),
     type: InteractionType.ARTIST,
-    artist: { id: 'artist-1', name: 'Test Artist' },
+    artist: { id: 'artist-1', name: 'Test Artist', isVarious: false },
     coverUrl: null,
   },
 ];

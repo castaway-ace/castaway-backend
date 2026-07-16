@@ -27,7 +27,7 @@ type ArtistRow = {
 };
 
 const userId = 'user-1';
-const artistRef = { id: 'artist-1', name: 'Test Artist' };
+const artistRef = { id: 'artist-1', name: 'Test Artist', isVarious: false };
 
 const at = (iso: string) => [{ updatedAt: new Date(iso) }];
 
@@ -311,7 +311,7 @@ describe('LibraryService', () => {
         },
         {
           type: LibraryItemType.ARTIST,
-          artist: { id: 'artist-1', name: 'Artist One' },
+          artist: { id: 'artist-1', name: 'Artist One', isVarious: false },
           coverUrl: 'https://cdn/artist-1.jpg',
           lastInteractedAt: null,
         },

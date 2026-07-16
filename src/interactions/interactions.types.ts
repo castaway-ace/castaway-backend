@@ -1,5 +1,6 @@
 import { Prisma } from '../generated/prisma/client.js';
 import { PlaylistType } from '../generated/prisma/enums.js';
+import { ArtistRefData } from '../common/artist-ref.js';
 
 export enum InteractionType {
   ALBUM = 'album',
@@ -43,12 +44,10 @@ type AlbumInteractionRow = Prisma.AlbumInteractionGetPayload<{
   select: typeof albumInteractionSelect;
 }>;
 
-type AlbumArtistRow =
-  AlbumInteractionRow['album']['albumArtists'][number]['artist'];
-
-export type ArtistInteraction = ArtistInteractionRow & {
+export type ArtistInteraction = Omit<ArtistInteractionRow, 'artist'> & {
   type: InteractionType.ARTIST;
   coverUrl: string | null;
+  artist: ArtistRefData;
 };
 
 export type PlaylistInteraction = Omit<PlaylistInteractionRow, 'playlist'> & {
@@ -65,7 +64,7 @@ export type PlaylistInteraction = Omit<PlaylistInteractionRow, 'playlist'> & {
 export type AlbumInteraction = Omit<AlbumInteractionRow, 'album'> & {
   type: InteractionType.ALBUM;
   coverUrl: string | null;
-  artists: AlbumArtistRow[];
+  artists: ArtistRefData[];
   album: {
     title: string;
     id: string;

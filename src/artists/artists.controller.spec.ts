@@ -20,6 +20,7 @@ const artist = {
   bio: '',
   starred: false,
   albums: [],
+  isVarious: false,
 };
 
 const artistSummaries = [
@@ -27,6 +28,7 @@ const artistSummaries = [
     id: artistId,
     name: 'Test Artist',
     starred: false,
+    isVarious: false,
   },
 ];
 

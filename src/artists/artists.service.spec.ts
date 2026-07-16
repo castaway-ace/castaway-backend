@@ -88,6 +88,7 @@ describe('ArtistService', () => {
         id: 'artist-1',
         name: 'test1',
         starred: false,
+        isVarious: false,
       },
     ];
     it('should find all artists', async () => {
@@ -112,6 +113,7 @@ describe('ArtistService', () => {
       bio: null,
       albums: [],
       starred: false,
+      isVarious: false,
     };
 
     it('should find an artist by id', async () => {
@@ -179,7 +181,11 @@ describe('ArtistService', () => {
   });
 
   describe('create', () => {
-    const artistRef: ArtistRef = { id: 'artist-1', name: 'test1' };
+    const artistRef: ArtistRef = {
+      id: 'artist-1',
+      name: 'test1',
+      isVarious: false,
+    };
 
     it('creates the artist', async () => {
       mockPrismaService.artist.create.mockResolvedValue(artistRef);

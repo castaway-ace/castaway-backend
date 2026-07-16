@@ -6,6 +6,9 @@ export class ArtistRef {
 
   @ApiProperty()
   name!: string;
+
+  @ApiProperty()
+  isVarious!: boolean;
 }
 
 export class AlbumRef {

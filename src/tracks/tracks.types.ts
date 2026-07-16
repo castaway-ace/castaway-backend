@@ -1,4 +1,5 @@
 import { Prisma } from '../generated/prisma/client.js';
+import { ArtistRefData } from '../common/artist-ref.js';
 export const trackSelect = {
   id: true,
   title: true,
@@ -44,14 +45,12 @@ export type TrackSummaryRow = Prisma.TrackGetPayload<{
   select: typeof trackSummarySelect;
 }>;
 
-type TrackArtistRow = TrackRow['trackArtists'][number]['artist'];
-
 export type Track = Omit<TrackRow, 'trackArtists'> & {
-  artists: TrackArtistRow[];
+  artists: ArtistRefData[];
 };
 
 export type TrackSummary = Omit<TrackSummaryRow, 'trackArtists'> & {
-  artists: TrackArtistRow[];
+  artists: ArtistRefData[];
   starred: boolean;
 };
 

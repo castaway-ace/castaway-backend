@@ -18,7 +18,7 @@ const trackId = '22222222-2222-2222-2222-222222222222';
 
 const albumRef = { id: 'album-1', title: 'album' };
 
-const artistRef = { id: 'artist-1', name: 'artist' };
+const artistRef = { id: 'artist-1', name: 'artist', isVarious: false };
 
 const playlist = {
   id: '1',

@@ -20,7 +20,7 @@ import { PrismaClientExceptionFilter } from '../prisma/prisma.filter.js';
 const items: LibraryItem[] = [
   {
     type: LibraryItemType.ARTIST,
-    artist: { id: 'artist-1', name: 'Test Artist' },
+    artist: { id: 'artist-1', name: 'Test Artist', isVarious: false },
     coverUrl: null,
     lastInteractedAt: new Date('2026-06-06T03:00:00.000Z'),
   },

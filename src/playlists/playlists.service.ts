@@ -19,6 +19,7 @@ import {
 import { PlaylistOrderOptions } from './dto/playlist-query.dto.js';
 import { PlaylistRef } from '../common/entities/references.entity.js';
 import { buildOrderBy, clampPagination } from '../common/query.js';
+import { toArtistRef } from '../common/artist-ref.js';
 
 interface PlaylistFilters {
   onlyUser?: boolean;
@@ -318,7 +319,7 @@ export class PlaylistsService {
         trackNumber: track.trackNumber,
         discNumber: track.discNumber,
         title: track.title,
-        artists: track.trackArtists.map((ta) => ta.artist),
+        artists: track.trackArtists.map((ta) => toArtistRef(ta.artist)),
         album: track.album,
       };
     });
@@ -357,7 +358,7 @@ export class PlaylistsService {
       duration: track.duration,
       trackNumber: track.trackNumber,
       discNumber: track.discNumber,
-      artists: track.trackArtists.map((ta) => ta.artist),
+      artists: track.trackArtists.map((ta) => toArtistRef(ta.artist)),
       album: track.album,
     };
   }

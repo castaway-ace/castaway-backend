@@ -20,7 +20,7 @@ type TrackFindUniqueRow =
 const userId = 'user-1';
 
 const albumRef = { id: 'album-1', title: 'Test Album' };
-const artistRef = { id: 'artist-1', name: 'Test Artist' };
+const artistRef = { id: 'artist-1', name: 'Test Artist', isVarious: false };
 
 const releaseDate = new Date('2026-06-06T00:00:00.000Z');
 

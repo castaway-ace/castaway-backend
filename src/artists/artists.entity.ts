@@ -17,6 +17,9 @@ export class ArtistEntity implements Artist {
 
   @ApiProperty({ type: () => AlbumRef, isArray: true })
   albums!: AlbumRef[];
+
+  @ApiProperty()
+  isVarious!: boolean;
 }
 
 export class ArtistSummaryEntity implements ArtistSummary {
@@ -28,4 +31,7 @@ export class ArtistSummaryEntity implements ArtistSummary {
 
   @ApiProperty()
   starred!: boolean;
+
+  @ApiProperty()
+  isVarious!: boolean;
 }

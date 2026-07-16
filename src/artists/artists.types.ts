@@ -32,10 +32,12 @@ export type ArtistSummaryRow = Prisma.ArtistGetPayload<{
 
 export type Artist = Omit<ArtistRow, 'albumArtists'> & {
   albums: AlbumRow[];
+  isVarious: boolean;
 };
 
 export type ArtistSummary = ArtistSummaryRow & {
   starred: boolean;
+  isVarious: boolean;
 };
 
 export type ArtistCreateData = Pick<

@@ -512,7 +512,7 @@ describe('PlaylistsService', () => {
           trackNumber: 1,
           discNumber: 1,
           album: { id: 'album-1', title: 'Test Album' },
-          artists: [{ id: 'artist-1', name: 'Test Artist' }],
+          artists: [{ id: 'artist-1', name: 'Test Artist', isVarious: false }],
         },
       ]);
     });

@@ -15,6 +15,7 @@ import { ArtistOrderOptions, ArtistSortOrder } from './dto/artist-query.dto.js';
 import { ArtistRef } from '../common/entities/references.entity.js';
 import { createReadStream } from 'fs';
 import { buildOrderBy, clampPagination } from '../common/query.js';
+import { isVariousArtistName, toArtistRef } from '../common/artist-ref.js';
 
 interface ArtistFilters {
   starred?: boolean;
@@ -58,7 +59,7 @@ export class ArtistsService {
     });
 
     return artists.map(({ artistAnnotations, ...artist }) => ({
-      ...artist,
+      ...toArtistRef(artist),
       starred: artistAnnotations.length > 0,
     }));
   }
@@ -145,10 +146,11 @@ export class ArtistsService {
   }
 
   async create(data: ArtistCreateData): Promise<ArtistRef> {
-    return await this.prisma.artist.create({
+    const artist = await this.prisma.artist.create({
       data,
       select: { id: true, name: true },
     });
+    return toArtistRef(artist);
   }
 
   async delete(id: string): Promise<void> {
@@ -222,6 +224,7 @@ export class ArtistsService {
       name: row.name,
       bio: row.bio,
       albums: row.albumArtists.map((albumArtist) => albumArtist.album),
+      isVarious: isVariousArtistName(row.name),
     };
   }
 

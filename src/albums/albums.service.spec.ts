@@ -21,7 +21,7 @@ type AlbumFindUniqueRow =
 
 const releaseDate = new Date('2026-06-06T00:00:00.000Z');
 
-const artistRef = { id: 'artist-1', name: 'Test Artist' };
+const artistRef = { id: 'artist-1', name: 'Test Artist', isVarious: false };
 
 const userId = 'user-1';
 
