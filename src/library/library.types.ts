@@ -1,4 +1,5 @@
 import { Prisma } from '../generated/prisma/client.js';
+import { PlaylistType } from '../generated/prisma/enums.js';
 import { ArtistRef } from '../common/entities/references.entity.js';
 
 export enum LibraryItemType {
@@ -18,6 +19,7 @@ export const libraryPlaylistSelect = (userId: string) =>
   ({
     id: true,
     name: true,
+    type: true,
     playlistInteractions: {
       where: { userId },
       select: { updatedAt: true },
@@ -88,6 +90,12 @@ export interface PlaylistLibraryItem extends LibraryItemBase {
   type: LibraryItemType.PLAYLIST;
   playlist: { id: string; name: string };
   coverUrls: string[];
+  /**
+   * Named apart from `type` — which discriminates the library union — so both
+   * can coexist on the item. Lets the client tell Liked Songs from a hand-made
+   * playlist without a second lookup.
+   */
+  playlistType: PlaylistType;
 }
 
 export type LibraryItem =

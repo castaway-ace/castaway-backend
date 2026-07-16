@@ -1,4 +1,5 @@
 import { Prisma } from '../generated/prisma/client.js';
+import { PlaylistType } from '../generated/prisma/enums.js';
 
 export enum InteractionType {
   ALBUM = 'album',
@@ -15,7 +16,7 @@ export const artistInteractionSelect = {
 export const playlistInteractionSelect = {
   id: true,
   updatedAt: true,
-  playlist: { select: { name: true, id: true } },
+  playlist: { select: { name: true, id: true, type: true } },
 } satisfies Prisma.PlaylistInteractionSelect;
 
 export const albumInteractionSelect = {
@@ -50,9 +51,15 @@ export type ArtistInteraction = ArtistInteractionRow & {
   coverUrl: string | null;
 };
 
-export type PlaylistInteraction = PlaylistInteractionRow & {
+export type PlaylistInteraction = Omit<PlaylistInteractionRow, 'playlist'> & {
   type: InteractionType.PLAYLIST;
   coverUrls: string[];
+  playlist: { id: string; name: string };
+  /**
+   * Lifted out of the selected `playlist` row so it stays a plain `PlaylistRef`
+   * over the wire; named apart from `type`, the union's discriminant.
+   */
+  playlistType: PlaylistType;
 };
 
 export type AlbumInteraction = Omit<AlbumInteractionRow, 'album'> & {

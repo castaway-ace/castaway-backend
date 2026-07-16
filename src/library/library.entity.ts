@@ -4,6 +4,7 @@ import {
   ArtistRef,
   PlaylistRef,
 } from '../common/entities/references.entity.js';
+import { PlaylistType } from '../generated/prisma/enums.js';
 import {
   AlbumLibraryItem,
   ArtistLibraryItem,
@@ -40,6 +41,12 @@ export class PlaylistLibraryItemEntity implements PlaylistLibraryItem {
 
   @ApiProperty({ type: [String] })
   coverUrls!: string[];
+
+  @ApiProperty({
+    enum: [PlaylistType],
+    enumName: 'PlaylistType',
+  })
+  playlistType!: PlaylistType;
 
   @ApiProperty({ type: Date, nullable: true })
   lastInteractedAt!: Date | null;

@@ -12,6 +12,7 @@ import { App } from 'supertest/types.js';
 import type { Request } from 'express';
 import request from 'supertest';
 import { LibraryItem, LibraryItemType } from './library.types.js';
+import { PlaylistType } from '../generated/prisma/enums.js';
 import { APP_GUARD } from '@nestjs/core';
 import { toJson } from '../common/test.js';
 import { PrismaClientExceptionFilter } from '../prisma/prisma.filter.js';
@@ -27,6 +28,7 @@ const items: LibraryItem[] = [
     type: LibraryItemType.PLAYLIST,
     playlist: { id: 'playlist-1', name: 'Test Playlist' },
     coverUrls: [],
+    playlistType: PlaylistType.USER,
     lastInteractedAt: null,
   },
 ];

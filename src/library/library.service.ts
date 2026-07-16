@@ -175,11 +175,12 @@ export class LibraryService {
     return page.map((candidate): LibraryItem => {
       switch (candidate.kind) {
         case LibraryItemType.PLAYLIST: {
-          const { id, name } = candidate.raw;
+          const { id, name, type: playlistType } = candidate.raw;
           return {
             type: LibraryItemType.PLAYLIST,
             playlist: { id, name },
             coverUrls: playlistCovers.get(id) ?? [],
+            playlistType,
             lastInteractedAt: candidate.lastInteractedAt,
           };
         }

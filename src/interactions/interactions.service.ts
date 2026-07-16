@@ -122,9 +122,15 @@ export class InteractionsService {
                 );
                 return [];
               });
+            const { playlist, ...rest } = candidate.raw;
             return {
-              ...candidate.raw,
+              ...rest,
               type: InteractionType.PLAYLIST,
+              // Destructured rather than spread: the row's `playlist` also
+              // carries the playlist type, which belongs at the top level so
+              // `playlist` stays a plain ref.
+              playlist: { id: playlist.id, name: playlist.name },
+              playlistType: playlist.type,
               coverUrls,
             };
           }
