@@ -1,0 +1,72 @@
+name: Deploy
+
+on:
+  workflow_call:
+    inputs:
+      image-tag:
+        description: "Value for APP_IMAGE_TAG, e.g. sha-<full commit sha>"
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      image-tag:
+        description: "Image tag to deploy (rollback: sha-<sha> of a previous good run)"
+        required: true
+        type: string
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, proxmox]
+    timeout-minutes: 15
+    environment: production
+    # Serialize ALL deploys (CD and manual rollback); never cancel one mid-flight.
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: read
+    env:
+      APP_IMAGE_TAG: ${{ inputs.image-tag }}
+      COMPOSE: docker compose --env-file /opt/castaway/.env -f docker-compose.prod.yml
+    steps:
+      # Provides docker-compose.prod.yml in the runner workdir; the compose
+      # project name is pinned to "castaway" so this drives the same stack
+      # regardless of checkout path.
+      - uses: actions/checkout@v5
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Pull release images
+        run: $COMPOSE pull migrate app
+
+      - name: Deploy stack
+        # Ordering enforced by compose: db healthy -> migrate exits 0 -> app
+        # recreated -> app healthy -> cloudflared. A failed migrate aborts
+        # BEFORE the old app container is touched.
+        run: $COMPOSE up -d --no-build --remove-orphans
+
+      - name: Verify app health
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3000/health > /dev/null; then
+              echo "App is healthy."
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "App failed to become healthy within 150s."
+          $COMPOSE ps
+          $COMPOSE logs --tail=100 migrate app
+          exit 1
+
+      - name: Prune old images
+        if: success()
+        # -a only removes images unreferenced by any container, so the running
+        # stack is safe; until=72h keeps recent SHAs local for instant rollback.
+        run: docker image prune -af --filter "until=72h" || true
+
+      - name: Log out of GHCR
+        if: always()
+        run: docker logout ghcr.io || true
