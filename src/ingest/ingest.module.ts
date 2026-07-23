@@ -6,8 +6,7 @@ import { TracksModule } from '../tracks/tracks.module.js';
 
 /**
  * Shared album-ingest planning and persistence. Exports `IngestService` for the
- * synchronous admin upload path and (later) the async worker. PrismaService is
- * provided globally by PrismaModule.
+ * synchronous admin upload path and (later) the async worker.
  */
 @Module({
   imports: [AlbumsModule, ArtistsModule, TracksModule],
