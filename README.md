@@ -176,6 +176,7 @@ Define these in a `.env` file at the repo root. Do **not** commit it.
 | `STORAGE_TRACKS_BUCKET` | Bucket for audio files |
 | `STORAGE_ALBUM_ART_BUCKET` | Bucket for album artwork |
 | `STORAGE_ARTIST_IMAGE_BUCKET` | Bucket for artist images |
+| `STORAGE_STAGING_BUCKET` | Bucket for in-flight upload staging (defaults to `upload-staging`) |
 
 ### Admin, docs & ingress
 
