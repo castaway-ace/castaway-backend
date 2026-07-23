@@ -1,7 +1,7 @@
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ALBUM_INGEST_QUEUE } from '../ingest/ingest.constants.js';
+import { ALBUM_INGEST_QUEUE } from '../common/constants.js';
 
 export interface RedisConnectionOptions {
   host: string;

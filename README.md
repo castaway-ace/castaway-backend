@@ -156,7 +156,7 @@ Define these in a `.env` file at the repo root. Do **not** commit it.
 | `POSTGRES_USER` | Postgres user |
 | `POSTGRES_PASSWORD` | Postgres password |
 | `DATABASE_URL` | Prisma connection string, e.g. `postgresql://<user>:<pass>@db:5432/<db>` |
-| `REDIS_URL` | BullMQ/Redis connection, e.g. `redis://redis:6379` (set inline by Compose) |
+| `REDIS_URL` | BullMQ/Redis connection (required), e.g. `redis://redis:6379`. The app fails fast at startup if unset. |
 
 ### Auth
 
