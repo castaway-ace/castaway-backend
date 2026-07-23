@@ -2,13 +2,13 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   pull_request:
 
-# Cancel superseded PR runs; never cancel main runs (an in-flight deploy must finish).
+# Cancel superseded PR/dev runs; never cancel main runs (an in-flight deploy must finish).
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   lint:
@@ -45,6 +45,9 @@ jobs:
     timeout-minutes: 20
     # Never push an image (or move :latest) for a commit that failed checks.
     needs: [lint, test]
+    # Direct pushes to dev get lint + test only; PRs (any target) and main
+    # pushes run the image build. Skipping build also auto-skips deploy.
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
     permissions:
       contents: read
       packages: write
@@ -52,7 +55,8 @@ jobs:
       - uses: actions/checkout@v5
       - uses: docker/setup-buildx-action@v3
       - name: Log in to GHCR
-        if: github.event_name == 'push'
+        # Only main publishes — dev pushes and PRs must never move latest.
+        if: github.ref == 'refs/heads/main'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -67,7 +71,7 @@ jobs:
           context: .
           file: Dockerfile.prod
           target: build
-          push: ${{ github.event_name == 'push' }}
+          push: ${{ github.ref == 'refs/heads/main' }}
           tags: |
             ghcr.io/castaway-ace/castaway-backend:migrate-sha-${{ github.sha }}
             ghcr.io/castaway-ace/castaway-backend:migrate-latest
@@ -80,7 +84,7 @@ jobs:
           context: .
           file: Dockerfile.prod
           target: production
-          push: ${{ github.event_name == 'push' }}
+          push: ${{ github.ref == 'refs/heads/main' }}
           tags: |
             ghcr.io/castaway-ace/castaway-backend:sha-${{ github.sha }}
             ghcr.io/castaway-ace/castaway-backend:latest
