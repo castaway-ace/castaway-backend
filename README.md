@@ -206,6 +206,9 @@ Managed with Prisma (`prisma/schema.prisma`). Core entities:
   engagement records.
 - **TrackAnnotation**, **AlbumAnnotation**, **ArtistAnnotation** — editorial
   metadata.
+- **ImportSession**, **ImportFile** (+ `ImportSessionStatus` / `ImportPhase`
+  enums) — async album upload sessions and their staged files. Postgres is the
+  source of truth for ingest status; the queue is transport only.
 
 ## API documentation
 

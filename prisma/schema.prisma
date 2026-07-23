@@ -313,3 +313,68 @@ model ArtistAnnotation {
   @@index([userId, starred])
   @@map("artist_annotations")
 }
+
+// ─── Async Album Ingest ───────────────────────────────────────────────────────────────
+
+enum ImportSessionStatus {
+  PENDING_UPLOAD
+  QUEUED
+  PROCESSING
+  COMPLETED
+  FAILED
+  ABORTED
+}
+
+enum ImportPhase {
+  PARSING
+  COPYING
+  PERSISTING
+  CLEANUP
+}
+
+// An async upload session: the client uploads files directly to the staging
+// bucket via presigned URLs, then a worker ingests them into the catalog.
+// Postgres is the source of truth for status; the queue is transport only.
+model ImportSession {
+  id              String              @id @default(uuid()) @db.Uuid
+  status          ImportSessionStatus @default(PENDING_UPLOAD)
+  phase           ImportPhase?
+  progressCurrent Int                 @default(0) @map("progress_current")
+  progressTotal   Int                 @default(0) @map("progress_total")
+  error           Json?
+  // Points at the created Album on success. Deliberately not a foreign key: the
+  // album may be deleted later without invalidating the session record.
+  albumId         String?             @map("album_id") @db.Uuid
+  createdBy       String              @map("created_by") @db.Uuid
+  partSize        Int                 @map("part_size")
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @default(now()) @updatedAt @map("updated_at")
+  queuedAt        DateTime?           @map("queued_at")
+  startedAt       DateTime?           @map("started_at")
+  finishedAt      DateTime?           @map("finished_at")
+
+  files ImportFile[]
+
+  @@index([status, createdAt])
+  @@map("import_sessions")
+}
+
+model ImportFile {
+  id           String    @id @default(uuid()) @db.Uuid
+  sessionId    String    @map("session_id") @db.Uuid
+  originalName String    @map("original_name")
+  contentType  String    @map("content_type")
+  size         Int
+  objectKey    String    @map("object_key")
+  // Null once the object was uploaded via a single presigned PUT (no multipart).
+  uploadId     String?   @map("upload_id")
+  partCount    Int?      @map("part_count")
+  uploadedAt   DateTime? @map("uploaded_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  session ImportSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, objectKey])
+  @@index([sessionId])
+  @@map("import_files")
+}
