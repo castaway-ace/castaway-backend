@@ -318,6 +318,64 @@ describe('StorageService', () => {
     );
   });
 
+  describe('bucket name defaults', () => {
+    const connectionOnly: Readonly<Record<string, unknown>> = {
+      STORAGE_ENDPOINT: 'https://internal.example.com',
+      STORAGE_PRESIGNED_ENDPOINT: 'https://public.example.com',
+      STORAGE_REGION: 'us-east-1',
+      STORAGE_ACCESS_KEY: 'access-key',
+      STORAGE_SECRET_ACCESS_KEY: 'secret-access-key',
+    };
+
+    const buildService = (
+      values: Record<string, unknown>,
+    ): Promise<TestingModule> =>
+      Test.createTestingModule({
+        providers: [
+          StorageService,
+          {
+            provide: ConfigService,
+            useValue: { get: jest.fn((key: string): unknown => values[key]) },
+          },
+        ],
+      }).compile();
+
+    const resolvedBuckets = (module: TestingModule): string[] =>
+      module.get(StorageService).storageConfig.buckets;
+
+    it('falls back to the StorageBucket enum names when bucket vars are unset', async () => {
+      const module = await buildService(connectionOnly);
+
+      expect(resolvedBuckets(module)).toEqual([
+        'tracks',
+        'album-art',
+        'artist-image',
+        'upload-staging',
+      ]);
+    });
+
+    it('honors explicit bucket overrides', async () => {
+      const module = await buildService({
+        ...connectionOnly,
+        STORAGE_TRACKS_BUCKET: 'custom-tracks',
+        STORAGE_STAGING_BUCKET: 'custom-staging',
+      });
+
+      expect(resolvedBuckets(module)).toEqual([
+        'custom-tracks',
+        'album-art',
+        'artist-image',
+        'custom-staging',
+      ]);
+    });
+
+    it('still throws when a connection variable is missing', async () => {
+      await expect(
+        buildService({ ...connectionOnly, STORAGE_ENDPOINT: undefined }),
+      ).rejects.toThrow('Storage configuration is incomplete');
+    });
+  });
+
   describe('ensureBuckets', () => {
     const createdBuckets = (): (string | undefined)[] =>
       send.mock.calls

@@ -533,25 +533,29 @@ export class StorageService implements OnApplicationBootstrap {
     const region = configService.get<string>('STORAGE_REGION');
     const accessKey = configService.get<string>('STORAGE_ACCESS_KEY');
     const secretKey = configService.get<string>('STORAGE_SECRET_ACCESS_KEY');
-    const tracksBucket = configService.get<string>('STORAGE_TRACKS_BUCKET');
-    const albumArtBucket = configService.get<string>(
-      'STORAGE_ALBUM_ART_BUCKET',
-    );
-    const artistImageBucket = configService.get<string>(
-      'STORAGE_ARTIST_IMAGE_BUCKET',
-    );
-    const stagingBucket = configService.get<string>('STORAGE_STAGING_BUCKET');
+    // Bucket names default to the StorageBucket enum's conventional names and
+    // are only overridden when an env var is explicitly set. The enum is the
+    // single source of truth: these defaults always match the names the rest
+    // of the service reads/writes, so the ensure/health list can never drift.
+    const tracksBucket =
+      configService.get<string>('STORAGE_TRACKS_BUCKET') ||
+      StorageBucket.Tracks;
+    const albumArtBucket =
+      configService.get<string>('STORAGE_ALBUM_ART_BUCKET') ||
+      StorageBucket.AlbumArt;
+    const artistImageBucket =
+      configService.get<string>('STORAGE_ARTIST_IMAGE_BUCKET') ||
+      StorageBucket.ArtistArt;
+    const stagingBucket =
+      configService.get<string>('STORAGE_STAGING_BUCKET') ||
+      StorageBucket.Staging;
 
     if (
       !endpoint ||
       !region ||
       !accessKey ||
       !secretKey ||
-      !presignedEndpoint ||
-      !tracksBucket ||
-      !albumArtBucket ||
-      !artistImageBucket ||
-      !stagingBucket
+      !presignedEndpoint
     ) {
       throw new Error('Storage configuration is incomplete');
     }
