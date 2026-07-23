@@ -37,6 +37,7 @@ services:
     environment:
       - NODE_ENV=development
       - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=redis://redis:6379
       - UPLOAD_TMP_DIR=/mnt/data/castaway/tmp
       - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET}
       - JWT_ACCESS_EXPIRATION=${JWT_ACCESS_EXPIRATION}
@@ -62,6 +63,8 @@ services:
         condition: service_completed_successfully
       storage:
         condition: service_started
+      redis:
+        condition: service_healthy
     volumes:
       - .:/usr/src/app
       - /usr/src/app/node_modules
@@ -91,6 +94,20 @@ services:
       - storage_data:/data
     command: [ "server", "--console-address", ":9001", "/data" ]
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--maxmemory", "64mb", "--maxmemory-policy", "noeviction", "--appendonly", "yes", "--appendfsync", "everysec"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    mem_limit: 96m
+
   cloudflared:
     image: cloudflare/cloudflared:2024.12.2
     command: tunnel --no-autoupdate run
@@ -103,4 +120,5 @@ services:
 volumes:
   db_data:
   storage_data:
+  redis_data:
   tmp:
