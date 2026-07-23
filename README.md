@@ -173,9 +173,13 @@ Define these in a `.env` file at the repo root. Do **not** commit it.
 | `STORAGE_REGION` | S3 region |
 | `STORAGE_ACCESS_KEY` | Access key (also the MinIO root user) |
 | `STORAGE_SECRET_ACCESS_KEY` | Secret key (also the MinIO root password) |
-| `STORAGE_TRACKS_BUCKET` | Bucket for audio files |
-| `STORAGE_ALBUM_ART_BUCKET` | Bucket for album artwork |
-| `STORAGE_ARTIST_IMAGE_BUCKET` | Bucket for artist images |
+| `STORAGE_TRACKS_BUCKET` | Bucket for audio files (defaults to `tracks`) |
+| `STORAGE_ALBUM_ART_BUCKET` | Bucket for album artwork (defaults to `album-art`) |
+| `STORAGE_ARTIST_IMAGE_BUCKET` | Bucket for artist images (defaults to `artist-image`) |
+| `STORAGE_STAGING_BUCKET` | Bucket for in-flight upload staging (defaults to `upload-staging`) |
+
+Bucket names are optional: when unset they fall back to the conventional
+names above, and all four are created automatically at startup.
 
 ### Admin, docs & ingress
 

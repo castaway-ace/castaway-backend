@@ -1,12 +1,21 @@
 import {
+  AbortMultipartUploadCommand,
+  CompleteMultipartUploadCommand,
+  CopyObjectCommand,
   CreateBucketCommand,
+  CreateMultipartUploadCommand,
   DeleteObjectCommand,
   GetObjectCommand,
   GetObjectCommandOutput,
   HeadBucketCommand,
+  HeadObjectCommand,
+  HeadObjectCommandOutput,
+  ListObjectsV2Command,
+  ListObjectsV2CommandOutput,
   PutObjectCommand,
   S3Client,
   S3ServiceException,
+  UploadPartCommand,
 } from '@aws-sdk/client-s3';
 import {
   Injectable,
@@ -56,6 +65,16 @@ export interface ObjectStreamResult {
   contentLength?: number;
   contentRange?: string;
   acceptRanges?: string;
+}
+
+export interface UploadedPart {
+  partNumber: number;
+  etag: string;
+}
+
+export interface HeadObjectResult {
+  contentLength: number;
+  contentType?: string;
 }
 
 @Injectable()
@@ -176,6 +195,219 @@ export class StorageService implements OnApplicationBootstrap {
         }`,
       );
     }
+  }
+
+  /**
+   * Initiates a multipart upload and returns its UploadId. Callers presign the
+   * individual part URLs (see `presignUploadPart`) and complete the upload with
+   * `completeMultipartUpload` once every part has been stored.
+   */
+  async createMultipartUpload(
+    bucket: StorageBucket,
+    key: string,
+    contentType: string,
+  ): Promise<string> {
+    const response = await this.client.send(
+      new CreateMultipartUploadCommand({
+        Bucket: bucket,
+        Key: key,
+        ContentType: contentType,
+      }),
+    );
+
+    if (!response.UploadId) {
+      throw new InternalServerErrorException(
+        `Multipart upload was not initiated for ${key}`,
+      );
+    }
+
+    return response.UploadId;
+  }
+
+  /** Finalizes a multipart upload. Parts are sorted ascending as S3 requires. */
+  async completeMultipartUpload(
+    bucket: StorageBucket,
+    key: string,
+    uploadId: string,
+    parts: UploadedPart[],
+  ): Promise<void> {
+    const orderedParts = [...parts]
+      .sort((a, b) => a.partNumber - b.partNumber)
+      .map((part) => ({ PartNumber: part.partNumber, ETag: part.etag }));
+
+    await this.client.send(
+      new CompleteMultipartUploadCommand({
+        Bucket: bucket,
+        Key: key,
+        UploadId: uploadId,
+        MultipartUpload: { Parts: orderedParts },
+      }),
+    );
+  }
+
+  /** Cancels an in-flight multipart upload and discards its stored parts. */
+  async abortMultipartUpload(
+    bucket: StorageBucket,
+    key: string,
+    uploadId: string,
+  ): Promise<void> {
+    await this.client.send(
+      new AbortMultipartUploadCommand({
+        Bucket: bucket,
+        Key: key,
+        UploadId: uploadId,
+      }),
+    );
+  }
+
+  /**
+   * Presigns a single-part PUT URL against the client-reachable endpoint so a
+   * caller can upload one object directly to storage.
+   */
+  async presignPutObject(
+    bucket: StorageBucket,
+    key: string,
+    contentType: string,
+    expiresIn: number = PRESIGNED_URL_TTL_SECONDS,
+  ): Promise<string> {
+    return getSignedUrl(
+      this.preSignedClient,
+      new PutObjectCommand({
+        Bucket: bucket,
+        Key: key,
+        ContentType: contentType,
+      }),
+      { expiresIn },
+    );
+  }
+
+  /**
+   * Presigns an UploadPart URL against the client-reachable endpoint. Signing
+   * is a local HMAC operation (no round trip), so callers can issue every part
+   * URL for a session up front.
+   */
+  async presignUploadPart(
+    bucket: StorageBucket,
+    key: string,
+    uploadId: string,
+    partNumber: number,
+    expiresIn: number = PRESIGNED_URL_TTL_SECONDS,
+  ): Promise<string> {
+    return getSignedUrl(
+      this.preSignedClient,
+      new UploadPartCommand({
+        Bucket: bucket,
+        Key: key,
+        UploadId: uploadId,
+        PartNumber: partNumber,
+      }),
+      { expiresIn },
+    );
+  }
+
+  /** Returns object metadata, mapping a missing object to NotFoundException. */
+  async headObject(
+    bucket: StorageBucket,
+    key: string,
+  ): Promise<HeadObjectResult> {
+    let response: HeadObjectCommandOutput;
+    try {
+      response = await this.client.send(
+        new HeadObjectCommand({ Bucket: bucket, Key: key }),
+      );
+    } catch (err) {
+      if (this.isNotFound(err)) {
+        throw new NotFoundException(`Object not found: ${key}`);
+      }
+      throw err;
+    }
+
+    if (response.ContentLength === undefined) {
+      throw new InternalServerErrorException(
+        `Object has no content length: ${key}`,
+      );
+    }
+
+    return {
+      contentLength: response.ContentLength,
+      contentType: response.ContentType,
+    };
+  }
+
+  /**
+   * Server-side copy between buckets so bytes never transit the app/worker.
+   * When `contentType` is given it is written on the destination
+   * (MetadataDirective REPLACE); otherwise the source's metadata is preserved.
+   */
+  async copyObject(
+    srcBucket: StorageBucket,
+    srcKey: string,
+    dstBucket: StorageBucket,
+    dstKey: string,
+    contentType?: string,
+  ): Promise<void> {
+    await this.client.send(
+      new CopyObjectCommand({
+        Bucket: dstBucket,
+        Key: dstKey,
+        CopySource: this.encodeCopySource(srcBucket, srcKey),
+        ...(contentType
+          ? { ContentType: contentType, MetadataDirective: 'REPLACE' }
+          : {}),
+      }),
+    );
+  }
+
+  /**
+   * Best-effort recursive delete of every object under `prefix`. Never throws:
+   * used by upload-session abort/cleanup paths. Individual object failures are
+   * logged via `deleteObjectQuietly`; a failed listing aborts quietly.
+   */
+  async deletePrefix(bucket: StorageBucket, prefix: string): Promise<void> {
+    let continuationToken: string | undefined;
+
+    do {
+      let page: ListObjectsV2CommandOutput;
+      try {
+        page = await this.client.send(
+          new ListObjectsV2Command({
+            Bucket: bucket,
+            Prefix: prefix,
+            ContinuationToken: continuationToken,
+          }),
+        );
+      } catch (error) {
+        this.logger.warn(
+          `Failed to list objects under ${bucket}/${prefix}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+        return;
+      }
+
+      for (const object of page.Contents ?? []) {
+        if (object.Key) {
+          await this.deleteObjectQuietly(
+            bucket,
+            object.Key,
+            `prefix ${prefix}`,
+          );
+        }
+      }
+
+      continuationToken = page.IsTruncated
+        ? page.NextContinuationToken
+        : undefined;
+    } while (continuationToken);
+  }
+
+  /**
+   * Builds an S3 CopySource for path-style access: the bucket, then the key
+   * with each path segment percent-encoded while the `/` separators are kept.
+   */
+  private encodeCopySource(bucket: string, key: string): string {
+    const encodedKey = key.split('/').map(encodeURIComponent).join('/');
+    return `${bucket}/${encodedKey}`;
   }
 
   /**
@@ -301,23 +533,29 @@ export class StorageService implements OnApplicationBootstrap {
     const region = configService.get<string>('STORAGE_REGION');
     const accessKey = configService.get<string>('STORAGE_ACCESS_KEY');
     const secretKey = configService.get<string>('STORAGE_SECRET_ACCESS_KEY');
-    const tracksBucket = configService.get<string>('STORAGE_TRACKS_BUCKET');
-    const albumArtBucket = configService.get<string>(
-      'STORAGE_ALBUM_ART_BUCKET',
-    );
-    const artistImageBucket = configService.get<string>(
-      'STORAGE_ARTIST_IMAGE_BUCKET',
-    );
+    // Bucket names default to the StorageBucket enum's conventional names and
+    // are only overridden when an env var is explicitly set. The enum is the
+    // single source of truth: these defaults always match the names the rest
+    // of the service reads/writes, so the ensure/health list can never drift.
+    const tracksBucket =
+      configService.get<string>('STORAGE_TRACKS_BUCKET') ||
+      StorageBucket.Tracks;
+    const albumArtBucket =
+      configService.get<string>('STORAGE_ALBUM_ART_BUCKET') ||
+      StorageBucket.AlbumArt;
+    const artistImageBucket =
+      configService.get<string>('STORAGE_ARTIST_IMAGE_BUCKET') ||
+      StorageBucket.ArtistArt;
+    const stagingBucket =
+      configService.get<string>('STORAGE_STAGING_BUCKET') ||
+      StorageBucket.Staging;
 
     if (
       !endpoint ||
       !region ||
       !accessKey ||
       !secretKey ||
-      !presignedEndpoint ||
-      !tracksBucket ||
-      !albumArtBucket ||
-      !artistImageBucket
+      !presignedEndpoint
     ) {
       throw new Error('Storage configuration is incomplete');
     }
@@ -328,7 +566,7 @@ export class StorageService implements OnApplicationBootstrap {
       region,
       accessKey,
       secretKey,
-      buckets: [tracksBucket, albumArtBucket, artistImageBucket],
+      buckets: [tracksBucket, albumArtBucket, artistImageBucket, stagingBucket],
       maxSockets: this.parseMaxSockets(
         configService.get<string>('STORAGE_MAX_SOCKETS'),
       ),
