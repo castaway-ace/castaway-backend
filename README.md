@@ -61,6 +61,7 @@ Both environments run the same set of services via Compose:
 | `app` | NestJS API | Port `3000` |
 | `db` | PostgreSQL 16 | Port `5432` (exposed in dev only) |
 | `storage` | MinIO (S3) | API `9000`, console `9001` |
+| `redis` | Redis 7 (BullMQ transport) | Port `6379` (exposed in dev only); `noeviction`, AOF |
 | `migrate` | One-shot `prisma migrate deploy` | Runs to completion before `app` starts |
 | `cloudflared` | Cloudflare Tunnel | Public ingress for prod |
 
@@ -155,6 +156,7 @@ Define these in a `.env` file at the repo root. Do **not** commit it.
 | `POSTGRES_USER` | Postgres user |
 | `POSTGRES_PASSWORD` | Postgres password |
 | `DATABASE_URL` | Prisma connection string, e.g. `postgresql://<user>:<pass>@db:5432/<db>` |
+| `REDIS_URL` | BullMQ/Redis connection (required), e.g. `redis://redis:6379`. The app fails fast at startup if unset. |
 
 ### Auth
 

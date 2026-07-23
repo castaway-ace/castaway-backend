@@ -41,6 +41,7 @@ services:
     environment:
       - NODE_ENV=production
       - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
       - UPLOAD_TMP_DIR=/mnt/data/castaway/tmp
       - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET}
       - JWT_ACCESS_EXPIRATION=${JWT_ACCESS_EXPIRATION}
@@ -66,6 +67,8 @@ services:
         condition: service_completed_successfully
       storage:
         condition: service_started
+      redis:
+        condition: service_healthy
     volumes:
       - /mnt/data/castaway/tmp:/mnt/data/castaway/tmp
 
@@ -78,6 +81,19 @@ services:
     volumes:
       - /mnt/data/castaway/storage_data:/data
     command: [ "server", "--console-address", ":9001", "/data" ]
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--maxmemory", "64mb", "--maxmemory-policy", "noeviction", "--appendonly", "yes", "--appendfsync", "everysec"]
+    volumes:
+      - /mnt/data/castaway/redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    mem_limit: 96m
 
   cloudflared:
     image: cloudflare/cloudflared:2024.12.2
