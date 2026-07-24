@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { ImportPhase, ImportSessionStatus } from '../generated/prisma/enums.js';
 import type { UploadMode } from './upload-sessions.types.js';
 
 export class UploadPartTarget {
@@ -55,4 +56,69 @@ export class CreateUploadSessionResponse {
 
   @ApiProperty({ type: [UploadFileTarget] })
   files!: UploadFileTarget[];
+}
+
+export class UploadSessionFileStatus {
+  @ApiProperty()
+  fileId!: string;
+
+  @ApiProperty({ description: 'Original file name.' })
+  name!: string;
+
+  @ApiProperty()
+  size!: number;
+
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description: 'When the file finished uploading, or null if pending.',
+  })
+  uploadedAt!: Date | null;
+}
+
+export class UploadSessionProgress {
+  @ApiProperty()
+  current!: number;
+
+  @ApiProperty()
+  total!: number;
+}
+
+export class UploadSessionStatusResponse {
+  @ApiProperty()
+  sessionId!: string;
+
+  @ApiProperty({ enum: ImportSessionStatus })
+  status!: ImportSessionStatus;
+
+  @ApiProperty({ enum: ImportPhase, nullable: true })
+  phase!: ImportPhase | null;
+
+  @ApiProperty({ type: UploadSessionProgress })
+  progress!: UploadSessionProgress;
+
+  @ApiProperty({
+    type: Object,
+    nullable: true,
+    description: 'Structured failure detail, present when status is FAILED.',
+  })
+  error!: unknown;
+
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description: 'Created album id, present when status is COMPLETED.',
+  })
+  albumId!: string | null;
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  createdAt!: Date;
+
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  finishedAt!: Date | null;
+
+  @ApiProperty({ type: [UploadSessionFileStatus] })
+  files!: UploadSessionFileStatus[];
 }

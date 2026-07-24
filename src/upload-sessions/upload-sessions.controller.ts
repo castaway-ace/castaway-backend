@@ -1,9 +1,24 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiConflictResponse,
   ApiCreatedResponse,
   ApiForbiddenResponse,
+  ApiNoContentResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
@@ -11,7 +26,12 @@ import { AdminGuard } from '../auth/guards/admin.guard.js';
 import { CurrentUser } from '../auth/decorators/user.decorator.js';
 import { UploadSessionsService } from './upload-sessions.service.js';
 import { CreateUploadSessionDto } from './dto/create-upload-session.dto.js';
-import { CreateUploadSessionResponse } from './upload-sessions.entity.js';
+import { CompleteFileDto } from './dto/complete-file.dto.js';
+import {
+  CreateUploadSessionResponse,
+  UploadSessionFileStatus,
+  UploadSessionStatusResponse,
+} from './upload-sessions.entity.js';
 
 @Controller('admin/upload-sessions')
 @UseGuards(AdminGuard)
@@ -30,5 +50,38 @@ export class UploadSessionsController {
     @CurrentUser('sub') createdBy: string,
   ): Promise<CreateUploadSessionResponse> {
     return this.uploadSessionsService.createSession(dto.files, createdBy);
+  }
+
+  @Get(':id')
+  @ApiOkResponse({ type: UploadSessionStatusResponse })
+  @ApiNotFoundResponse({ description: 'Upload session not found.' })
+  getStatus(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<UploadSessionStatusResponse> {
+    return this.uploadSessionsService.getStatus(id);
+  }
+
+  @Post(':id/files/:fileId/complete')
+  @HttpCode(HttpStatus.OK)
+  @ApiOkResponse({ type: UploadSessionFileStatus })
+  @ApiNotFoundResponse({ description: 'Upload file not found.' })
+  @ApiBadRequestResponse({ description: 'Missing parts or size mismatch.' })
+  completeFile(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('fileId', ParseUUIDPipe) fileId: string,
+    @Body() dto: CompleteFileDto,
+  ): Promise<UploadSessionFileStatus> {
+    return this.uploadSessionsService.completeFile(id, fileId, dto.parts ?? []);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContentResponse()
+  @ApiNotFoundResponse({ description: 'Upload session not found.' })
+  @ApiConflictResponse({
+    description: 'Session cannot be aborted in its current state.',
+  })
+  async abortSession(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
+    await this.uploadSessionsService.abortSession(id);
   }
 }
