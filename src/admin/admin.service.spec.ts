@@ -15,6 +15,7 @@ const parseFile = jest.fn<(path: string) => Promise<IAudioMetadata>>();
 jest.unstable_mockModule('music-metadata', () => ({ parseFile }));
 
 const { AdminService } = await import('./admin.service.js');
+const { IngestService } = await import('../ingest/ingest.service.js');
 const { TracksService } = await import('../tracks/tracks.service.js');
 const { ArtistsService } = await import('../artists/artists.service.js');
 const { AlbumsService } = await import('../albums/albums.service.js');
@@ -174,6 +175,7 @@ describe('AdminService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AdminService,
+        IngestService,
         { provide: TracksService, useValue: mockTrackService },
         { provide: ArtistsService, useValue: mockArtistService },
         { provide: AlbumsService, useValue: mockAlbumService },
