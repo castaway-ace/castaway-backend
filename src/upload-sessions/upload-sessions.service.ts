@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { StorageService } from '../storage/storage.service.js';
 import { StorageBucket } from '../storage/storage.types.js';
+import { parsePositiveIntEnv } from '../common/env.js';
 import {
   CreateUploadSessionResponse,
   UploadFileTarget,
@@ -41,12 +42,12 @@ export class UploadSessionsService {
     private readonly storageService: StorageService,
     configService: ConfigService,
   ) {
-    this.partSize = this.readPositiveInt(
+    this.partSize = parsePositiveIntEnv(
       configService.get<string>('UPLOAD_PART_SIZE_BYTES'),
       DEFAULT_PART_SIZE_BYTES,
       'UPLOAD_PART_SIZE_BYTES',
     );
-    this.presignTtlSeconds = this.readPositiveInt(
+    this.presignTtlSeconds = parsePositiveIntEnv(
       configService.get<string>('UPLOAD_PRESIGN_TTL_SECONDS'),
       DEFAULT_PRESIGN_TTL_SECONDS,
       'UPLOAD_PRESIGN_TTL_SECONDS',
@@ -175,20 +176,5 @@ export class UploadSessionsService {
       partCount,
       target: { fileId, name: file.name, mode: 'multipart', uploadId, parts },
     };
-  }
-
-  private readPositiveInt(
-    raw: string | undefined,
-    fallback: number,
-    name: string,
-  ): number {
-    if (raw === undefined || raw === '') {
-      return fallback;
-    }
-    const value = Number(raw);
-    if (!Number.isInteger(value) || value <= 0) {
-      throw new Error(`Invalid ${name} "${raw}": expected a positive integer`);
-    }
-    return value;
   }
 }

@@ -26,6 +26,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { StorageBucket } from './storage.types.js';
+import { parsePositiveIntEnv } from '../common/env.js';
 import { Readable } from 'stream';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { NodeHttpHandler } from '@smithy/node-http-handler';
@@ -567,24 +568,11 @@ export class StorageService implements OnApplicationBootstrap {
       accessKey,
       secretKey,
       buckets: [tracksBucket, albumArtBucket, artistImageBucket, stagingBucket],
-      maxSockets: this.parseMaxSockets(
+      maxSockets: parsePositiveIntEnv(
         configService.get<string>('STORAGE_MAX_SOCKETS'),
+        DEFAULT_MAX_SOCKETS,
+        'STORAGE_MAX_SOCKETS',
       ),
     };
-  }
-
-  private parseMaxSockets(raw: string | undefined): number {
-    if (raw === undefined || raw === '') {
-      return DEFAULT_MAX_SOCKETS;
-    }
-
-    const value = Number(raw);
-    if (!Number.isInteger(value) || value <= 0) {
-      throw new Error(
-        `Invalid STORAGE_MAX_SOCKETS "${raw}": expected a positive integer`,
-      );
-    }
-
-    return value;
   }
 }
