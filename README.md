@@ -197,6 +197,7 @@ names above, and all four are created automatically at startup.
 | `UPLOAD_TMP_DIR` | Scratch dir for uploads (defaults to `/mnt/data/castaway/tmp`) |
 | `UPLOAD_PART_SIZE_BYTES` | Multipart part size for upload sessions (defaults to 64 MiB) |
 | `UPLOAD_PRESIGN_TTL_SECONDS` | Lifetime of presigned upload URLs (defaults to `21600` = 6h) |
+| `UPLOAD_SESSION_TTL_HOURS` | Idle (still-uploading) sessions are expired after this many hours (defaults to `24`) |
 
 ## Data model
 
@@ -244,6 +245,11 @@ The `worker` container consumes the queue and runs the ingest job: it parses
 the staged audio, plans the album, copies objects server-side into the final
 buckets, persists the album and tracks in one transaction, then clears staging.
 The album id equals the session id, so retries are idempotent.
+
+An hourly worker-hosted sweep also expires idle sessions past
+`UPLOAD_SESSION_TTL_HOURS` (aborting their uploads and clearing staging),
+re-enqueues QUEUED sessions whose job was lost, and prunes terminal sessions
+older than 30 days.
 
 ## Project structure
 

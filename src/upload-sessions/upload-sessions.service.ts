@@ -13,7 +13,11 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { StorageService } from '../storage/storage.service.js';
 import { StorageBucket } from '../storage/storage.types.js';
 import { parsePositiveIntEnv } from '../common/env.js';
-import { ALBUM_INGEST_JOB, ALBUM_INGEST_QUEUE } from '../common/constants.js';
+import {
+  ALBUM_INGEST_JOB,
+  ALBUM_INGEST_JOB_OPTIONS,
+  ALBUM_INGEST_QUEUE,
+} from '../common/constants.js';
 import { ImportSessionStatus } from '../generated/prisma/enums.js';
 import {
   CreateUploadSessionResponse,
@@ -380,13 +384,7 @@ export class UploadSessionsService {
       await this.ingestQueue.add(
         ALBUM_INGEST_JOB,
         { sessionId },
-        {
-          jobId: sessionId,
-          attempts: 3,
-          backoff: { type: 'exponential', delay: 30_000 },
-          removeOnComplete: { count: 100 },
-          removeOnFail: { count: 500 },
-        },
+        { jobId: sessionId, ...ALBUM_INGEST_JOB_OPTIONS },
       );
     } catch {
       // Roll the status back so the client can retry finalizing.

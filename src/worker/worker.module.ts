@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { PrismaModule } from '../prisma/prisma.module.js';
 import { StorageModule } from '../storage/storage.module.js';
 import { HealthModule } from '../health/health.module.js';
@@ -7,6 +8,7 @@ import { QueueModule } from '../queue/queue.module.js';
 import { IngestModule } from '../ingest/ingest.module.js';
 import { AlbumsModule } from '../albums/albums.module.js';
 import { AlbumIngestProcessor } from '../ingest/album-ingest.processor.js';
+import { StagingSweeperService } from '../ingest/staging-sweeper.service.js';
 
 /**
  * Root module for the ingest worker process. It boots as a minimal HTTP app so
@@ -17,6 +19,7 @@ import { AlbumIngestProcessor } from '../ingest/album-ingest.processor.js';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ScheduleModule.forRoot(),
     PrismaModule,
     StorageModule,
     HealthModule,
@@ -24,6 +27,6 @@ import { AlbumIngestProcessor } from '../ingest/album-ingest.processor.js';
     IngestModule,
     AlbumsModule,
   ],
-  providers: [AlbumIngestProcessor],
+  providers: [AlbumIngestProcessor, StagingSweeperService],
 })
 export class WorkerModule {}
