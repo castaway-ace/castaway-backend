@@ -19,6 +19,7 @@ import { LibraryModule } from './library/library.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { WhitelistModule } from './whitelist/whitelist.module.js';
 import { QueueModule } from './queue/queue.module.js';
+import { UploadSessionsModule } from './upload-sessions/upload-sessions.module.js';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { QueueModule } from './queue/queue.module.js';
     InteractionsModule,
     LibraryModule,
     WhitelistModule,
+    UploadSessionsModule,
   ],
 })
 export class AppModule {}
