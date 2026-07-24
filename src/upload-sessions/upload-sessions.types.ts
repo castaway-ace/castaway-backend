@@ -7,3 +7,9 @@ export interface UploadFileInput {
   size: number;
   contentType: string;
 }
+
+/** One uploaded multipart part reported back when completing a file. */
+export interface CompletedPart {
+  partNumber: number;
+  etag: string;
+}

@@ -223,6 +223,22 @@ bearer access token.
 
 A liveness/readiness endpoint is exposed at **`/health`** via Terminus.
 
+### Admin upload sessions
+
+Album uploads use a presigned, direct-to-storage flow (all under
+`/admin/upload-sessions`, admin only):
+
+1. `POST /admin/upload-sessions` — declare the files; receive presigned upload
+   targets (a single PUT for small files, multipart part URLs for large ones).
+2. Upload the bytes directly to storage using those URLs.
+3. `POST /admin/upload-sessions/:id/files/:fileId/complete` — per file: finish
+   the multipart upload (or verify the single PUT) and confirm the stored size.
+4. `GET /admin/upload-sessions/:id` — poll status/phase/progress; `DELETE
+   /admin/upload-sessions/:id` — abort a session that hasn't started processing.
+
+Finalizing a session (enqueueing it for the ingest worker) is added in a later
+change.
+
 ## Project structure
 
 ```
