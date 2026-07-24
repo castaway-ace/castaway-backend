@@ -234,11 +234,16 @@ Album uploads use a presigned, direct-to-storage flow (all under
 2. Upload the bytes directly to storage using those URLs.
 3. `POST /admin/upload-sessions/:id/files/:fileId/complete` — per file: finish
    the multipart upload (or verify the single PUT) and confirm the stored size.
-4. `GET /admin/upload-sessions/:id` — poll status/phase/progress; `DELETE
+4. `POST /admin/upload-sessions/:id/finalize` — once every file is uploaded,
+   queue the session for the ingest worker (returns `202`).
+5. `GET /admin/upload-sessions/:id` — poll status/phase/progress until
+   `COMPLETED` (or `FAILED` with a structured error). `DELETE
    /admin/upload-sessions/:id` — abort a session that hasn't started processing.
 
-Finalizing a session (enqueueing it for the ingest worker) is added in a later
-change.
+The `worker` container consumes the queue and runs the ingest job: it parses
+the staged audio, plans the album, copies objects server-side into the final
+buckets, persists the album and tracks in one transaction, then clears staging.
+The album id equals the session id, so retries are idempotent.
 
 ## Project structure
 

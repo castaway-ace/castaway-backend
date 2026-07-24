@@ -7,6 +7,9 @@ export const VARIOUS_ARTISTS_NAME = 'Various Artists';
  */
 export const ALBUM_INGEST_QUEUE = 'album-ingest';
 
+/** Job name for a single album-import job on the album-ingest queue. */
+export const ALBUM_INGEST_JOB = 'ingest-album';
+
 export const mimeToSuffix: Record<string, string> = {
   'audio/flac': 'flac',
   'audio/x-flac': 'flac',

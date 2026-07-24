@@ -4,6 +4,8 @@ import { PrismaModule } from '../prisma/prisma.module.js';
 import { StorageModule } from '../storage/storage.module.js';
 import { HealthModule } from '../health/health.module.js';
 import { QueueModule } from '../queue/queue.module.js';
+import { IngestModule } from '../ingest/ingest.module.js';
+import { AlbumsModule } from '../albums/albums.module.js';
 import { AlbumIngestProcessor } from '../ingest/album-ingest.processor.js';
 
 /**
@@ -19,6 +21,8 @@ import { AlbumIngestProcessor } from '../ingest/album-ingest.processor.js';
     StorageModule,
     HealthModule,
     QueueModule,
+    IngestModule,
+    AlbumsModule,
   ],
   providers: [AlbumIngestProcessor],
 })
