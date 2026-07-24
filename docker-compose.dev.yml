@@ -82,6 +82,52 @@ services:
       start_period: 60s
       retries: 3
 
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    command: ["npm", "run", "start:worker:dev"]
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - NODE_OPTIONS=--max-old-space-size=320
+      - STORAGE_ENDPOINT=${STORAGE_ENDPOINT}
+      - STORAGE_PRESIGNED_ENDPOINT=${STORAGE_PRESIGNED_ENDPOINT}
+      - STORAGE_REGION=${STORAGE_REGION}
+      - STORAGE_ACCESS_KEY=${STORAGE_ACCESS_KEY}
+      - STORAGE_SECRET_ACCESS_KEY=${STORAGE_SECRET_ACCESS_KEY}
+      - STORAGE_TRACKS_BUCKET=${STORAGE_TRACKS_BUCKET}
+      - STORAGE_ALBUM_ART_BUCKET=${STORAGE_ALBUM_ART_BUCKET}
+      - STORAGE_ARTIST_IMAGE_BUCKET=${STORAGE_ARTIST_IMAGE_BUCKET}
+      - STORAGE_STAGING_BUCKET=${STORAGE_STAGING_BUCKET}
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      storage:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/usr/src/app
+      - /usr/src/app/node_modules
+    mem_limit: 512m
+    stop_grace_period: 60s
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
+
   storage:
     image: minio/minio:RELEASE.2025-04-22T22-12-26Z
     ports:

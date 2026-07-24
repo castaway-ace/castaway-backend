@@ -59,6 +59,7 @@ Both environments run the same set of services via Compose:
 | Service | Role | Notes |
 | --- | --- | --- |
 | `app` | NestJS API | Port `3000` |
+| `worker` | Ingest worker (same image, `node dist/src/worker/main.js`) | Consumes the album-ingest queue; internal `/health` only, no public routes |
 | `db` | PostgreSQL 16 | Port `5432` (exposed in dev only) |
 | `storage` | MinIO (S3) | API `9000`, console `9001` |
 | `redis` | Redis 7 (BullMQ transport) | Port `6379` (exposed in dev only); `noeviction`, AOF |
@@ -258,6 +259,10 @@ src/
   search/           Catalog search
   storage/          S3 client + presigned URLs
   admin/            Admin-only endpoints
+  upload-sessions/  Presigned direct-to-storage upload sessions
+  ingest/           Shared album ingest (planning, persistence, worker processor)
+  queue/            BullMQ queue wiring
+  worker/           Ingest worker entry point (separate process, same image)
   health/           Terminus health checks
   common/           Shared DTOs/entities
   prisma/           Prisma service + exception filter

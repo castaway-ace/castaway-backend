@@ -4,8 +4,8 @@ PROD := docker compose -f docker-compose.prod.yml
 .DEFAULT_GOAL := help
 
 .PHONY: help \
-	up down restart rebuild seed migrate studio logs shell \
-	prod-up prod-down prod-restart prod-rebuild prod-seed prod-migrate prod-logs prod-shell
+	up down restart rebuild seed migrate studio logs worker-logs shell \
+	prod-up prod-down prod-restart prod-rebuild prod-seed prod-migrate prod-logs prod-worker-logs prod-shell
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -36,6 +36,9 @@ studio: ## Open Prisma Studio on :5555 (dev)
 logs: ## Tail dev app logs
 	$(DEV) logs -f app
 
+worker-logs: ## Tail dev worker logs
+	$(DEV) logs -f worker
+
 shell: ## Shell into the dev app container
 	$(DEV) exec app sh
 
@@ -60,6 +63,9 @@ prod-seed: ## Seed the prod database (compiled seed)
 
 prod-logs: ## Tail prod app logs
 	$(PROD) logs -f app
+
+prod-worker-logs: ## Tail prod worker logs
+	$(PROD) logs -f worker
 
 prod-shell: ## Shell into the prod app container
 	$(PROD) exec app sh
