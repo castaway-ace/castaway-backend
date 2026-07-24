@@ -11,6 +11,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import {
+  ApiAcceptedResponse,
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiConflictResponse,
@@ -72,6 +73,17 @@ export class UploadSessionsController {
     @Body() dto: CompleteFileDto,
   ): Promise<UploadSessionFileStatus> {
     return this.uploadSessionsService.completeFile(id, fileId, dto.parts ?? []);
+  }
+
+  @Post(':id/finalize')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiAcceptedResponse({ description: 'Session queued for ingest.' })
+  @ApiNotFoundResponse({ description: 'Upload session not found.' })
+  @ApiConflictResponse({
+    description: 'Files not fully uploaded, or session not finalizable.',
+  })
+  async finalizeSession(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
+    await this.uploadSessionsService.finalizeSession(id);
   }
 
   @Delete(':id')

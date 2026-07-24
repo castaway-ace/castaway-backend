@@ -4,6 +4,7 @@ import { UploadSessionsService } from './upload-sessions.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { StorageService } from '../storage/storage.service.js';
 import { StorageBucket } from '../storage/storage.types.js';
+import type { Queue } from 'bullmq';
 import type { UploadFileInput } from './upload-sessions.types.js';
 
 interface CreateArgs {
@@ -65,12 +66,18 @@ describe('UploadSessionsService', () => {
     ...overrides,
   });
 
+  const mockQueue = {
+    add: jest.fn<(...a: unknown[]) => Promise<unknown>>(),
+    remove: jest.fn<(...a: unknown[]) => Promise<number>>(),
+  };
+
   const build = (
     config: Record<string, string | undefined> = {},
   ): UploadSessionsService =>
     new UploadSessionsService(
       mockPrisma as unknown as PrismaService,
       mockStorage as unknown as StorageService,
+      mockQueue as unknown as Queue,
       { get: (key: string) => config[key] } as unknown as ConfigService,
     );
 
@@ -105,6 +112,8 @@ describe('UploadSessionsService', () => {
       ),
     );
     updateSessionRow.mockResolvedValue(undefined);
+    mockQueue.add.mockResolvedValue(undefined);
+    mockQueue.remove.mockResolvedValue(1);
   });
 
   describe('createSession', () => {
@@ -420,6 +429,103 @@ describe('UploadSessionsService', () => {
       findSessionRow.mockResolvedValue(null);
 
       await expect(service.abortSession('missing')).rejects.toThrow(
+        'Upload session not found',
+      );
+    });
+
+    it('removes the queued job when aborting a QUEUED session', async () => {
+      const service = build();
+      findSessionRow.mockResolvedValue({
+        id: 'sess-1',
+        status: 'QUEUED',
+        files: [],
+      });
+
+      await service.abortSession('sess-1');
+
+      expect(mockQueue.remove).toHaveBeenCalledWith('sess-1');
+    });
+  });
+
+  describe('finalizeSession', () => {
+    const uploadedSession = (over: Record<string, unknown> = {}) => ({
+      id: 'sess-1',
+      status: 'PENDING_UPLOAD',
+      files: [fileRow({ uploadedAt: new Date() })],
+      ...over,
+    });
+
+    it('queues a fully-uploaded session and enqueues a job', async () => {
+      const service = build();
+      findSessionRow.mockResolvedValue(uploadedSession());
+
+      await service.finalizeSession('sess-1');
+
+      const updateArg = updateSessionRow.mock.calls[0][0] as {
+        data: { status: string; queuedAt: unknown };
+      };
+      expect(updateArg.data.status).toBe('QUEUED');
+      expect(updateArg.data.queuedAt).toBeInstanceOf(Date);
+      expect(mockQueue.add).toHaveBeenCalledWith(
+        'ingest-album',
+        { sessionId: 'sess-1' },
+        expect.objectContaining({ jobId: 'sess-1', attempts: 3 }),
+      );
+    });
+
+    it('409s when some files are not uploaded', async () => {
+      const service = build();
+      findSessionRow.mockResolvedValue(
+        uploadedSession({ files: [fileRow({ uploadedAt: null })] }),
+      );
+
+      await expect(service.finalizeSession('sess-1')).rejects.toThrow(
+        'not finished uploading',
+      );
+      expect(mockQueue.add).not.toHaveBeenCalled();
+    });
+
+    it('is idempotent when the session is already QUEUED', async () => {
+      const service = build();
+      findSessionRow.mockResolvedValue(uploadedSession({ status: 'QUEUED' }));
+
+      await service.finalizeSession('sess-1');
+
+      expect(updateSessionRow).not.toHaveBeenCalled();
+      expect(mockQueue.add).not.toHaveBeenCalled();
+    });
+
+    it('409s for a FAILED session', async () => {
+      const service = build();
+      findSessionRow.mockResolvedValue(uploadedSession({ status: 'FAILED' }));
+
+      await expect(service.finalizeSession('sess-1')).rejects.toThrow(
+        'Cannot finalize',
+      );
+    });
+
+    it('rolls the status back and 503s when enqueue fails', async () => {
+      const service = build();
+      findSessionRow.mockResolvedValue(uploadedSession());
+      mockQueue.add.mockRejectedValue(new Error('redis down'));
+
+      await expect(service.finalizeSession('sess-1')).rejects.toThrow(
+        'Failed to enqueue',
+      );
+
+      const rollback = updateSessionRow.mock.calls.find(
+        (call) =>
+          (call[0] as { data: { status?: string } }).data.status ===
+          'PENDING_UPLOAD',
+      );
+      expect(rollback).toBeDefined();
+    });
+
+    it('404s for an unknown session', async () => {
+      const service = build();
+      findSessionRow.mockResolvedValue(null);
+
+      await expect(service.finalizeSession('missing')).rejects.toThrow(
         'Upload session not found',
       );
     });

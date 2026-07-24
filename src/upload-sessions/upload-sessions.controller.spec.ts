@@ -69,6 +69,9 @@ describe('UploadSessionsController', () => {
     abortSession: jest
       .fn<UploadSessionsService['abortSession']>()
       .mockResolvedValue(undefined),
+    finalizeSession: jest
+      .fn<UploadSessionsService['finalizeSession']>()
+      .mockResolvedValue(undefined),
   };
 
   const validBody = {
@@ -246,6 +249,24 @@ describe('UploadSessionsController', () => {
       await request(app.getHttpServer())
         .delete(`/admin/upload-sessions/${SESSION_ID}`)
         .expect(409);
+    });
+  });
+
+  describe('POST /admin/upload-sessions/:id/finalize', () => {
+    it('finalizes the session and returns 202', async () => {
+      await request(app.getHttpServer())
+        .post(`/admin/upload-sessions/${SESSION_ID}/finalize`)
+        .expect(202);
+
+      expect(mockService.finalizeSession).toHaveBeenCalledWith(SESSION_ID);
+    });
+
+    it('rejects a malformed id without reaching the service', async () => {
+      await request(app.getHttpServer())
+        .post('/admin/upload-sessions/not-a-uuid/finalize')
+        .expect(400);
+
+      expect(mockService.finalizeSession).not.toHaveBeenCalled();
     });
   });
 });

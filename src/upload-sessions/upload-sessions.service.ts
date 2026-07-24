@@ -3,13 +3,17 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { InjectQueue } from '@nestjs/bullmq';
+import type { Queue } from 'bullmq';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { StorageService } from '../storage/storage.service.js';
 import { StorageBucket } from '../storage/storage.types.js';
 import { parsePositiveIntEnv } from '../common/env.js';
+import { ALBUM_INGEST_JOB, ALBUM_INGEST_QUEUE } from '../common/constants.js';
 import { ImportSessionStatus } from '../generated/prisma/enums.js';
 import {
   CreateUploadSessionResponse,
@@ -51,6 +55,7 @@ export class UploadSessionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storageService: StorageService,
+    @InjectQueue(ALBUM_INGEST_QUEUE) private readonly ingestQueue: Queue,
     configService: ConfigService,
   ) {
     this.partSize = parsePositiveIntEnv(
@@ -297,6 +302,11 @@ export class UploadSessionsService {
       );
     }
 
+    if (session.status === ImportSessionStatus.QUEUED) {
+      // Drop the queued job so the worker doesn't pick up an aborted session.
+      await this.ingestQueue.remove(sessionId).catch(() => undefined);
+    }
+
     const aborts: Promise<void>[] = [];
     for (const file of session.files) {
       if (file.uploadId && !file.uploadedAt) {
@@ -322,6 +332,77 @@ export class UploadSessionsService {
       where: { id: sessionId },
       data: { status: ImportSessionStatus.ABORTED, finishedAt: new Date() },
     });
+  }
+
+  /**
+   * Enqueues a fully-uploaded session for the ingest worker. Requires every
+   * file to be uploaded, transitions PENDING_UPLOAD -> QUEUED, and adds a job
+   * keyed by the session id (so repeat calls are deduplicated). Already-queued,
+   * processing, or completed sessions are a no-op; failed/aborted ones 409.
+   */
+  async finalizeSession(sessionId: string): Promise<void> {
+    const session = await this.prisma.importSession.findUnique({
+      where: { id: sessionId },
+      include: { files: true },
+    });
+    if (!session) {
+      throw new NotFoundException('Upload session not found');
+    }
+
+    if (
+      session.status === ImportSessionStatus.QUEUED ||
+      session.status === ImportSessionStatus.PROCESSING ||
+      session.status === ImportSessionStatus.COMPLETED
+    ) {
+      // Already finalized (or done): idempotent no-op.
+      return;
+    }
+
+    if (session.status !== ImportSessionStatus.PENDING_UPLOAD) {
+      throw new ConflictException(
+        `Cannot finalize a session that is ${session.status}`,
+      );
+    }
+
+    const pending = session.files.filter((file) => !file.uploadedAt);
+    if (pending.length > 0) {
+      throw new ConflictException(
+        `${pending.length} file(s) have not finished uploading`,
+      );
+    }
+
+    await this.prisma.importSession.update({
+      where: { id: sessionId },
+      data: { status: ImportSessionStatus.QUEUED, queuedAt: new Date() },
+    });
+
+    try {
+      await this.ingestQueue.add(
+        ALBUM_INGEST_JOB,
+        { sessionId },
+        {
+          jobId: sessionId,
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 30_000 },
+          removeOnComplete: { count: 100 },
+          removeOnFail: { count: 500 },
+        },
+      );
+    } catch {
+      // Roll the status back so the client can retry finalizing.
+      await this.prisma.importSession
+        .update({
+          where: { id: sessionId },
+          data: {
+            status: ImportSessionStatus.PENDING_UPLOAD,
+            queuedAt: null,
+          },
+        })
+        .catch(() => undefined);
+      throw new ServiceUnavailableException(
+        'Failed to enqueue the ingest job; please retry',
+      );
+    }
   }
 
   private normalizeEtag(etag: string): string {
