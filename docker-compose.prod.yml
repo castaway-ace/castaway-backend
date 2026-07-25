@@ -41,6 +41,7 @@ services:
     environment:
       - NODE_ENV=production
       - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
       - UPLOAD_TMP_DIR=/mnt/data/castaway/tmp
       - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET}
       - JWT_ACCESS_EXPIRATION=${JWT_ACCESS_EXPIRATION}
@@ -53,6 +54,7 @@ services:
       - STORAGE_TRACKS_BUCKET=${STORAGE_TRACKS_BUCKET}
       - STORAGE_ALBUM_ART_BUCKET=${STORAGE_ALBUM_ART_BUCKET}
       - STORAGE_ARTIST_IMAGE_BUCKET=${STORAGE_ARTIST_IMAGE_BUCKET}
+      - STORAGE_STAGING_BUCKET=${STORAGE_STAGING_BUCKET}
       - ADMIN_EMAIL=${ADMIN_EMAIL}
       - ADMIN_USERNAME=${ADMIN_USERNAME}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
@@ -65,8 +67,39 @@ services:
         condition: service_completed_successfully
       storage:
         condition: service_started
+      redis:
+        condition: service_healthy
     volumes:
       - /mnt/data/castaway/tmp:/mnt/data/castaway/tmp
+
+  worker:
+    image: ghcr.io/castaway-ace/castaway-backend:${APP_IMAGE_TAG:-latest}
+    restart: unless-stopped
+    command: ["node", "dist/src/worker/main.js"]
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - STORAGE_ENDPOINT=${STORAGE_ENDPOINT}
+      - STORAGE_PRESIGNED_ENDPOINT=${STORAGE_PRESIGNED_ENDPOINT}
+      - STORAGE_REGION=${STORAGE_REGION}
+      - STORAGE_ACCESS_KEY=${STORAGE_ACCESS_KEY}
+      - STORAGE_SECRET_ACCESS_KEY=${STORAGE_SECRET_ACCESS_KEY}
+      - STORAGE_TRACKS_BUCKET=${STORAGE_TRACKS_BUCKET}
+      - STORAGE_ALBUM_ART_BUCKET=${STORAGE_ALBUM_ART_BUCKET}
+      - STORAGE_ARTIST_IMAGE_BUCKET=${STORAGE_ARTIST_IMAGE_BUCKET}
+      - STORAGE_STAGING_BUCKET=${STORAGE_STAGING_BUCKET}
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      storage:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    mem_limit: 1g
+    stop_grace_period: 60s
 
   storage:
     image: minio/minio:RELEASE.2025-04-22T22-12-26Z
@@ -77,6 +110,19 @@ services:
     volumes:
       - /mnt/data/castaway/storage_data:/data
     command: [ "server", "--console-address", ":9001", "/data" ]
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--maxmemory", "64mb", "--maxmemory-policy", "noeviction", "--appendonly", "yes", "--appendfsync", "everysec"]
+    volumes:
+      - /mnt/data/castaway/redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    mem_limit: 96m
 
   cloudflared:
     image: cloudflare/cloudflared:2024.12.2

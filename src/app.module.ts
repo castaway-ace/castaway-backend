@@ -18,12 +18,15 @@ import { InteractionsModule } from './interactions/interactions.module.js';
 import { LibraryModule } from './library/library.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { WhitelistModule } from './whitelist/whitelist.module.js';
+import { QueueModule } from './queue/queue.module.js';
+import { UploadSessionsModule } from './upload-sessions/upload-sessions.module.js';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 20 }]),
     ScheduleModule.forRoot(),
+    QueueModule,
     PrismaModule,
     HealthModule,
     UsersModule,
@@ -40,6 +43,7 @@ import { WhitelistModule } from './whitelist/whitelist.module.js';
     InteractionsModule,
     LibraryModule,
     WhitelistModule,
+    UploadSessionsModule,
   ],
 })
 export class AppModule {}

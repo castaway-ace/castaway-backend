@@ -37,6 +37,7 @@ services:
     environment:
       - NODE_ENV=development
       - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
       - UPLOAD_TMP_DIR=/mnt/data/castaway/tmp
       - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET}
       - JWT_ACCESS_EXPIRATION=${JWT_ACCESS_EXPIRATION}
@@ -49,6 +50,7 @@ services:
       - STORAGE_TRACKS_BUCKET=${STORAGE_TRACKS_BUCKET}
       - STORAGE_ALBUM_ART_BUCKET=${STORAGE_ALBUM_ART_BUCKET}
       - STORAGE_ARTIST_IMAGE_BUCKET=${STORAGE_ARTIST_IMAGE_BUCKET}
+      - STORAGE_STAGING_BUCKET=${STORAGE_STAGING_BUCKET}
       - ADMIN_EMAIL=${ADMIN_EMAIL}
       - ADMIN_USERNAME=${ADMIN_USERNAME}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
@@ -61,10 +63,57 @@ services:
         condition: service_completed_successfully
       storage:
         condition: service_started
+      redis:
+        condition: service_healthy
     volumes:
       - .:/usr/src/app
       - /usr/src/app/node_modules
       - tmp:/mnt/data/castaway/tmp
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    command: ["npm", "run", "start:worker:dev"]
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - STORAGE_ENDPOINT=${STORAGE_ENDPOINT}
+      - STORAGE_PRESIGNED_ENDPOINT=${STORAGE_PRESIGNED_ENDPOINT}
+      - STORAGE_REGION=${STORAGE_REGION}
+      - STORAGE_ACCESS_KEY=${STORAGE_ACCESS_KEY}
+      - STORAGE_SECRET_ACCESS_KEY=${STORAGE_SECRET_ACCESS_KEY}
+      - STORAGE_TRACKS_BUCKET=${STORAGE_TRACKS_BUCKET}
+      - STORAGE_ALBUM_ART_BUCKET=${STORAGE_ALBUM_ART_BUCKET}
+      - STORAGE_ARTIST_IMAGE_BUCKET=${STORAGE_ARTIST_IMAGE_BUCKET}
+      - STORAGE_STAGING_BUCKET=${STORAGE_STAGING_BUCKET}
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      storage:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/usr/src/app
+      - /usr/src/app/node_modules
+    mem_limit: 1g
+    stop_grace_period: 60s
     healthcheck:
       test:
         [
@@ -90,6 +139,20 @@ services:
       - storage_data:/data
     command: [ "server", "--console-address", ":9001", "/data" ]
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--maxmemory", "64mb", "--maxmemory-policy", "noeviction", "--appendonly", "yes", "--appendfsync", "everysec"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    mem_limit: 96m
+
   cloudflared:
     image: cloudflare/cloudflared:2024.12.2
     command: tunnel --no-autoupdate run
@@ -102,4 +165,5 @@ services:
 volumes:
   db_data:
   storage_data:
+  redis_data:
   tmp:

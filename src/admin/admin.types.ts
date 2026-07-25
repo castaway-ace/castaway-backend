@@ -15,9 +15,3 @@ export interface MetadataTags {
   bitRate: number;
   picture: IPicture | undefined;
 }
-
-export interface ParsedFile {
-  file: Express.Multer.File;
-  tags: MetadataTags;
-  suffix: string;
-}
