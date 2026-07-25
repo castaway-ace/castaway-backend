@@ -7,7 +7,6 @@ describe('AdminController', () => {
   let adminController: AdminController;
 
   const mockAdminService = {
-    uploadAlbum: jest.fn<AdminService['uploadAlbum']>(),
     uploadArtistImage: jest.fn<AdminService['uploadArtistImage']>(),
     deleteArtist: jest.fn<AdminService['deleteArtist']>(),
     uploadArtist: jest.fn<AdminService['uploadArtist']>(),
@@ -36,17 +35,6 @@ describe('AdminController', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
-  });
-
-  describe('uploadAlbum', () => {
-    it('passes the files array to the service', async () => {
-      const files = [mockFile, mockFile];
-      mockAdminService.uploadAlbum.mockResolvedValue(undefined);
-
-      await adminController.uploadAlbum(files);
-
-      expect(mockAdminService.uploadAlbum).toHaveBeenCalledWith(files);
-    });
   });
 
   describe('uploadArtistImage', () => {

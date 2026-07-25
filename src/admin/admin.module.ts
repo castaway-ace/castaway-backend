@@ -4,7 +4,6 @@ import { AdminService } from './admin.service.js';
 import { AlbumsModule } from '../albums/albums.module.js';
 import { ArtistsModule } from '../artists/artists.module.js';
 import { TracksModule } from '../tracks/tracks.module.js';
-import { IngestModule } from '../ingest/ingest.module.js';
 import { MulterModule } from '@nestjs/platform-express';
 import { ConfigService } from '@nestjs/config';
 import { diskStorage } from 'multer';
@@ -34,7 +33,6 @@ import { randomUUID } from 'crypto';
     TracksModule,
     AlbumsModule,
     ArtistsModule,
-    IngestModule,
   ],
   controllers: [AdminController],
   providers: [AdminService],
