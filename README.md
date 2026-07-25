@@ -194,7 +194,7 @@ names above, and all four are created automatically at startup.
 | `SWAGGER_USERNAME` | Basic-auth user for `/docs` (dev) |
 | `SWAGGER_PASSWORD` | Basic-auth password for `/docs` (dev) |
 | `CLOUDFLARE_TUNNEL_TOKEN` | Cloudflare Tunnel token (prod ingress) |
-| `UPLOAD_TMP_DIR` | Scratch dir for uploads (defaults to `/mnt/data/castaway/tmp`) |
+| `UPLOAD_TMP_DIR` | Scratch dir for artist-image uploads (defaults to `/mnt/data/castaway/tmp`) |
 | `UPLOAD_PART_SIZE_BYTES` | Multipart part size for upload sessions (defaults to 64 MiB) |
 | `UPLOAD_PRESIGN_TTL_SECONDS` | Lifetime of presigned upload URLs (defaults to `21600` = 6h) |
 | `UPLOAD_SESSION_TTL_HOURS` | Idle (still-uploading) sessions are expired after this many hours (defaults to `24`) |
