@@ -91,7 +91,6 @@ services:
       - NODE_ENV=development
       - DATABASE_URL=${DATABASE_URL}
       - REDIS_URL=${REDIS_URL}
-      - NODE_OPTIONS=--max-old-space-size=320
       - STORAGE_ENDPOINT=${STORAGE_ENDPOINT}
       - STORAGE_PRESIGNED_ENDPOINT=${STORAGE_PRESIGNED_ENDPOINT}
       - STORAGE_REGION=${STORAGE_REGION}
@@ -113,7 +112,7 @@ services:
     volumes:
       - .:/usr/src/app
       - /usr/src/app/node_modules
-    mem_limit: 512m
+    mem_limit: 1g
     stop_grace_period: 60s
     healthcheck:
       test:

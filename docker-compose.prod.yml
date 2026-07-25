@@ -80,7 +80,6 @@ services:
       - NODE_ENV=production
       - DATABASE_URL=${DATABASE_URL}
       - REDIS_URL=${REDIS_URL}
-      - NODE_OPTIONS=--max-old-space-size=320
       - STORAGE_ENDPOINT=${STORAGE_ENDPOINT}
       - STORAGE_PRESIGNED_ENDPOINT=${STORAGE_PRESIGNED_ENDPOINT}
       - STORAGE_REGION=${STORAGE_REGION}
@@ -99,7 +98,7 @@ services:
         condition: service_started
       redis:
         condition: service_healthy
-    mem_limit: 512m
+    mem_limit: 1g
     stop_grace_period: 60s
 
   storage:
