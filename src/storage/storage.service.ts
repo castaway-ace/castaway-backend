@@ -12,6 +12,7 @@ import {
   HeadObjectCommandOutput,
   ListObjectsV2Command,
   ListObjectsV2CommandOutput,
+  PutBucketPolicyCommand,
   PutObjectCommand,
   S3Client,
   S3ServiceException,
@@ -39,13 +40,23 @@ const BUCKET_ENSURE_RETRY_DELAY_MS = 2000;
 
 const DEFAULT_MAX_SOCKETS = 200;
 
+/**
+ * Cache-Control written on public, immutable image objects (cover art). Paired
+ * with the versioned public URL (`?v=`), so a replaced image gets a fresh URL
+ * and this long TTL never serves stale bytes. Exported for the album/artist
+ * services that upload those objects.
+ */
+export const PUBLIC_IMAGE_CACHE_CONTROL = 'public, max-age=31536000, immutable';
+
 interface StorageConfig {
   endpoint: string;
   presignedEndpoint: string;
+  publicBaseUrl: string;
   region: string;
   accessKey: string;
   secretKey: string;
-  buckets: string[];
+  privateBuckets: string[];
+  publicBuckets: string[];
   maxSockets: number;
 }
 
@@ -58,6 +69,7 @@ export interface PutObjectOptions {
   contentType: string;
   size?: number;
   metadata?: Record<string, string>;
+  cacheControl?: string;
 }
 
 export interface ObjectStreamResult {
@@ -107,6 +119,7 @@ export class StorageService implements OnApplicationBootstrap {
         ContentType: options.contentType,
         ContentLength: options.size,
         Metadata: options.metadata,
+        CacheControl: options.cacheControl,
       }),
     );
   }
@@ -164,6 +177,26 @@ export class StorageService implements OnApplicationBootstrap {
     return getSignedUrl(this.preSignedClient, command, {
       expiresIn: PRESIGNED_URL_TTL_SECONDS,
     });
+  }
+
+  /**
+   * Builds a stable, unsigned public URL for an object served from the public
+   * storage host / CDN. Unlike {@link getPresignedUrl} it carries no SigV4
+   * signature, so the URL is identical across requests and edge-cacheable; the
+   * target bucket must be anonymous-read (see {@link ensurePublicReadPolicy}).
+   * Pass `version` (e.g. the row's updatedAt) to append a `?v=` cache-buster so
+   * replacing an object under a stable key yields a fresh, non-stale URL.
+   */
+  getPublicUrl(
+    bucket: StorageBucket,
+    key: string | null,
+    version?: Date,
+  ): string {
+    this.assertKey(key);
+    const encodedKey = key.split('/').map(encodeURIComponent).join('/');
+    const base = this.storageConfig.publicBaseUrl.replace(/\/+$/, '');
+    const url = `${base}/${bucket}/${encodedKey}`;
+    return version ? `${url}?v=${version.getTime()}` : url;
   }
 
   async deleteObject(bucket: StorageBucket, key: string): Promise<void> {
@@ -439,11 +472,57 @@ export class StorageService implements OnApplicationBootstrap {
     }
   }
 
-  /** Creates any of the configured buckets that don't already exist. */
+  /**
+   * Creates any of the configured buckets that don't already exist, then
+   * (re)applies the anonymous-read policy to the public image buckets.
+   */
   async ensureBuckets(): Promise<void> {
-    for (const bucket of this.storageConfig.buckets) {
+    for (const bucket of this.allBuckets()) {
       await this.ensureBucket(bucket);
     }
+    for (const bucket of this.storageConfig.publicBuckets) {
+      await this.ensurePublicReadPolicy(bucket);
+    }
+  }
+
+  /**
+   * Every configured bucket across access levels. Derived from the private and
+   * public lists so "all buckets" always includes the public ones — the two
+   * lists are the single source of truth for each bucket's visibility.
+   */
+  private allBuckets(): string[] {
+    return [
+      ...this.storageConfig.privateBuckets,
+      ...this.storageConfig.publicBuckets,
+    ];
+  }
+
+  /**
+   * Grants anonymous read (s3:GetObject) on a bucket so its objects can be
+   * fetched without a signature and cached at the edge/CDN. Idempotent and run
+   * on every bootstrap: it heals buckets created before this policy existed and
+   * restores a manually-cleared policy. Only the album-art / artist-image
+   * buckets are made public; tracks and staging stay private.
+   */
+  private async ensurePublicReadPolicy(bucket: string): Promise<void> {
+    const policy = {
+      Version: '2012-10-17',
+      Statement: [
+        {
+          Effect: 'Allow',
+          Principal: { AWS: ['*'] },
+          Action: ['s3:GetObject'],
+          Resource: [`arn:aws:s3:::${bucket}/*`],
+        },
+      ],
+    };
+    await this.client.send(
+      new PutBucketPolicyCommand({
+        Bucket: bucket,
+        Policy: JSON.stringify(policy),
+      }),
+    );
+    this.logger.log(`Applied public-read policy to bucket "${bucket}"`);
   }
 
   private async ensureBucket(bucket: string): Promise<void> {
@@ -465,7 +544,7 @@ export class StorageService implements OnApplicationBootstrap {
 
   async checkBuckets(): Promise<BucketHealth[]> {
     return Promise.all(
-      this.storageConfig.buckets.map((bucket) => this.checkBucket(bucket)),
+      this.allBuckets().map((bucket) => this.checkBucket(bucket)),
     );
   }
 
@@ -561,13 +640,21 @@ export class StorageService implements OnApplicationBootstrap {
       throw new Error('Storage configuration is incomplete');
     }
 
+    // Public (unsigned) base host for edge-cacheable cover art. Defaults to the
+    // presigned endpoint so a single storage host works out of the box; set
+    // CDN_BASE_URL to point cover-art URLs at a dedicated CDN hostname.
+    const publicBaseUrl =
+      configService.get<string>('CDN_BASE_URL') || presignedEndpoint;
+
     return {
       endpoint,
       presignedEndpoint,
+      publicBaseUrl,
       region,
       accessKey,
       secretKey,
-      buckets: [tracksBucket, albumArtBucket, artistImageBucket, stagingBucket],
+      privateBuckets: [tracksBucket, stagingBucket],
+      publicBuckets: [albumArtBucket, artistImageBucket],
       maxSockets: parsePositiveIntEnv(
         configService.get<string>('STORAGE_MAX_SOCKETS'),
         DEFAULT_MAX_SOCKETS,

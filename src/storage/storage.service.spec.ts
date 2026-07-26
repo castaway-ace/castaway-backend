@@ -11,6 +11,7 @@ import {
   HeadBucketCommand,
   HeadObjectCommand,
   ListObjectsV2Command,
+  PutBucketPolicyCommand,
   PutObjectCommand,
   S3Client,
   S3ServiceException,
@@ -158,6 +159,49 @@ describe('StorageService', () => {
     });
   });
 
+  describe('getPublicUrl', () => {
+    it('builds an unsigned, path-style URL against the public base host', () => {
+      const url = storageService.getPublicUrl(
+        StorageBucket.AlbumArt,
+        'album-1/cover.jpg',
+      );
+
+      expect(url).toBe(
+        'https://public.example.com/album-art/album-1/cover.jpg',
+      );
+      expect(send).not.toHaveBeenCalled();
+    });
+
+    it('appends a ?v= cache-buster from the version timestamp', () => {
+      const version = new Date('2026-01-02T03:04:05.000Z');
+
+      const url = storageService.getPublicUrl(
+        StorageBucket.ArtistArt,
+        'artist-1/cover.jpg',
+        version,
+      );
+
+      expect(url).toBe(
+        `https://public.example.com/artist-image/artist-1/cover.jpg?v=${version.getTime()}`,
+      );
+    });
+
+    it('percent-encodes each key segment but keeps the slash separators', () => {
+      const url = storageService.getPublicUrl(
+        StorageBucket.AlbumArt,
+        'a b/c+d.jpg',
+      );
+
+      expect(url).toBe('https://public.example.com/album-art/a%20b/c%2Bd.jpg');
+    });
+
+    it('throws NotFoundException for a null key', () => {
+      expect(() =>
+        storageService.getPublicUrl(StorageBucket.AlbumArt, null),
+      ).toThrow(NotFoundException);
+    });
+  });
+
   describe('putObject', () => {
     it('sends a PutObjectCommand with the body and options', async () => {
       send.mockResolvedValue({});
@@ -180,6 +224,28 @@ describe('StorageService', () => {
           ContentLength: 4,
           Metadata: { originalName: 'song.flac' },
         });
+      }
+    });
+
+    it('forwards cacheControl as the CacheControl header when provided', async () => {
+      send.mockResolvedValue({});
+
+      await storageService.putObject(
+        StorageBucket.AlbumArt,
+        'album-1/cover.jpg',
+        Buffer.from('img'),
+        {
+          contentType: 'image/jpeg',
+          cacheControl: 'public, max-age=31536000, immutable',
+        },
+      );
+
+      const command = send.mock.calls[0][0];
+      expect(command).toBeInstanceOf(PutObjectCommand);
+      if (command instanceof PutObjectCommand) {
+        expect(command.input.CacheControl).toBe(
+          'public, max-age=31536000, immutable',
+        );
       }
     });
   });
@@ -245,9 +311,9 @@ describe('StorageService', () => {
 
       expect(result).toEqual([
         { bucket: 'tracks', healthy: true },
+        { bucket: 'upload-staging', healthy: true },
         { bucket: 'album-art', healthy: true },
         { bucket: 'artist-image', healthy: true },
-        { bucket: 'upload-staging', healthy: true },
       ]);
     });
 
@@ -266,9 +332,9 @@ describe('StorageService', () => {
 
       expect(result).toEqual([
         { bucket: 'tracks', healthy: true },
+        { bucket: 'upload-staging', healthy: true },
         { bucket: 'album-art', healthy: false },
         { bucket: 'artist-image', healthy: true },
-        { bucket: 'upload-staging', healthy: true },
       ]);
     });
   });
@@ -340,17 +406,20 @@ describe('StorageService', () => {
         ],
       }).compile();
 
-    const resolvedBuckets = (module: TestingModule): string[] =>
-      module.get(StorageService).storageConfig.buckets;
+    const resolvedBuckets = (module: TestingModule): string[] => {
+      const { privateBuckets, publicBuckets } =
+        module.get(StorageService).storageConfig;
+      return [...privateBuckets, ...publicBuckets];
+    };
 
     it('falls back to the StorageBucket enum names when bucket vars are unset', async () => {
       const module = await buildService(connectionOnly);
 
       expect(resolvedBuckets(module)).toEqual([
         'tracks',
+        'upload-staging',
         'album-art',
         'artist-image',
-        'upload-staging',
       ]);
     });
 
@@ -363,9 +432,9 @@ describe('StorageService', () => {
 
       expect(resolvedBuckets(module)).toEqual([
         'custom-tracks',
+        'custom-staging',
         'album-art',
         'artist-image',
-        'custom-staging',
       ]);
     });
 
@@ -396,9 +465,9 @@ describe('StorageService', () => {
 
       expect(createdBuckets()).toEqual([
         'tracks',
+        'upload-staging',
         'album-art',
         'artist-image',
-        'upload-staging',
       ]);
     });
 
@@ -411,11 +480,15 @@ describe('StorageService', () => {
     });
 
     it('ignores a lost create race (bucket already owned)', async () => {
-      send.mockImplementation((command) =>
-        command instanceof HeadBucketCommand
-          ? Promise.reject(makeS3Error('NotFound', 404))
-          : Promise.reject(makeS3Error('BucketAlreadyOwnedByYou', 409)),
-      );
+      send.mockImplementation((command) => {
+        if (command instanceof HeadBucketCommand) {
+          return Promise.reject(makeS3Error('NotFound', 404));
+        }
+        if (command instanceof CreateBucketCommand) {
+          return Promise.reject(makeS3Error('BucketAlreadyOwnedByYou', 409));
+        }
+        return Promise.resolve({});
+      });
 
       await expect(storageService.ensureBuckets()).resolves.toBeUndefined();
     });
@@ -430,6 +503,34 @@ describe('StorageService', () => {
       await expect(storageService.ensureBuckets()).rejects.toThrow(
         S3ServiceException,
       );
+    });
+
+    it('applies an anonymous read policy to the image buckets only', async () => {
+      send.mockResolvedValue({});
+
+      await storageService.ensureBuckets();
+
+      const policyCommands = send.mock.calls
+        .map((call) => call[0])
+        .filter(
+          (c): c is PutBucketPolicyCommand =>
+            c instanceof PutBucketPolicyCommand,
+        );
+
+      expect(policyCommands.map((c) => c.input.Bucket)).toEqual([
+        'album-art',
+        'artist-image',
+      ]);
+
+      const policy = JSON.parse(policyCommands[0].input.Policy ?? '{}') as {
+        Statement: Record<string, unknown>[];
+      };
+      expect(policy.Statement[0]).toMatchObject({
+        Effect: 'Allow',
+        Principal: { AWS: ['*'] },
+        Action: ['s3:GetObject'],
+        Resource: ['arn:aws:s3:::album-art/*'],
+      });
     });
   });
 

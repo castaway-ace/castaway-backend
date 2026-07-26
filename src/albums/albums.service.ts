@@ -4,7 +4,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { StorageService } from '../storage/storage.service.js';
+import {
+  PUBLIC_IMAGE_CACHE_CONTROL,
+  StorageService,
+} from '../storage/storage.service.js';
 import { Prisma, Album as PrismaAlbum } from '../generated/prisma/client.js';
 import {
   AlbumCreateData,
@@ -114,6 +117,7 @@ export class AlbumsService {
       where: { id },
       select: {
         imageKey: true,
+        updatedAt: true,
       },
     });
 
@@ -121,9 +125,10 @@ export class AlbumsService {
       throw new NotFoundException('Album Art does not exist');
     }
 
-    return this.storageService.getPresignedUrl(
+    return this.storageService.getPublicUrl(
       StorageBucket.AlbumArt,
       album.imageKey,
+      album.updatedAt,
     );
   }
 
@@ -188,6 +193,7 @@ export class AlbumsService {
         contentType: picture.format,
         size: coverBuffer.length,
         metadata: { source: 'embedded' },
+        cacheControl: PUBLIC_IMAGE_CACHE_CONTROL,
       },
     );
   }
@@ -206,23 +212,24 @@ export class AlbumsService {
       select: {
         id: true,
         imageKey: true,
+        updatedAt: true,
       },
     });
 
-    const entries = await Promise.all(
-      albums.map(async (album): Promise<[string, string] | null> => {
-        if (!album.imageKey) return null;
-        const url = await this.storageService.getPresignedUrl(
+    const entries: [string, string][] = [];
+    for (const album of albums) {
+      if (!album.imageKey) continue;
+      entries.push([
+        album.id,
+        this.storageService.getPublicUrl(
           StorageBucket.AlbumArt,
           album.imageKey,
-        );
-        return [album.id, url];
-      }),
-    );
+          album.updatedAt,
+        ),
+      ]);
+    }
 
-    return new Map(
-      entries.filter((entry): entry is [string, string] => entry !== null),
-    );
+    return new Map(entries);
   }
 
   async assertNotImported(title: string, artistIds: string[]): Promise<string> {

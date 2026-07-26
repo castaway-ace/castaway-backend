@@ -75,8 +75,14 @@ through the Cloudflare tunnel.
 
 **Prerequisites:** Docker + Docker Compose, and `make`.
 
-1. **Create your `.env`** at the repo root with the variables listed under
-   [Environment variables](#environment-variables). Compose uses it for
+1. **Create your `.env`** by copying the template and filling in real values:
+
+   ```bash
+   cp .env.example .env
+   ```
+
+   Every variable is documented under
+   [Environment variables](#environment-variables); Compose uses `.env` for
    `${VAR}` substitution across all services.
 
 2. **Start the dev stack:**
@@ -173,6 +179,7 @@ Define these in a `.env` file at the repo root. Do **not** commit it.
 | --- | --- |
 | `STORAGE_ENDPOINT` | S3 endpoint used by the server |
 | `STORAGE_PRESIGNED_ENDPOINT` | Endpoint baked into presigned URLs (client-reachable) |
+| `CDN_BASE_URL` | Public base host for cover-art URLs (defaults to `STORAGE_PRESIGNED_ENDPOINT`); point at a CDN hostname to edge-cache album/artist art |
 | `STORAGE_REGION` | S3 region |
 | `STORAGE_ACCESS_KEY` | Access key (also the MinIO root user) |
 | `STORAGE_SECRET_ACCESS_KEY` | Secret key (also the MinIO root password) |
@@ -183,6 +190,17 @@ Define these in a `.env` file at the repo root. Do **not** commit it.
 
 Bucket names are optional: when unset they fall back to the conventional
 names above, and all four are created automatically at startup.
+
+Album cover art and artist images are served as **stable, unsigned public URLs**
+(`<CDN_BASE_URL>/<bucket>/<id>/cover.jpg?v=<updatedAt>`) so they can be cached at
+a CDN/edge. The `album-art` and `artist-image` buckets are made anonymous-read
+automatically at startup, objects are written with a long `immutable`
+`Cache-Control`, and the `?v=` timestamp busts the cache when an image is
+replaced. The `tracks` and `upload-staging` buckets stay private. To turn on
+edge caching, front `CDN_BASE_URL` with a Cloudflare cache rule covering
+`/album-art/*` and `/artist-image/*` (keep the `v` query param in the cache
+key). Audio streaming is unaffected — it still proxies through the API with HTTP
+Range support.
 
 ### Admin, docs & ingress
 
