@@ -3,7 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
 import { UsersService } from './users.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { Prisma } from '../generated/prisma/client.js';
+import { Prisma, Role } from '../generated/prisma/client.js';
 import { User, userSelect, UserWithPassword } from './users.types.js';
 
 const user: User = {
@@ -11,6 +11,7 @@ const user: User = {
   email: 'test@test.com',
   userName: 'tester',
   isAdmin: false,
+  roles: [Role.USER],
 };
 
 const userWithPassword: UserWithPassword = {

@@ -11,12 +11,14 @@ import { App } from 'supertest/types.js';
 import type { Request } from 'express';
 import request from 'supertest';
 import { APP_GUARD } from '@nestjs/core';
+import { Role } from '../generated/prisma/client.js';
 
 const user = {
   id: '1',
   email: 'test@test.com',
   isAdmin: false,
   userName: 'user',
+  roles: [Role.USER],
 };
 
 describe('UserController', () => {

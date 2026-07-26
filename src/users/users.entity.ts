@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { User } from './users.types.js';
+import { Role } from '../generated/prisma/client.js';
 
 export class UserEntity implements User {
   @ApiProperty()
@@ -13,4 +14,7 @@ export class UserEntity implements User {
 
   @ApiProperty()
   isAdmin!: boolean;
+
+  @ApiProperty({ enum: Role, isArray: true })
+  roles!: Role[];
 }
