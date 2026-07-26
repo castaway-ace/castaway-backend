@@ -408,7 +408,7 @@ describe('StorageService', () => {
 
     const resolvedBuckets = (module: TestingModule): string[] => {
       const { privateBuckets, publicBuckets } =
-        module.get(StorageService).storageConfig;
+        module.get(StorageService)['storageConfig'];
       return [...privateBuckets, ...publicBuckets];
     };
 
