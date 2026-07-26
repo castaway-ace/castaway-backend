@@ -89,7 +89,12 @@ describe('UploadSessionsController', () => {
       .useValue({
         canActivate: (context: ExecutionContext): boolean => {
           const req = context.switchToHttp().getRequest<Request>();
-          req.user = { sub: 'admin-user', isAdmin: true, deviceId: '1' };
+          req.user = {
+            sub: 'admin-user',
+            isAdmin: true,
+            deviceId: '1',
+            roles: [],
+          };
           return true;
         },
       })

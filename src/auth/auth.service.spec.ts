@@ -132,6 +132,7 @@ describe('AuthService', () => {
         sub: 'user-1',
         deviceId: 'dev-1',
         isAdmin: false,
+        roles: [Role.USER],
       });
     });
 
