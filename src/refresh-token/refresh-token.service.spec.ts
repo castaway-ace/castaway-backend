@@ -59,6 +59,8 @@ describe('RefreshTokenService', () => {
 
   const signAsync = jest.fn<JwtService['signAsync']>();
 
+  const deviceFindMany = jest.fn<() => Promise<{ id: string }[]>>();
+
   const findById = jest.fn<
     () => Promise<{
       id: string;
@@ -109,6 +111,9 @@ describe('RefreshTokenService', () => {
               findUnique,
               updateMany: revokeUpdateMany,
               deleteMany,
+            },
+            device: {
+              findMany: deviceFindMany,
             },
             $transaction,
           },
@@ -235,5 +240,31 @@ describe('RefreshTokenService', () => {
       data: { replacedById: 'rt-2' },
     });
     expect(deviceUpdate).toHaveBeenCalled();
+  });
+
+  describe('revokeSessionsForUser', () => {
+    it('invalidates active refresh tokens for every device of the user', async () => {
+      deviceFindMany.mockResolvedValue([{ id: 'dev-1' }, { id: 'dev-2' }]);
+      revokeUpdateMany.mockResolvedValue({ count: 3 });
+
+      await refreshTokenService.revokeSessionsForUser('user-1');
+
+      const [revokeArgs] = revokeUpdateMany.mock.calls[0];
+      expect(revokeArgs).toMatchObject({
+        where: {
+          deviceId: { in: ['dev-1', 'dev-2'] },
+          invalidatedAt: null,
+        },
+      });
+      expect(revokeArgs.data.invalidatedAt).toBeInstanceOf(Date);
+    });
+
+    it('does nothing when the user has no devices', async () => {
+      deviceFindMany.mockResolvedValue([]);
+
+      await refreshTokenService.revokeSessionsForUser('user-1');
+
+      expect(revokeUpdateMany).not.toHaveBeenCalled();
+    });
   });
 });
