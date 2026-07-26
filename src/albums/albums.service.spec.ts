@@ -15,7 +15,7 @@ type AlbumAnnotations = { albumAnnotations: { albumId: string }[] };
 
 type AlbumFindUniqueRow =
   | (AlbumRow & AlbumAnnotations)
-  | { imageKey: string | null }
+  | { imageKey: string | null; updatedAt?: Date }
   | { id: string }
   | null;
 
@@ -60,7 +60,7 @@ describe('AlbumService', () => {
   };
 
   const mockStorageService = {
-    getPresignedUrl: jest.fn<StorageService['getPresignedUrl']>(),
+    getPublicUrl: jest.fn<StorageService['getPublicUrl']>(),
     putObject: jest.fn<StorageService['putObject']>(),
     deleteObjectQuietly: jest.fn<StorageService['deleteObjectQuietly']>(),
   };
@@ -208,18 +208,21 @@ describe('AlbumService', () => {
   });
 
   describe('getAlbumCoverUrl', () => {
-    const albumCoverUrl = 'https://example.com/cover.jpg';
+    const albumCoverUrl = 'https://cdn.example.com/album-art/album-1/cover.jpg';
+    const coverUpdatedAt = new Date('2026-02-03T00:00:00.000Z');
 
     it('should get the album cover url', async () => {
       mockPrismaService.album.findUnique.mockResolvedValue({
         imageKey: 'album-1/cover.jpg',
+        updatedAt: coverUpdatedAt,
       });
-      mockStorageService.getPresignedUrl.mockResolvedValue(albumCoverUrl);
+      mockStorageService.getPublicUrl.mockReturnValue(albumCoverUrl);
       const result = await albumService.getAlbumCoverUrl('album-1');
       expect(result).toEqual(albumCoverUrl);
-      expect(mockStorageService.getPresignedUrl).toHaveBeenCalledWith(
+      expect(mockStorageService.getPublicUrl).toHaveBeenCalledWith(
         StorageBucket.AlbumArt,
         'album-1/cover.jpg',
+        coverUpdatedAt,
       );
     });
 
@@ -229,7 +232,7 @@ describe('AlbumService', () => {
       await expect(albumService.getAlbumCoverUrl('album-1')).rejects.toThrow(
         NotFoundException,
       );
-      expect(mockStorageService.getPresignedUrl).not.toHaveBeenCalled();
+      expect(mockStorageService.getPublicUrl).not.toHaveBeenCalled();
     });
 
     it('throws NotFoundException when the album does not exist', async () => {
@@ -238,7 +241,7 @@ describe('AlbumService', () => {
       await expect(albumService.getAlbumCoverUrl('album-1')).rejects.toThrow(
         NotFoundException,
       );
-      expect(mockStorageService.getPresignedUrl).not.toHaveBeenCalled();
+      expect(mockStorageService.getPublicUrl).not.toHaveBeenCalled();
     });
   });
 
@@ -434,7 +437,11 @@ describe('AlbumService', () => {
       const putArgs = mockStorageService.putObject.mock.calls[0];
       expect(putArgs[0]).toBe(StorageBucket.AlbumArt);
       expect(putArgs[1]).toBe('album-1/cover.jpg');
-      expect(putArgs[3]).toMatchObject({ contentType: 'image/jpeg', size: 3 });
+      expect(putArgs[3]).toMatchObject({
+        contentType: 'image/jpeg',
+        size: 3,
+        cacheControl: 'public, max-age=31536000, immutable',
+      });
     });
   });
 

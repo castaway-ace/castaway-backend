@@ -16,7 +16,9 @@ import { join } from 'path';
 type ArtistAnnotations = { artistAnnotations: { artistId: string }[] };
 
 type ArtistFindUniqueRow =
-  (ArtistRow & ArtistAnnotations) | { imageKey: string | null } | null;
+  | (ArtistRow & ArtistAnnotations)
+  | { imageKey: string | null; updatedAt?: Date }
+  | null;
 
 const userId = 'user-1';
 
@@ -49,7 +51,7 @@ describe('ArtistService', () => {
   };
 
   const mockStorageService = {
-    getPresignedUrl: jest.fn<StorageService['getPresignedUrl']>(),
+    getPublicUrl: jest.fn<StorageService['getPublicUrl']>(),
     putObject: jest.fn<StorageService['putObject']>(),
     deleteObjectQuietly: jest.fn<StorageService['deleteObjectQuietly']>(),
   };
@@ -124,18 +126,22 @@ describe('ArtistService', () => {
   });
 
   describe('getArtistImageUrl', () => {
-    const artistImageUrl = 'https://example.com/image.jpg';
+    const artistImageUrl =
+      'https://cdn.example.com/artist-image/artist-1/cover.jpg';
+    const imageUpdatedAt = new Date('2026-02-03T00:00:00.000Z');
 
     it('should get the artist image url', async () => {
       mockPrismaService.artist.findUnique.mockResolvedValue({
         imageKey: 'artist-1/cover.jpg',
+        updatedAt: imageUpdatedAt,
       });
-      mockStorageService.getPresignedUrl.mockResolvedValue(artistImageUrl);
+      mockStorageService.getPublicUrl.mockReturnValue(artistImageUrl);
       const result = await artistsService.getArtistImageUrl('artist-1');
       expect(result).toEqual(artistImageUrl);
-      expect(mockStorageService.getPresignedUrl).toHaveBeenCalledWith(
+      expect(mockStorageService.getPublicUrl).toHaveBeenCalledWith(
         StorageBucket.ArtistArt,
         'artist-1/cover.jpg',
+        imageUpdatedAt,
       );
     });
 
@@ -307,7 +313,10 @@ describe('ArtistService', () => {
       const putArgs = mockStorageService.putObject.mock.calls[0];
       expect(putArgs[0]).toBe(StorageBucket.ArtistArt);
       expect(putArgs[1]).toBe('artist-1/cover.jpg');
-      expect(putArgs[3]).toMatchObject({ contentType: 'image/jpeg' });
+      expect(putArgs[3]).toMatchObject({
+        contentType: 'image/jpeg',
+        cacheControl: 'public, max-age=31536000, immutable',
+      });
 
       expect(mockPrismaService.artist.update).toHaveBeenCalledTimes(1);
       const updateArgs = mockPrismaService.artist.update.mock.calls[0][0];

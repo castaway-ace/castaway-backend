@@ -1,6 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { StorageService } from '../storage/storage.service.js';
+import {
+  PUBLIC_IMAGE_CACHE_CONTROL,
+  StorageService,
+} from '../storage/storage.service.js';
 import { Prisma } from '../generated/prisma/client.js';
 import {
   Artist,
@@ -93,6 +96,7 @@ export class ArtistsService {
       where: { id },
       select: {
         imageKey: true,
+        updatedAt: true,
       },
     });
 
@@ -100,9 +104,10 @@ export class ArtistsService {
       throw new NotFoundException('Artist Image does not exist');
     }
 
-    return this.storageService.getPresignedUrl(
+    return this.storageService.getPublicUrl(
       StorageBucket.ArtistArt,
       artist.imageKey,
+      artist.updatedAt,
     );
   }
 
@@ -112,23 +117,24 @@ export class ArtistsService {
       select: {
         id: true,
         imageKey: true,
+        updatedAt: true,
       },
     });
 
-    const entries = await Promise.all(
-      artists.map(async (artist): Promise<[string, string] | null> => {
-        if (!artist.imageKey) return null;
-        const url = await this.storageService.getPresignedUrl(
+    const entries: [string, string][] = [];
+    for (const artist of artists) {
+      if (!artist.imageKey) continue;
+      entries.push([
+        artist.id,
+        this.storageService.getPublicUrl(
           StorageBucket.ArtistArt,
           artist.imageKey,
-        );
-        return [artist.id, url];
-      }),
-    );
+          artist.updatedAt,
+        ),
+      ]);
+    }
 
-    return new Map(
-      entries.filter((entry): entry is [string, string] => entry !== null),
-    );
+    return new Map(entries);
   }
 
   async star(userId: string, artistId: string): Promise<void> {
@@ -188,6 +194,7 @@ export class ArtistsService {
         contentType: file.mimetype,
         size: file.size,
         metadata: { originalName: file.originalname },
+        cacheControl: PUBLIC_IMAGE_CACHE_CONTROL,
       },
     );
 
