@@ -10,7 +10,7 @@ import { DeviceService } from '../device/device.service.js';
 import { DeviceDto } from '../device/dto/device.dto.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { WhitelistService } from '../whitelist/whitelist.service.js';
-import { PlaylistType } from '../generated/prisma/client.js';
+import { PlaylistType, Role } from '../generated/prisma/client.js';
 import { User, userSelect } from '../users/users.types.js';
 import { SignUpDto } from './dto/sign-up.dto.js';
 import { LoginDto } from './dto/login.dto.js';
@@ -35,7 +35,10 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    if (!user.isAdmin && !(await this.whitelistService.isWhitelisted(email))) {
+    if (
+      !user.roles.includes(Role.ADMIN) &&
+      !(await this.whitelistService.isWhitelisted(email))
+    ) {
       throw new ForbiddenException('Access has been revoked');
     }
 

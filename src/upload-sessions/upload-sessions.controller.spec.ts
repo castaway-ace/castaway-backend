@@ -12,7 +12,8 @@ import type { App } from 'supertest/types.js';
 import type { Request } from 'express';
 import { UploadSessionsController } from './upload-sessions.controller.js';
 import { UploadSessionsService } from './upload-sessions.service.js';
-import { AdminGuard } from '../auth/guards/admin.guard.js';
+import { APP_GUARD } from '@nestjs/core';
+import { Role } from '../generated/prisma/client.js';
 import { ImportSessionStatus } from '../generated/prisma/enums.js';
 import {
   CreateUploadSessionResponse,
@@ -83,22 +84,25 @@ describe('UploadSessionsController', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [UploadSessionsController],
-      providers: [{ provide: UploadSessionsService, useValue: mockService }],
-    })
-      .overrideGuard(AdminGuard)
-      .useValue({
-        canActivate: (context: ExecutionContext): boolean => {
-          const req = context.switchToHttp().getRequest<Request>();
-          req.user = {
-            sub: 'admin-user',
-            isAdmin: true,
-            deviceId: '1',
-            roles: [],
-          };
-          return true;
+      providers: [
+        { provide: UploadSessionsService, useValue: mockService },
+        {
+          provide: APP_GUARD,
+          useValue: {
+            canActivate: (context: ExecutionContext): boolean => {
+              const req = context.switchToHttp().getRequest<Request>();
+              req.user = {
+                sub: 'admin-user',
+                isAdmin: true,
+                deviceId: '1',
+                roles: [Role.ADMIN],
+              };
+              return true;
+            },
+          },
         },
-      })
-      .compile();
+      ],
+    }).compile();
 
     app = module.createNestApplication();
     app.useGlobalPipes(

@@ -10,6 +10,7 @@ import { UsersService } from '../users/users.service.js';
 import { AuthTokensEntity } from '../auth/entities/auth-tokens.entity.js';
 import { TokenPayload } from './refresh-token.types.js';
 import { WhitelistService } from '../whitelist/whitelist.service.js';
+import { Role } from '../generated/prisma/client.js';
 
 interface JwtConfig {
   accessSecret: string;
@@ -72,7 +73,7 @@ export class RefreshTokenService {
     );
 
     if (
-      !user.isAdmin &&
+      !user.roles.includes(Role.ADMIN) &&
       !(await this.whitelistService.isWhitelisted(user.email))
     ) {
       throw new UnauthorizedException('Access has been revoked');

@@ -8,10 +8,10 @@ import {
   ParseUUIDPipe,
   Post,
   UploadedFile,
-  UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { AdminGuard } from '../auth/guards/admin.guard.js';
+import { RequirePermissions } from '../auth/decorators/permissions.decorator.js';
+import { Permission } from '../auth/rbac/permissions.js';
 import { AdminService } from './admin.service.js';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
@@ -31,15 +31,15 @@ import { CreateArtistDto } from '../artists/dto/create-artist.dto.js';
 import { ArtistRef } from '../common/entities/references.entity.js';
 
 @Controller('admin')
-@UseGuards(AdminGuard)
 @ApiBearerAuth()
 @ApiTags('Admin')
 @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-@ApiForbiddenResponse({ description: 'Requires admin privileges.' })
+@ApiForbiddenResponse({ description: 'Insufficient permissions.' })
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
   @Post('artists')
+  @RequirePermissions(Permission.CatalogWrite)
   @UseInterceptors(
     FileInterceptor('file', {
       limits: { fileSize: 10 * 1024 * 1024 },
@@ -66,6 +66,7 @@ export class AdminController {
   }
 
   @Post('artists/:id/image')
+  @RequirePermissions(Permission.CatalogWrite)
   @UseInterceptors(
     FileInterceptor('file', {
       limits: { fileSize: 10 * 1024 * 1024 },
@@ -92,6 +93,7 @@ export class AdminController {
   }
 
   @Delete('artists/:id')
+  @RequirePermissions(Permission.CatalogDelete)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiNoContentResponse()
   @ApiNotFoundResponse({ description: 'Artist not found.' })
@@ -100,6 +102,7 @@ export class AdminController {
   }
 
   @Delete('albums/:id')
+  @RequirePermissions(Permission.CatalogDelete)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiNoContentResponse()
   @ApiNotFoundResponse({ description: 'Album not found.' })

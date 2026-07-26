@@ -8,7 +8,6 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
-  UseGuards,
 } from '@nestjs/common';
 import {
   ApiAcceptedResponse,
@@ -23,7 +22,8 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { AdminGuard } from '../auth/guards/admin.guard.js';
+import { RequirePermissions } from '../auth/decorators/permissions.decorator.js';
+import { Permission } from '../auth/rbac/permissions.js';
 import { CurrentUser } from '../auth/decorators/user.decorator.js';
 import { UploadSessionsService } from './upload-sessions.service.js';
 import { CreateUploadSessionDto } from './dto/create-upload-session.dto.js';
@@ -35,11 +35,11 @@ import {
 } from './upload-sessions.entity.js';
 
 @Controller('admin/upload-sessions')
-@UseGuards(AdminGuard)
+@RequirePermissions(Permission.UploadManage)
 @ApiBearerAuth()
 @ApiTags('Admin')
 @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-@ApiForbiddenResponse({ description: 'Requires admin privileges.' })
+@ApiForbiddenResponse({ description: 'Insufficient permissions.' })
 export class UploadSessionsController {
   constructor(private readonly uploadSessionsService: UploadSessionsService) {}
 
