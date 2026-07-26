@@ -57,6 +57,12 @@ export class UsersService {
     });
   }
 
+  async countByRole(role: Role): Promise<number> {
+    return this.prisma.user.count({
+      where: { roles: { has: role } },
+    });
+  }
+
   async create(user: UserCreateData): Promise<UserEntity> {
     return this.prisma.user.create({
       data: user,

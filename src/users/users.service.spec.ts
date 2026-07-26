@@ -39,6 +39,7 @@ describe('UsersService', () => {
       create: jest.fn<(args: Prisma.UserCreateArgs) => Promise<User>>(),
       update: jest.fn<(args: Prisma.UserUpdateArgs) => Promise<User>>(),
       findMany: jest.fn<(args: Prisma.UserFindManyArgs) => Promise<User[]>>(),
+      count: jest.fn<(args: Prisma.UserCountArgs) => Promise<number>>(),
       deleteMany:
         jest.fn<
           (args: Prisma.UserDeleteManyArgs) => Promise<{ count: number }>
@@ -141,6 +142,20 @@ describe('UsersService', () => {
         usersService.setRoles('missing', [Role.ADMIN]),
       ).rejects.toThrow(NotFoundException);
       expect(mockPrismaService.user.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('countByRole', () => {
+    it('counts users that hold the given role', async () => {
+      mockPrismaService.user.count.mockResolvedValue(3);
+
+      const result = await usersService.countByRole(Role.ADMIN);
+
+      expect(result).toBe(3);
+      const [countArgs] = mockPrismaService.user.count.mock.calls[0];
+      expect(countArgs).toMatchObject({
+        where: { roles: { has: Role.ADMIN } },
+      });
     });
   });
 
