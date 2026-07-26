@@ -26,7 +26,12 @@ describe('WhitelistService', () => {
   const whitelistDelete = jest.fn<() => Promise<unknown>>();
   const userFindFirst = jest.fn<() => Promise<unknown>>();
   const deviceFindMany = jest.fn<() => Promise<unknown>>();
-  const refreshTokenUpdateMany = jest.fn<() => Promise<unknown>>();
+  const refreshTokenUpdateMany =
+    jest.fn<
+      (args: {
+        where: { deviceId: { in: string[] }; invalidatedAt: null };
+      }) => Promise<unknown>
+    >();
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -181,9 +186,7 @@ describe('WhitelistService', () => {
       await service.remove('wl-1');
 
       expect(whitelistDelete).toHaveBeenCalledWith({ where: { id: 'wl-1' } });
-      const [args] = refreshTokenUpdateMany.mock.calls[0] as [
-        { where: { deviceId: { in: string[] }; invalidatedAt: null } },
-      ];
+      const [args] = refreshTokenUpdateMany.mock.calls[0];
       expect(args.where.deviceId.in).toEqual(['dev-1', 'dev-2']);
       expect(args.where.invalidatedAt).toBeNull();
     });
