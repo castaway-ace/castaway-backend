@@ -82,6 +82,7 @@ export class RefreshTokenService {
       sub: user.id,
       deviceId: existingRefreshToken.deviceId,
       isAdmin: user.isAdmin,
+      roles: user.roles,
     });
 
     const newTokenHash = this.hashToken(issued.refreshToken);

@@ -110,7 +110,12 @@ describe('PlaylistsController', () => {
           useValue: {
             canActivate: (context: ExecutionContext): boolean => {
               const req = context.switchToHttp().getRequest<Request>();
-              req.user = { sub: 'test-user', isAdmin: false, deviceId: '1234' };
+              req.user = {
+                sub: 'test-user',
+                isAdmin: false,
+                deviceId: '1234',
+                roles: [],
+              };
               return true;
             },
           },

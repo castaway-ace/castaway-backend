@@ -4,11 +4,13 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Request } from 'express';
+import { Role } from '../../generated/prisma/client.js';
 
 export interface AuthenticatedUser {
   sub: string;
   deviceId: string;
   isAdmin: boolean;
+  roles: Role[];
 }
 
 export const CurrentUser = createParamDecorator(

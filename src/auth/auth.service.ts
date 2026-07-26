@@ -97,6 +97,7 @@ export class AuthService {
       sub: user.id,
       deviceId: device.id,
       isAdmin: user.isAdmin,
+      roles: user.roles,
     });
   }
 }

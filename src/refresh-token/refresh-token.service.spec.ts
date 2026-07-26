@@ -3,7 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { RefreshTokenService } from './refresh-token.service.js';
 import { ConfigService } from '@nestjs/config';
 import { RefreshTokenWithDevice } from './refresh-token.types.js';
-import { Prisma } from '../generated/prisma/client.js';
+import { Prisma, Role } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { UsersService } from '../users/users.service.js';
 import { WhitelistService } from '../whitelist/whitelist.service.js';
@@ -59,10 +59,14 @@ describe('RefreshTokenService', () => {
 
   const signAsync = jest.fn<JwtService['signAsync']>();
 
-  const findById =
-    jest.fn<
-      () => Promise<{ id: string; email: string; isAdmin: boolean } | null>
-    >();
+  const findById = jest.fn<
+    () => Promise<{
+      id: string;
+      email: string;
+      isAdmin: boolean;
+      roles: Role[];
+    } | null>
+  >();
 
   const isWhitelisted = jest.fn<WhitelistService['isWhitelisted']>();
 
@@ -182,6 +186,7 @@ describe('RefreshTokenService', () => {
       id: 'user-1',
       email: 'a@b.com',
       isAdmin: false,
+      roles: [],
     });
     signAsync.mockResolvedValue('access-user-1');
     claimUpdateMany.mockResolvedValue({ count: 0 });
@@ -198,6 +203,7 @@ describe('RefreshTokenService', () => {
       id: 'user-1',
       email: 'a@b.com',
       isAdmin: false,
+      roles: [],
     });
     isWhitelisted.mockResolvedValue(false);
 
@@ -213,6 +219,7 @@ describe('RefreshTokenService', () => {
       id: 'user-1',
       email: 'a@b.com',
       isAdmin: false,
+      roles: [],
     });
     claimUpdateMany.mockResolvedValue({ count: 1 });
     claimCreate.mockResolvedValue({ id: 'rt-2' });
