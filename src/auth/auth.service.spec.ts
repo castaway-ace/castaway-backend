@@ -8,7 +8,7 @@ import { RefreshTokenService } from '../refresh-token/refresh-token.service.js';
 import { DeviceService } from '../device/device.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { WhitelistService } from '../whitelist/whitelist.service.js';
-import { Prisma } from '../generated/prisma/client.js';
+import { Prisma, Role } from '../generated/prisma/client.js';
 import { AuthTokensEntity } from './entities/auth-tokens.entity.js';
 import { User, UserWithPassword } from '../users/users.types.js';
 import { LoginDto } from './dto/login.dto.js';
@@ -33,6 +33,7 @@ const userRecord: User = {
   email: 'a@b.com',
   userName: 'tester',
   isAdmin: false,
+  roles: [Role.USER],
 };
 
 const loginDto: LoginDto = {

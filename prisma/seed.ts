@@ -1,6 +1,10 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import * as argon2 from 'argon2';
-import { PlaylistType, PrismaClient } from '../src/generated/prisma/client.js';
+import {
+  PlaylistType,
+  PrismaClient,
+  Role,
+} from '../src/generated/prisma/client.js';
 import { VARIOUS_ARTISTS_NAME } from '../src/common/constants.js';
 
 const adapter = new PrismaPg({
@@ -18,12 +22,13 @@ async function main() {
 
   const user = await prisma.user.upsert({
     where: { email },
-    update: {},
+    update: { roles: [Role.ADMIN] },
     create: {
       email,
       userName,
       passwordHash,
       isAdmin: true,
+      roles: [Role.ADMIN],
     },
   });
 

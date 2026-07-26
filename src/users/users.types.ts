@@ -10,6 +10,7 @@ export const userSelect = {
   email: true,
   userName: true,
   isAdmin: true,
+  roles: true,
 } satisfies Prisma.UserSelect;
 
 export const userWithPasswordSelect = {
