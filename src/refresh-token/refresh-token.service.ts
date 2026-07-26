@@ -149,6 +149,25 @@ export class RefreshTokenService {
     await this.revokeFamily(token.familyId);
   }
 
+  async revokeSessionsForUser(userId: string): Promise<void> {
+    const devices = await this.prisma.device.findMany({
+      where: { userId },
+      select: { id: true },
+    });
+
+    if (devices.length === 0) {
+      return;
+    }
+
+    await this.prisma.refreshToken.updateMany({
+      where: {
+        deviceId: { in: devices.map((device) => device.id) },
+        invalidatedAt: null,
+      },
+      data: { invalidatedAt: new Date() },
+    });
+  }
+
   async issueForDevice(payload: TokenPayload): Promise<AuthTokensEntity> {
     const issued = await this.generateTokens(payload);
 

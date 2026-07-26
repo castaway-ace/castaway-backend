@@ -20,6 +20,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
 import { WhitelistModule } from './whitelist/whitelist.module.js';
 import { QueueModule } from './queue/queue.module.js';
 import { UploadSessionsModule } from './upload-sessions/upload-sessions.module.js';
+import { RolesModule } from './roles/roles.module.js';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { UploadSessionsModule } from './upload-sessions/upload-sessions.module.j
     LibraryModule,
     WhitelistModule,
     UploadSessionsModule,
+    RolesModule,
   ],
 })
 export class AppModule {}

@@ -7,6 +7,7 @@ import {
   userWithPasswordSelect,
 } from './users.types.js';
 import { UserEntity } from './users.entity.js';
+import { Role } from '../generated/prisma/client.js';
 
 @Injectable()
 export class UsersService {
@@ -30,6 +31,30 @@ export class UsersService {
     }
 
     return user;
+  }
+
+  async findAll(): Promise<UserEntity[]> {
+    return this.prisma.user.findMany({
+      select: userSelect,
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  async setRoles(id: string, roles: Role[]): Promise<UserEntity> {
+    const existing = await this.prisma.user.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('User not found');
+    }
+
+    return this.prisma.user.update({
+      where: { id },
+      data: { roles },
+      select: userSelect,
+    });
   }
 
   async create(user: UserCreateData): Promise<UserEntity> {

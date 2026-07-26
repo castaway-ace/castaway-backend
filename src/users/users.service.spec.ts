@@ -38,6 +38,7 @@ describe('UsersService', () => {
         >(),
       create: jest.fn<(args: Prisma.UserCreateArgs) => Promise<User>>(),
       update: jest.fn<(args: Prisma.UserUpdateArgs) => Promise<User>>(),
+      findMany: jest.fn<(args: Prisma.UserFindManyArgs) => Promise<User[]>>(),
       deleteMany:
         jest.fn<
           (args: Prisma.UserDeleteManyArgs) => Promise<{ count: number }>
@@ -99,6 +100,47 @@ describe('UsersService', () => {
       await expect(usersService.findById('missing')).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+
+  describe('findAll', () => {
+    it('returns every user with the shared select', async () => {
+      mockPrismaService.user.findMany.mockResolvedValue([user]);
+
+      const result = await usersService.findAll();
+
+      expect(result).toEqual([user]);
+      const [findArgs] = mockPrismaService.user.findMany.mock.calls[0];
+      expect(findArgs).toMatchObject({ select: userSelect });
+    });
+  });
+
+  describe('setRoles', () => {
+    it('updates the roles and returns the entity', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(user);
+      mockPrismaService.user.update.mockResolvedValue({
+        ...user,
+        roles: [Role.ADMIN],
+      });
+
+      const result = await usersService.setRoles('user-1', [Role.ADMIN]);
+
+      expect(result).toEqual({ ...user, roles: [Role.ADMIN] });
+      const [updateArgs] = mockPrismaService.user.update.mock.calls[0];
+      expect(updateArgs).toMatchObject({
+        where: { id: 'user-1' },
+        data: { roles: [Role.ADMIN] },
+        select: userSelect,
+      });
+    });
+
+    it('throws NotFoundException when the user does not exist', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+
+      await expect(
+        usersService.setRoles('missing', [Role.ADMIN]),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockPrismaService.user.update).not.toHaveBeenCalled();
     });
   });
 
