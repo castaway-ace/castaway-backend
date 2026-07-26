@@ -12,7 +12,6 @@ const adminUser: UserEntity = {
   id: 'user-1',
   email: 'a@b.com',
   userName: 'tester',
-  isAdmin: false,
   roles: [Role.ADMIN],
 };
 

@@ -82,7 +82,6 @@ export class RefreshTokenService {
     const issued = await this.generateTokens({
       sub: user.id,
       deviceId: existingRefreshToken.deviceId,
-      isAdmin: user.isAdmin,
       roles: user.roles,
     });
 

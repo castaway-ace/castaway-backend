@@ -31,10 +31,14 @@ Docker Compose in both development and production.
   presigned URLs; audio metadata parsed on upload with `music-metadata`.
 - **Auth** — email/password with Argon2 hashing, JWT access + refresh tokens,
   per-device sessions, and an email whitelist for invite-only signup.
+- **Access control (RBAC)** — users hold one or more roles (`ADMIN`, `USER`),
+  each granting a set of code-defined permissions; privileged endpoints are
+  gated on permissions rather than a hardcoded admin flag.
 - **Interactions** — likes/saves and play-history style interactions across
   albums, artists and playlists.
 - **Search** — query endpoints across the catalog.
-- **Admin** — privileged endpoints for managing the catalog and whitelist.
+- **Admin** — permission-gated endpoints for managing the catalog, whitelist,
+  uploads and user roles.
 - **Ops** — rate limiting (`@nestjs/throttler`), health checks
   (`@nestjs/terminus`) and Swagger API docs.
 
@@ -221,8 +225,9 @@ Range support.
 
 Managed with Prisma (`prisma/schema.prisma`). Core entities:
 
-- **User**, **Device**, **RefreshToken**, **EmailWhitelist** — accounts,
-  per-device sessions and invite-only access.
+- **User** (with a `roles` list backed by the `Role` enum), **Device**,
+  **RefreshToken**, **EmailWhitelist** — accounts, role assignments, per-device
+  sessions and invite-only access.
 - **Artist**, **Album**, **Track** — the catalog, joined many-to-many via
   **AlbumArtist** and **TrackArtist** for credits/features.
 - **Playlist**, **PlaylistTrack** (+ `PlaylistType` enum) — ordered playlists.
@@ -233,6 +238,29 @@ Managed with Prisma (`prisma/schema.prisma`). Core entities:
 - **ImportSession**, **ImportFile** (+ `ImportSessionStatus` / `ImportPhase`
   enums) — async album upload sessions and their staged files. Postgres is the
   source of truth for ingest status; the queue is transport only.
+
+## Access control (RBAC)
+
+Authorization is role-based. Each **User** carries a `roles` list (the `Role`
+enum: `ADMIN`, `USER`). Roles map to a set of granular **permissions** defined
+in code (`src/auth/rbac/permissions.ts`) — e.g. `catalog:write`,
+`catalog:delete`, `upload:manage`, `whitelist:manage`, `role:manage`. `ADMIN`
+implicitly holds every permission; `USER` is the default for self-registered
+accounts.
+
+- **Enforcement** — a global `AuthGuard` verifies the JWT (which carries the
+  caller's roles), then a global `PermissionsGuard` runs. Endpoints opt in with
+  `@RequirePermissions(...)`; those without it only require authentication.
+  Adding a role, or changing what it grants, is a one-line change to the code
+  map — no schema migration.
+- **Whitelist vs. roles** — the email whitelist is admission control (who may
+  sign in); roles are authorization (what they may do). Accounts with the
+  `ADMIN` role bypass the whitelist; everyone else must be whitelisted.
+- **Managing roles** (requires `role:manage`): `GET /admin/roles` returns the
+  role→permission catalog, `GET /admin/users` lists users with their roles, and
+  `PUT /admin/users/:id/roles` sets a user's roles. Changing a user's roles
+  revokes their active sessions so it takes effect on next login, and the last
+  remaining `ADMIN` cannot be demoted.
 
 ## API documentation
 

@@ -10,7 +10,6 @@ const user: User = {
   id: 'user-1',
   email: 'test@test.com',
   userName: 'tester',
-  isAdmin: false,
   roles: [Role.USER],
 };
 
@@ -173,39 +172,6 @@ describe('UsersService', () => {
         select: userSelect,
       });
       expect(createArgs.select).not.toHaveProperty('passwordHash');
-    });
-  });
-
-  describe('createAdmin', () => {
-    it('forces isAdmin regardless of the input', async () => {
-      mockPrismaService.user.create.mockResolvedValue({
-        ...user,
-        isAdmin: true,
-      });
-
-      await usersService.createAdmin(createData);
-
-      const [createArgs] = mockPrismaService.user.create.mock.calls[0];
-      expect(createArgs).toMatchObject({
-        data: { ...createData, isAdmin: true },
-      });
-    });
-  });
-
-  describe('upgradeAdmin', () => {
-    it('sets the admin flag on the user', async () => {
-      mockPrismaService.user.update.mockResolvedValue({
-        ...user,
-        isAdmin: true,
-      });
-
-      await usersService.upgradeAdmin('user-1');
-
-      const [updateArgs] = mockPrismaService.user.update.mock.calls[0];
-      expect(updateArgs).toMatchObject({
-        where: { id: 'user-1' },
-        data: { isAdmin: true },
-      });
     });
   });
 

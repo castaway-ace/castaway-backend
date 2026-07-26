@@ -28,7 +28,6 @@ model User {
   email        String   @unique
   userName     String   @unique @map("user_name")
   passwordHash String   @map("password_hash")
-  isAdmin      Boolean  @default(false) @map("is_admin")
   roles        Role[]   @default([USER])
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at")

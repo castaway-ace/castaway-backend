@@ -12,6 +12,5 @@ export type RefreshTokenInput = Pick<
 export interface TokenPayload {
   sub: string;
   deviceId: string;
-  isAdmin: boolean;
   roles: Role[];
 }

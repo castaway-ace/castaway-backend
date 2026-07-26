@@ -32,7 +32,6 @@ const userRecord: User = {
   id: 'user-1',
   email: 'a@b.com',
   userName: 'tester',
-  isAdmin: false,
   roles: [Role.USER],
 };
 
@@ -131,7 +130,6 @@ describe('AuthService', () => {
       expect(refreshTokensService.issueForDevice).toHaveBeenCalledWith({
         sub: 'user-1',
         deviceId: 'dev-1',
-        isAdmin: false,
         roles: [Role.USER],
       });
     });
@@ -172,7 +170,6 @@ describe('AuthService', () => {
     it('lets an admin log in even when not whitelisted', async () => {
       const stored: UserWithPassword = {
         ...userRecord,
-        isAdmin: true,
         roles: [Role.ADMIN],
         passwordHash,
       };

@@ -12,9 +12,6 @@ export class UserEntity implements User {
   @ApiProperty()
   userName!: string;
 
-  @ApiProperty()
-  isAdmin!: boolean;
-
   @ApiProperty({ enum: Role, isArray: true })
   roles!: Role[];
 }

@@ -70,23 +70,6 @@ export class UsersService {
     });
   }
 
-  async createAdmin(user: UserCreateData): Promise<void> {
-    await this.prisma.user.create({
-      data: { ...user, isAdmin: true },
-    });
-  }
-
-  async upgradeAdmin(id: string): Promise<void> {
-    await this.prisma.user.update({
-      where: {
-        id,
-      },
-      data: {
-        isAdmin: true,
-      },
-    });
-  }
-
   async delete(id: string): Promise<void> {
     await this.prisma.user.deleteMany({ where: { id } });
   }

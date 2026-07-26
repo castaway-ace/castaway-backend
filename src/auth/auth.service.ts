@@ -99,7 +99,6 @@ export class AuthService {
     return this.refreshTokensService.issueForDevice({
       sub: user.id,
       deviceId: device.id,
-      isAdmin: user.isAdmin,
       roles: user.roles,
     });
   }

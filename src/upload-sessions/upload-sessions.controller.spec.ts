@@ -93,7 +93,6 @@ describe('UploadSessionsController', () => {
               const req = context.switchToHttp().getRequest<Request>();
               req.user = {
                 sub: 'admin-user',
-                isAdmin: true,
                 deviceId: '1',
                 roles: [Role.ADMIN],
               };
