@@ -173,6 +173,7 @@ describe('AuthService', () => {
       const stored: UserWithPassword = {
         ...userRecord,
         isAdmin: true,
+        roles: [Role.ADMIN],
         passwordHash,
       };
       usersService.findByEmail.mockResolvedValue(stored);

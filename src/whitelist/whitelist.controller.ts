@@ -9,7 +9,6 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
-  UseGuards,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -22,18 +21,19 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { AdminGuard } from '../auth/guards/admin.guard.js';
+import { RequirePermissions } from '../auth/decorators/permissions.decorator.js';
+import { Permission } from '../auth/rbac/permissions.js';
 import { WhitelistService } from './whitelist.service.js';
 import { CreateWhitelistEntryDto } from './dto/create-whitelist-entry.dto.js';
 import { UpdateWhitelistEntryDto } from './dto/update-whitelist-entry.dto.js';
 import { WhitelistEntryEntity } from './whitelist.entity.js';
 
 @Controller('admin/whitelist')
-@UseGuards(AdminGuard)
+@RequirePermissions(Permission.WhitelistManage)
 @ApiBearerAuth()
 @ApiTags('Admin')
 @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-@ApiForbiddenResponse({ description: 'Requires admin privileges.' })
+@ApiForbiddenResponse({ description: 'Insufficient permissions.' })
 export class WhitelistController {
   constructor(private readonly whitelistService: WhitelistService) {}
 
