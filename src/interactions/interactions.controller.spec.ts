@@ -59,7 +59,6 @@ describe('InteractionsController', () => {
               const req = context.switchToHttp().getRequest<Request>();
               req.user = {
                 sub: 'test-user',
-                isAdmin: false,
                 deviceId: '1234',
                 roles: [],
               };

@@ -65,7 +65,6 @@ describe('RefreshTokenService', () => {
     () => Promise<{
       id: string;
       email: string;
-      isAdmin: boolean;
       roles: Role[];
     } | null>
   >();
@@ -190,7 +189,6 @@ describe('RefreshTokenService', () => {
     findById.mockResolvedValue({
       id: 'user-1',
       email: 'a@b.com',
-      isAdmin: false,
       roles: [],
     });
     signAsync.mockResolvedValue('access-user-1');
@@ -207,7 +205,6 @@ describe('RefreshTokenService', () => {
     findById.mockResolvedValue({
       id: 'user-1',
       email: 'a@b.com',
-      isAdmin: false,
       roles: [],
     });
     isWhitelisted.mockResolvedValue(false);
@@ -223,7 +220,6 @@ describe('RefreshTokenService', () => {
     findById.mockResolvedValue({
       id: 'user-1',
       email: 'a@b.com',
-      isAdmin: false,
       roles: [],
     });
     claimUpdateMany.mockResolvedValue({ count: 1 });
