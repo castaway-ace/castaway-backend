@@ -167,7 +167,7 @@ Define these in a `.env` file at the repo root. Do **not** commit it.
 | `JWT_ACCESS_EXPIRATION` | Access token TTL (e.g. `15m`) |
 | `JWT_REFRESH_EXPIRATION` | Refresh token TTL (e.g. `30d`) |
 
-### Object storage (S3 / MinIO)
+### Object storage (S3)
 
 | Variable | Description |
 | --- | --- |
