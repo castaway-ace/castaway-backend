@@ -63,10 +63,8 @@ Both environments run the same set of services via Compose:
 | Service | Role | Notes |
 | --- | --- | --- |
 | `app` | NestJS API | Port `3000` |
-| `worker` | Ingest worker (same image, `node dist/src/worker/main.js`) | Consumes the album-ingest queue; internal `/health` only, no public routes |
 | `db` | PostgreSQL 16 | Port `5432` (exposed in dev only) |
 | `storage` | MinIO (S3) | API `9000`, console `9001` |
-| `redis` | Redis 7 (BullMQ transport) | Port `6379` (exposed in dev only); `noeviction`, AOF |
 | `migrate` | One-shot `prisma migrate deploy` | Runs to completion before `app` starts |
 | `cloudflared` | Cloudflare Tunnel | Public ingress for prod |
 
@@ -167,7 +165,6 @@ Define these in a `.env` file at the repo root. Do **not** commit it.
 | `POSTGRES_USER` | Postgres user |
 | `POSTGRES_PASSWORD` | Postgres password |
 | `DATABASE_URL` | Prisma connection string, e.g. `postgresql://<user>:<pass>@db:5432/<db>` |
-| `REDIS_URL` | BullMQ/Redis connection (required), e.g. `redis://redis:6379`. The app fails fast at startup if unset. |
 
 ### Auth
 
@@ -190,17 +187,16 @@ Define these in a `.env` file at the repo root. Do **not** commit it.
 | `STORAGE_TRACKS_BUCKET` | Bucket for audio files (defaults to `tracks`) |
 | `STORAGE_ALBUM_ART_BUCKET` | Bucket for album artwork (defaults to `album-art`) |
 | `STORAGE_ARTIST_IMAGE_BUCKET` | Bucket for artist images (defaults to `artist-image`) |
-| `STORAGE_STAGING_BUCKET` | Bucket for in-flight upload staging (defaults to `upload-staging`) |
 
 Bucket names are optional: when unset they fall back to the conventional
-names above, and all four are created automatically at startup.
+names above, and all three are created automatically at startup.
 
 Album cover art and artist images are served as **stable, unsigned public URLs**
 (`<CDN_BASE_URL>/<bucket>/<id>/cover.jpg?v=<updatedAt>`) so they can be cached at
 a CDN/edge. The `album-art` and `artist-image` buckets are made anonymous-read
 automatically at startup, objects are written with a long `immutable`
 `Cache-Control`, and the `?v=` timestamp busts the cache when an image is
-replaced. The `tracks` and `upload-staging` buckets stay private. To turn on
+replaced. The `tracks` bucket stays private. To turn on
 edge caching, front `CDN_BASE_URL` with a Cloudflare cache rule covering
 `/album-art/*` and `/artist-image/*` (keep the `v` query param in the cache
 key). Audio streaming is unaffected — it still proxies through the API with HTTP
@@ -216,10 +212,7 @@ Range support.
 | `SWAGGER_USERNAME` | Basic-auth user for `/docs` (dev) |
 | `SWAGGER_PASSWORD` | Basic-auth password for `/docs` (dev) |
 | `CLOUDFLARE_TUNNEL_TOKEN` | Cloudflare Tunnel token (prod ingress) |
-| `UPLOAD_TMP_DIR` | Scratch dir for artist-image uploads (defaults to `/mnt/data/castaway/tmp`) |
-| `UPLOAD_PART_SIZE_BYTES` | Multipart part size for upload sessions (defaults to 64 MiB) |
-| `UPLOAD_PRESIGN_TTL_SECONDS` | Lifetime of presigned upload URLs (defaults to `21600` = 6h) |
-| `UPLOAD_SESSION_TTL_HOURS` | Idle (still-uploading) sessions are expired after this many hours (defaults to `24`) |
+| `UPLOAD_TMP_DIR` | Scratch dir for artist-image and album uploads (defaults to `/mnt/data/castaway/tmp`) |
 
 ## Data model
 
@@ -235,9 +228,6 @@ Managed with Prisma (`prisma/schema.prisma`). Core entities:
   engagement records.
 - **TrackAnnotation**, **AlbumAnnotation**, **ArtistAnnotation** — editorial
   metadata.
-- **ImportSession**, **ImportFile** (+ `ImportSessionStatus` / `ImportPhase`
-  enums) — async album upload sessions and their staged files. Postgres is the
-  source of truth for ingest status; the queue is transport only.
 
 ## Access control (RBAC)
 
@@ -271,31 +261,21 @@ bearer access token.
 
 A liveness/readiness endpoint is exposed at **`/health`** via Terminus.
 
-### Admin upload sessions
+### Admin album upload
 
-Album uploads use a presigned, direct-to-storage flow (all under
-`/admin/upload-sessions`, admin only):
+Albums are imported synchronously through a single multipart request:
 
-1. `POST /admin/upload-sessions` — declare the files; receive presigned upload
-   targets (a single PUT for small files, multipart part URLs for large ones).
-2. Upload the bytes directly to storage using those URLs.
-3. `POST /admin/upload-sessions/:id/files/:fileId/complete` — per file: finish
-   the multipart upload (or verify the single PUT) and confirm the stored size.
-4. `POST /admin/upload-sessions/:id/finalize` — once every file is uploaded,
-   queue the session for the ingest worker (returns `202`).
-5. `GET /admin/upload-sessions/:id` — poll status/phase/progress until
-   `COMPLETED` (or `FAILED` with a structured error). `DELETE
-   /admin/upload-sessions/:id` — abort a session that hasn't started processing.
+`POST /admin/albums` — send the album's audio files as `files[]` (up to 200 per
+request, 2 GiB each). Requires the `catalog:write` permission.
 
-The `worker` container consumes the queue and runs the ingest job: it parses
-the staged audio, plans the album, copies objects server-side into the final
-buckets, persists the album and tracks in one transaction, then clears staging.
-The album id equals the session id, so retries are idempotent.
-
-An hourly worker-hosted sweep also expires idle sessions past
-`UPLOAD_SESSION_TTL_HOURS` (aborting their uploads and clearing staging),
-re-enqueues QUEUED sessions whose job was lost, and prunes terminal sessions
-older than 30 days.
+The request must describe exactly one album: every file's album title and album
+artist tags have to agree, and disc/track numbers must be unique. All artists
+named in the tags must already exist — create them with `POST /admin/artists`
+first. The handler parses tags with `music-metadata`, uploads the cover and
+tracks (four at a time), then writes the album and its tracks in one
+transaction. If any upload or the transaction fails, the objects already
+written are removed before the error is returned, so storage is never left with
+orphans. Re-importing an album that already exists returns `409`.
 
 ## Project structure
 
@@ -316,10 +296,6 @@ src/
   search/           Catalog search
   storage/          S3 client + presigned URLs
   admin/            Admin-only endpoints
-  upload-sessions/  Presigned direct-to-storage upload sessions
-  ingest/           Shared album ingest (planning, persistence, worker processor)
-  queue/            BullMQ queue wiring
-  worker/           Ingest worker entry point (separate process, same image)
   health/           Terminus health checks
   common/           Shared DTOs/entities
   prisma/           Prisma service + exception filter
