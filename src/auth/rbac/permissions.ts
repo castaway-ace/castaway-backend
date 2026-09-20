@@ -8,7 +8,6 @@ import { Role } from '../../generated/prisma/client.js';
 export enum Permission {
   CatalogWrite = 'catalog:write',
   CatalogDelete = 'catalog:delete',
-  UploadManage = 'upload:manage',
   WhitelistManage = 'whitelist:manage',
   RoleManage = 'role:manage',
 }

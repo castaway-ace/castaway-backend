@@ -8,12 +8,13 @@ import {
   ParseUUIDPipe,
   Post,
   UploadedFile,
+  UploadedFiles,
   UseInterceptors,
 } from '@nestjs/common';
 import { RequirePermissions } from '../auth/decorators/permissions.decorator.js';
 import { Permission } from '../auth/rbac/permissions.js';
 import { AdminService } from './admin.service.js';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -99,6 +100,32 @@ export class AdminController {
   @ApiNotFoundResponse({ description: 'Artist not found.' })
   async deleteArtist(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
     await this.adminService.deleteArtist(id);
+  }
+
+  @Post('albums')
+  @RequirePermissions(Permission.CatalogWrite)
+  @UseInterceptors(
+    FilesInterceptor('files', 200, {
+      limits: { fileSize: 2 * 1024 * 1024 * 1024 - 1 },
+    }),
+  )
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['files'],
+      properties: {
+        files: { type: 'array', items: { type: 'string', format: 'binary' } },
+      },
+    },
+  })
+  @ApiCreatedResponse({ description: 'Album imported.' })
+  @ApiBadRequestResponse({ description: 'Invalid files or metadata.' })
+  @ApiConflictResponse({ description: 'Album already imported.' })
+  async uploadAlbum(
+    @UploadedFiles() files: Express.Multer.File[],
+  ): Promise<void> {
+    await this.adminService.uploadAlbum(files);
   }
 
   @Delete('albums/:id')
