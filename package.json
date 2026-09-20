@@ -113,6 +113,8 @@
   "overrides": {
     "@hono/node-server": "^1.19.13",
     "js-yaml": "^4.2.0",
-    "multer": "^2.2.0"
+    "multer": "^2.2.0",
+    "mysql2": "^3.24.4",
+   "deepmerge-ts": "^8.0.2"
   }
 }
