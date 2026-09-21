@@ -98,11 +98,29 @@ services:
     logging: *default-logging
 
   cloudflared:
-    image: cloudflare/cloudflared:2024.12.2
+    image: cloudflare/cloudflared:2026.9.1
     command: tunnel --no-autoupdate run
     environment:
-      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+      - TUNNEL_TOKEN_FILE=/run/secrets/cloudflare_tunnel_token # keeps the token out of `docker inspect`
+      - TUNNEL_METRICS=127.0.0.1:20241 # keeps /config and /debug off the compose network
+    secrets:
+      - cloudflare_tunnel_token
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     depends_on:
       app:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "cloudflared", "tunnel", "ready"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+      start_interval: 5s
     logging: *default-logging
+
+secrets:
+  cloudflare_tunnel_token:
+    environment: CLOUDFLARE_TUNNEL_TOKEN
