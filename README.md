@@ -5,7 +5,7 @@ artists, albums, tracks and playlists, streams audio from S3-compatible object
 storage, and serves an invite-only user base with per-device JWT sessions.
 
 Built with [NestJS](https://nestjs.com) 11, [Prisma](https://www.prisma.io) 7,
-PostgreSQL and [MinIO](https://min.io) (S3), and packaged to run entirely via
+PostgreSQL and [RustFS](https://rustfs.com) (S3), and packaged to run entirely via
 Docker Compose in both development and production.
 
 ## Table of contents
@@ -50,7 +50,7 @@ Docker Compose in both development and production.
 | Framework | NestJS 11 |
 | ORM | Prisma 7 (`@prisma/adapter-pg` driver adapter) |
 | Database | PostgreSQL 16 |
-| Object storage | MinIO / any S3-compatible service (AWS SDK v3) |
+| Object storage | RustFS / any S3-compatible service (AWS SDK v3) |
 | Auth | `@nestjs/jwt`, Argon2 |
 | Docs | Swagger (`@nestjs/swagger`) |
 | Ingress (prod) | Cloudflare Tunnel (`cloudflared`) |
@@ -64,7 +64,8 @@ Both environments run the same set of services via Compose:
 | --- | --- | --- |
 | `app` | NestJS API | Port `3000` |
 | `db` | PostgreSQL 16 | Port `5432` (exposed in dev only) |
-| `storage` | MinIO (S3) | API `9000`, console `9001` |
+| `storage` | RustFS (S3) | API `9000`, console `9001` |
+| `storage-perms` | One-shot `chown` of the storage data dir to uid `10001` | Runs to completion before `storage` starts |
 | `migrate` | One-shot `prisma migrate deploy` | Runs to completion before `app` starts |
 | `cloudflared` | Cloudflare Tunnel | Public ingress for prod |
 
@@ -104,8 +105,8 @@ through the Cloudflare tunnel.
 
 4. The API is now at **http://localhost:3000**, with docs at
    **http://localhost:3000/docs** (dev only). Prisma Studio is available via
-   `make studio` on port `5555`, and the MinIO console at
-   **http://localhost:9001**. Studio runs on the host rather than in a
+   `make studio` on port `5555`, and the RustFS console at
+   **http://localhost:9001/rustfs/console/**. Studio runs on the host rather than in a
    container, so it needs host dependencies installed (`npm ci`).
 
 When you change the Prisma schema, create and apply a migration with
@@ -159,8 +160,9 @@ Run `make help` to list every target. **Bare targets act on dev**; the
   image's own `chown` does not apply — if that directory is root-owned (e.g.
   created with `sudo mkdir`), uploads fail with `EACCES`. Check with
   `stat -c '%u:%g' /mnt/data/castaway/tmp` and `chown 1000:1000` if needed.
-  `db_data` and `storage_data` are fine: Postgres and MinIO chown their own
-  data directories on first start.
+  `db_data` is fine: Postgres chowns its own data directory on first start.
+  `storage_data` is fine too: RustFS runs as uid 10001 and does not chown its
+  data directory, so the `storage-perms` service chowns it before every start.
 
 ## Environment variables
 
@@ -183,15 +185,19 @@ Define these in a `.env` file at the repo root. Do **not** commit it.
 | `JWT_ACCESS_EXPIRATION` | Access token TTL (e.g. `15m`) |
 | `JWT_REFRESH_EXPIRATION` | Refresh token TTL (e.g. `30d`) |
 
-### Object storage (S3 / MinIO)
+### Object storage (S3 / RustFS)
 
 | Variable | Description |
 | --- | --- |
 | `STORAGE_ENDPOINT` | S3 endpoint used by the server |
 | `STORAGE_PRESIGNED_ENDPOINT` | Endpoint baked into presigned URLs (client-reachable) |
 | `STORAGE_REGION` | S3 region |
-| `STORAGE_ACCESS_KEY` | Access key (also the MinIO root user) |
-| `STORAGE_SECRET_ACCESS_KEY` | Secret key (also the MinIO root password) |
+| `STORAGE_ACCESS_KEY` | Access key (also the RustFS admin access key) |
+| `STORAGE_SECRET_ACCESS_KEY` | Secret key (also the RustFS admin secret key) |
+| `STORAGE_VOLUMES` | **Required.** RustFS data path inside the container; must match the storage volume mount (`/data`) |
+| `STORAGE_ADDRESS` | **Required.** RustFS S3 API listen address; must match `STORAGE_ENDPOINT`'s port (`:9000`) |
+| `STORAGE_CONSOLE_ADDRESS` | **Required.** RustFS console listen address (`:9001`) |
+| `STORAGE_CONSOLE_ENABLE` | **Required.** `true` to serve the RustFS console |
 | `STORAGE_TRACKS_BUCKET` | Bucket for audio files (defaults to `tracks`) |
 | `STORAGE_ALBUM_ART_BUCKET` | Bucket for album artwork (defaults to `album-art`) |
 | `STORAGE_ARTIST_IMAGE_BUCKET` | Bucket for artist images (defaults to `artist-image`) |

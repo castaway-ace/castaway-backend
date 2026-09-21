@@ -27,6 +27,10 @@ services:
       - /usr/src/app/node_modules
       - tmp:/mnt/data/castaway/tmp
 
+  storage-perms:
+    volumes:
+      - storage_data:/data
+
   storage:
     ports:
       - "9000:9000"
