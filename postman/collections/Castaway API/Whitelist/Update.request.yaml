@@ -1,0 +1,22 @@
+$kind: http-request
+url: "{{baseUrl}}/admin/whitelist/:id"
+method: PATCH
+headers:
+  Content-Type: application/json
+  Accept: application/json
+pathVariables:
+  - key: id
+    value: <string>
+    description: "(Required) "
+body:
+  type: json
+  content: |-
+    {
+      "email": "<email>",
+      "note": "<string>"
+    }
+auth:
+  type: bearer
+  credentials:
+    token: "{{accessToken}}"
+order: 3000

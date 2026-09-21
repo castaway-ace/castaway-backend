@@ -7,8 +7,7 @@ import { TracksModule } from '../tracks/tracks.module.js';
 import { MulterModule } from '@nestjs/platform-express';
 import { ConfigService } from '@nestjs/config';
 import { diskStorage } from 'multer';
-import { extname } from 'path';
-import { randomUUID } from 'crypto';
+import { tempUploadName } from './metadata.js';
 
 @Module({
   imports: [
@@ -22,11 +21,11 @@ import { randomUUID } from 'crypto';
         return {
           storage: diskStorage({
             destination,
-            filename: (_req, file, cb) => {
-              const ext = extname(file.originalname);
-              cb(null, `${randomUUID()}${ext}`);
-            },
+            filename: (_req, file, cb) =>
+              cb(null, tempUploadName(file.originalname)),
           }),
+          // Clients send filenames as UTF-8; the default, latin1, garbles them.
+          defParamCharset: 'utf8',
         };
       },
     }),

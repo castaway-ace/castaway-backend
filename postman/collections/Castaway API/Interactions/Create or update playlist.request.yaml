@@ -1,0 +1,12 @@
+$kind: http-request
+url: "{{baseUrl}}/interactions/playlists/:id"
+method: POST
+pathVariables:
+  - key: id
+    value: <string>
+    description: "(Required) "
+auth:
+  type: bearer
+  credentials:
+    token: "{{accessToken}}"
+order: 4000

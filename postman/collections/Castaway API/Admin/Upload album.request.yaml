@@ -1,0 +1,15 @@
+$kind: http-request
+url: "{{baseUrl}}/admin/albums"
+method: POST
+body:
+  type: formdata
+  content:
+    - type: file
+      key: files
+      src: []
+      description: "(Required) "
+auth:
+  type: bearer
+  credentials:
+    token: "{{accessToken}}"
+order: 4000

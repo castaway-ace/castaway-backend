@@ -1,0 +1,14 @@
+$kind: http-request
+url: "{{baseUrl}}/search?query=<string>"
+method: GET
+headers:
+  Accept: application/json
+queryParams:
+  - key: query
+    value: <string>
+    description: "(Required) "
+auth:
+  type: bearer
+  credentials:
+    token: "{{accessToken}}"
+order: 1000

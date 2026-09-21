@@ -1,0 +1,14 @@
+name: Castaway Local
+values:
+  - key: baseUrl
+    value: 'http://localhost:3000'
+  - key: deviceClientId
+    value: 859dc79f-45d5-4d5e-8f6f-a5748687ccbe
+  - key: email
+    value: ''
+  - key: password
+    value: ''
+  - key: accessToken
+    value: ''
+  - key: refreshToken
+    value: ''

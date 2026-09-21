@@ -1,0 +1,52 @@
+# What each folder in this collection covers. Every request except Health and
+# Sign in / Signup / Refresh sends the environment's accessToken as a bearer
+# token; get one from Auth > Sign in or scripts/login.sh.
+
+Admin: >-
+  Create artists (optionally with an image), replace an artist's image, upload
+  an album's audio files, and delete artists and albums. Needs the ADMIN role.
+
+Albums: >-
+  List and search albums, get an album with its tracks, get a presigned URL for
+  its cover, and star or unstar it.
+
+Artists: >-
+  List and search artists, get an artist, get a presigned URL for their image,
+  and star or unstar them.
+
+Auth: >-
+  Sign up, sign in, refresh the access token, and log out. Sign in returns the
+  accessToken and refreshToken the other requests use. Only Logout needs a
+  token.
+
+Health: >-
+  Checks that the API can reach its database and storage. Needs no token.
+
+Interactions: >-
+  Record that the current user opened an album, artist or playlist, and list
+  those interactions, most recent first.
+
+Library: >-
+  The current user's albums, artists and playlists, with cover art and when
+  they last interacted with each.
+
+Playlists: >-
+  Create, list, get, update and delete the current user's playlists, and add,
+  get and remove their tracks.
+
+Roles: >-
+  List the available roles and all users, and set a user's roles. Needs the
+  ADMIN role.
+
+Search: >-
+  Search albums, artists and tracks in one request.
+
+Tracks: >-
+  List and search tracks, get a track, stream its audio, and star or unstar it.
+
+Users: >-
+  Get or delete the current user's account.
+
+Whitelist: >-
+  Manage the email whitelist that decides who can sign up and log in. Needs the
+  ADMIN role.

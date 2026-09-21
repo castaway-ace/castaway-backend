@@ -1,0 +1,10 @@
+$kind: http-request
+url: "{{baseUrl}}/admin/users"
+method: GET
+headers:
+  Accept: application/json
+auth:
+  type: bearer
+  credentials:
+    token: "{{accessToken}}"
+order: 2000

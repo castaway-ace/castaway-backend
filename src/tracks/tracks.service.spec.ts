@@ -9,6 +9,9 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { PlaylistsService } from '../playlists/playlists.service.js';
 import { TrackEntity, TrackSummaryEntity } from './tracks.entity.js';
 import { Readable } from 'stream';
+import { mkdtemp, rm, writeFile } from 'fs/promises';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import { StorageBucket } from '../storage/storage.types.js';
 import { MetadataTags } from '../admin/admin.types.js';
 
@@ -89,6 +92,41 @@ describe('TracksService', () => {
   });
 
   afterEach(() => jest.clearAllMocks());
+
+  describe('uploadTrackFile', () => {
+    let tmpDir: string;
+
+    beforeEach(async () => {
+      tmpDir = await mkdtemp(join(tmpdir(), 'tracks-spec-'));
+    });
+
+    afterEach(async () => {
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('stores the file with the given content type and no filename metadata', async () => {
+      const path = join(tmpDir, 'upload');
+      await writeFile(path, 'audio');
+      mockStorageService.putObject.mockResolvedValue(undefined);
+
+      await tracksService.uploadTrackFile(
+        {
+          path,
+          size: 5,
+          originalname: 'Beyoncé - 01.flac',
+        } as Express.Multer.File,
+        'album-1/1-01.flac',
+        'audio/flac',
+      );
+
+      const [bucket, key, body, options] =
+        mockStorageService.putObject.mock.calls[0];
+      (body as Readable).destroy();
+      expect(bucket).toBe(StorageBucket.Tracks);
+      expect(key).toBe('album-1/1-01.flac');
+      expect(options).toEqual({ contentType: 'audio/flac', size: 5 });
+    });
+  });
 
   describe('findAll', () => {
     const trackSummaryRows: (TrackSummaryRow & TrackAnnotations)[] = [

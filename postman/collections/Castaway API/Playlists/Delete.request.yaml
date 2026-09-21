@@ -1,0 +1,12 @@
+$kind: http-request
+url: "{{baseUrl}}/playlists/:id"
+method: DELETE
+pathVariables:
+  - key: id
+    value: <string>
+    description: "(Required) "
+auth:
+  type: bearer
+  credentials:
+    token: "{{accessToken}}"
+order: 5000

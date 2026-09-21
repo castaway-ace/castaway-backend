@@ -1,0 +1,49 @@
+$kind: http-request
+url: "{{baseUrl}}/tracks"
+method: GET
+headers:
+  Accept: application/json
+queryParams:
+  - key: artistIds
+    value: <uuid>
+    disabled: true
+  - key: artistIds
+    value: <uuid>
+    disabled: true
+  - key: albumIds
+    value: <uuid>
+    disabled: true
+  - key: albumIds
+    value: <uuid>
+    disabled: true
+  - key: genres
+    value: <string>
+    disabled: true
+  - key: genres
+    value: <string>
+    disabled: true
+  - key: search
+    value: <string>
+    disabled: true
+  - key: starred
+    value: <boolean>
+    disabled: true
+  - key: order
+    value: title
+    disabled: true
+    description: " (This can only be one of title,album,year,added)"
+  - key: orderBy
+    value: desc
+    disabled: true
+    description: " (This can only be one of asc,desc)"
+  - key: limit
+    value: "100"
+    disabled: true
+  - key: offset
+    value: "0"
+    disabled: true
+auth:
+  type: bearer
+  credentials:
+    token: "{{accessToken}}"
+order: 1000

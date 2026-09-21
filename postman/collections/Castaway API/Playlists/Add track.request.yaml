@@ -1,0 +1,15 @@
+$kind: http-request
+url: "{{baseUrl}}/playlists/:id/tracks/:trackId"
+method: POST
+pathVariables:
+  - key: id
+    value: <string>
+    description: "(Required) "
+  - key: trackId
+    value: <string>
+    description: "(Required) "
+auth:
+  type: bearer
+  credentials:
+    token: "{{accessToken}}"
+order: 8000

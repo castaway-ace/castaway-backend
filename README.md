@@ -289,12 +289,48 @@ bearer access token.
 
 A liveness/readiness endpoint is exposed at **`/health`** via Terminus.
 
+### Postman
+
+`postman/` holds a collection with every endpoint and a **Castaway Local**
+environment, in the file format Postman's
+[Native Git](https://learning.postman.com/docs/use/native-git/overview/) reads
+from the repository. `postman/collections/Castaway API/folders.yaml` describes
+what each folder covers. When you add or change an endpoint, update its request
+in Postman and commit the changes under `postman/`.
+
+To use it:
+
+1. In the Postman desktop app, connect a team workspace to this repository
+   folder (Native Git doesn't work with the web app or personal workspaces),
+   and commit the `.postman/resources.yaml` it creates.
+2. Select the **Castaway Local** environment and set local values for `email`
+   and `password`, marking `password` as secure. Keep shared values empty:
+   they are what gets committed.
+3. Send **Auth > Sign in** (or run `scripts/login.sh`) and set the
+   `accessToken` local value to the token it returns. Requests send it as a
+   bearer token until it expires after 15 minutes.
+
+Pushes to `main` that change `postman/` publish it to the connected cloud
+workspace once the `POSTMAN_API_KEY` repository secret holds a
+[Postman API key](https://go.postman.co/settings/me/api-keys).
+
 ### Admin album upload
 
 Albums are imported synchronously through a single multipart request:
 
-`POST /admin/albums` — send the album's audio files as `files[]` (up to 200 per
-request, 2 GiB each). Requires the `catalog:write` permission.
+`POST /admin/albums` — send the album's audio files as repeated `files` parts
+(up to 200 per request, 2 GiB each). Requires the `catalog:write` permission.
+FLAC, MP3, M4A (AAC or ALAC), Ogg, WAV and ADTS AAC are accepted; video files
+are rejected. Each file's format is read from its contents, so the MIME type
+sent with it is ignored. The filename's extension picks the parser to try
+first, which matters for files that are hard to detect from their first few KB,
+such as FLAC behind a large ID3 tag. If that parser fails, the file is parsed
+again from its contents alone, so a wrong extension usually doesn't matter.
+
+Artist images (`POST /admin/artists`, `POST /admin/artists/:id/image`) and
+embedded album covers must be JPEG, PNG, GIF or WebP. Their type is also read
+from the data. Anything else, including SVG, is rejected for artists and
+skipped for album covers.
 
 The request must describe exactly one album: every file's album title and album
 artist tags have to agree, and disc/track numbers must be unique. All artists

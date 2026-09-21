@@ -1,0 +1,14 @@
+$kind: http-request
+url: "{{baseUrl}}/artists/:id/image"
+method: GET
+headers:
+  Accept: application/json
+pathVariables:
+  - key: id
+    value: <string>
+    description: "(Required) "
+auth:
+  type: bearer
+  credentials:
+    token: "{{accessToken}}"
+order: 3000

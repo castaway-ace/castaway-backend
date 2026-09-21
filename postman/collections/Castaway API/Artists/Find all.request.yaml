@@ -1,0 +1,31 @@
+$kind: http-request
+url: "{{baseUrl}}/artists"
+method: GET
+headers:
+  Accept: application/json
+queryParams:
+  - key: starred
+    value: <boolean>
+    disabled: true
+  - key: search
+    value: <string>
+    disabled: true
+  - key: order
+    value: name
+    disabled: true
+    description: " (This can only be one of name)"
+  - key: orderBy
+    value: desc
+    disabled: true
+    description: " (This can only be one of asc,desc)"
+  - key: limit
+    value: "100"
+    disabled: true
+  - key: offset
+    value: "0"
+    disabled: true
+auth:
+  type: bearer
+  credentials:
+    token: "{{accessToken}}"
+order: 1000

@@ -1,0 +1,19 @@
+$kind: http-request
+url: "{{baseUrl}}/admin/artists/:id/image"
+method: POST
+pathVariables:
+  - key: id
+    value: <string>
+    description: "(Required) "
+body:
+  type: formdata
+  content:
+    - type: file
+      key: file
+      src: []
+      description: "(Required) "
+auth:
+  type: bearer
+  credentials:
+    token: "{{accessToken}}"
+order: 2000

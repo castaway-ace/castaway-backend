@@ -1,3 +1,4 @@
+import type { AudioFormat } from '../common/audio-formats.js';
 import { IPicture } from 'music-metadata';
 
 export interface MetadataTags {
@@ -11,13 +12,12 @@ export interface MetadataTags {
   date: Date;
   duration: number;
   sampleRate: number;
-  bitDepth: number;
+  bitDepth: number | null;
   bitRate: number;
   picture: IPicture | undefined;
 }
 
-export interface ParsedFile {
+export interface ParsedFile extends AudioFormat {
   file: Express.Multer.File;
   tags: MetadataTags;
-  suffix: string;
 }
