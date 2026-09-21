@@ -18,6 +18,7 @@ import { createReadStream } from 'fs';
 import { buildOrderBy, clampPagination } from '../common/query.js';
 import { toArtistRef } from '../common/artist-ref.js';
 import type { MetadataTags } from '../admin/admin.types.js';
+import { AUDIO_CONTENT_TYPES, isAudioSuffix } from '../common/audio-formats.js';
 
 interface TrackFilters {
   artistIds?: string[];
@@ -231,16 +232,13 @@ export class TracksService {
   async uploadTrackFile(
     file: Express.Multer.File,
     fileKey: string,
+    contentType: string,
   ): Promise<void> {
     await this.storageService.putObject(
       StorageBucket.Tracks,
       fileKey,
       createReadStream(file.path),
-      {
-        contentType: file.mimetype,
-        size: file.size,
-        metadata: { originalName: file.originalname },
-      },
+      { contentType, size: file.size },
     );
   }
 
@@ -326,16 +324,6 @@ export class TracksService {
     added: (direction) => ({ createdAt: direction }),
   };
 
-  private static readonly MIME_BY_EXT: Record<string, string> = {
-    flac: 'audio/flac',
-    mp3: 'audio/mpeg',
-    m4a: 'audio/mp4',
-    aac: 'audio/aac',
-    ogg: 'audio/ogg',
-    opus: 'audio/opus',
-    wav: 'audio/wav',
-  };
-
   private static readonly MIME_ALIASES: Record<string, string> = {
     'audio/x-flac': 'audio/flac',
     'audio/x-wav': 'audio/wav',
@@ -346,8 +334,10 @@ export class TracksService {
     if (fromStorage && fromStorage !== 'application/octet-stream') {
       return TracksService.MIME_ALIASES[fromStorage] ?? fromStorage;
     }
-    const ext = key.split('.').pop()?.toLowerCase() ?? '';
-    return TracksService.MIME_BY_EXT[ext] ?? 'application/octet-stream';
+    const suffix = key.split('.').pop()?.toLowerCase() ?? '';
+    return isAudioSuffix(suffix)
+      ? AUDIO_CONTENT_TYPES[suffix]
+      : 'application/octet-stream';
   }
 
   private buildOrderBy(

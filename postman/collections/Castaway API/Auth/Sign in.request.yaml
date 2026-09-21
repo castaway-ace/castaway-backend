@@ -1,0 +1,20 @@
+$kind: http-request
+url: "{{baseUrl}}/auth/login"
+method: POST
+headers:
+  Content-Type: application/json
+  Accept: application/json
+body:
+  type: json
+  content: |-
+    {
+      "email": "{{email}}",
+      "password": "{{password}}",
+      "deviceInfo": {
+        "clientId": "{{deviceClientId}}",
+        "name": "Postman"
+      }
+    }
+auth:
+  type: noauth
+order: 1000

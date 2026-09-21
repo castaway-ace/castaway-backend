@@ -1,6 +1,17 @@
 import { BadRequestException } from '@nestjs/common';
-import { IAudioMetadata, IPicture } from 'music-metadata';
-import { extractRequiredTags, resolveSuffix } from './metadata.js';
+import {
+  CouldNotDetermineFileTypeError,
+  IAudioMetadata,
+  IFormat,
+  IPicture,
+  UnexpectedFileContentError,
+} from 'music-metadata';
+import {
+  extractRequiredTags,
+  isUnreadableAudioError,
+  resolveAudioFormat,
+  tempUploadName,
+} from './metadata.js';
 
 function buildMetadata(
   common: Partial<IAudioMetadata['common']> = {},
@@ -23,31 +34,104 @@ function buildMetadata(
       duration: 210.4,
       sampleRate: 44100,
       bitsPerSample: 16,
+      lossless: true,
       bitrate: 1_023_400,
       ...format,
     },
   } as unknown as IAudioMetadata;
 }
 
-describe('resolveSuffix', () => {
+describe('resolveAudioFormat', () => {
+  const format = (overrides: Partial<IFormat>) => overrides as IFormat;
+
+  // Containers and codecs as music-metadata reports them for real files.
   it.each([
-    ['audio/flac', 'flac'],
-    ['audio/x-flac', 'flac'],
-    ['audio/mpeg', 'mp3'],
-    ['audio/wav', 'wav'],
-    ['audio/x-wav', 'wav'],
-    ['audio/mp4', 'm4a'],
-    ['audio/aac', 'aac'],
-    ['audio/ogg', 'ogg'],
-  ])('maps %s to %s', (mimetype, expected) => {
-    expect(resolveSuffix(mimetype)).toBe(expected);
+    ['FLAC', 'FLAC', 'flac', 'audio/flac'],
+    ['MPEG', 'MPEG 1 Layer 3', 'mp3', 'audio/mpeg'],
+    ['MPEG', 'MPEG 2.5 Layer 3', 'mp3', 'audio/mpeg'],
+    ['WAVE', 'PCM', 'wav', 'audio/wav'],
+    ['ADTS/MPEG-4', 'AAC', 'aac', 'audio/aac'],
+    ['ADTS/MPEG-2', 'AAC', 'aac', 'audio/aac'],
+    ['Ogg', 'Vorbis I', 'ogg', 'audio/ogg'],
+    ['M4A/isom/mp42', 'MPEG-4/AAC', 'm4a', 'audio/mp4'],
+    ['M4A/isom/iso2', 'ALAC', 'm4a', 'audio/mp4'],
+    ['isom/iso2/mp41', 'MPEG-4/AAC', 'm4a', 'audio/mp4'],
+    // Major brands other than M4A/isom, with a known brand later in the list.
+    ['dash/iso2/mp41', 'MPEG-4/AAC', 'm4a', 'audio/mp4'],
+    ['3gp5/3gp4/isom', 'MPEG-4/AAC', 'm4a', 'audio/mp4'],
+    ['MSNV/mp42/isom', 'MPEG-4/AAC', 'm4a', 'audio/mp4'],
+  ])('maps %s (%s) to %s', (container, codec, suffix, contentType) => {
+    expect(resolveAudioFormat(format({ container, codec }))).toEqual({
+      suffix,
+      contentType,
+    });
   });
 
-  it('throws for an unsupported type', () => {
-    expect(() => resolveSuffix('image/png')).toThrow(BadRequestException);
-    expect(() => resolveSuffix('image/png')).toThrow(
-      'Unsupported file type: image/png',
+  it('throws for an unsupported format', () => {
+    const aiff = format({ container: 'AIFF', codec: 'PCM' });
+    expect(() => resolveAudioFormat(aiff)).toThrow(BadRequestException);
+    expect(() => resolveAudioFormat(aiff)).toThrow(
+      'Unsupported audio format: AIFF (PCM)',
     );
+  });
+
+  it('throws when no container was detected', () => {
+    expect(() => resolveAudioFormat(format({}))).toThrow(
+      'Unsupported audio format: unknown',
+    );
+  });
+
+  it('rejects MPEG Layer II audio, which is not MP3', () => {
+    expect(() =>
+      resolveAudioFormat(
+        format({ container: 'MPEG', codec: 'MPEG 1 Layer 2' }),
+      ),
+    ).toThrow('Unsupported audio format: MPEG (MPEG 1 Layer 2)');
+  });
+
+  it.each([
+    ['a music video', 'isom/iso2/avc1/mp41'],
+    ['an Ogg Theora video', 'Ogg'],
+  ])('rejects %s', (_label, container) => {
+    expect(() =>
+      resolveAudioFormat(format({ container, hasVideo: true })),
+    ).toThrow('Video files are not supported');
+  });
+
+  it('rejects a file with no audio track', () => {
+    expect(() =>
+      resolveAudioFormat(format({ container: 'M4A/isom', hasAudio: false })),
+    ).toThrow('The file contains no audio');
+  });
+});
+
+describe('tempUploadName', () => {
+  it('keeps a supported audio extension, lowercased', () => {
+    expect(tempUploadName('01 Song.FLAC')).toMatch(/^[0-9a-f-]{36}\.flac$/);
+  });
+
+  it.each(['cover.jpg', 'notes', 'track.aiff', '../../etc/passwd.mp3x'])(
+    'drops the extension of %s',
+    (name) => {
+      expect(tempUploadName(name)).toMatch(/^[0-9a-f-]{36}$/);
+    },
+  );
+});
+
+describe('isUnreadableAudioError', () => {
+  it.each([
+    new CouldNotDetermineFileTypeError('Failed to determine audio format'),
+    new UnexpectedFileContentError('FLAC', 'Invalid FLAC preamble'),
+    Object.assign(new Error('End-Of-Stream'), { name: 'EndOfStreamError' }),
+  ])('treats %s as unreadable content', (error) => {
+    expect(isUnreadableAudioError(error)).toBe(true);
+  });
+
+  it('leaves I/O errors to the server', () => {
+    const error = Object.assign(new Error('EMFILE: too many open files'), {
+      code: 'EMFILE',
+    });
+    expect(isUnreadableAudioError(error)).toBe(false);
   });
 });
 
@@ -112,15 +196,38 @@ describe('extractRequiredTags', () => {
     [{ artists: undefined }, 'Missing track artists'],
     [{ genre: [] }, 'Missing genres'],
     [{ genre: undefined }, 'Missing genres'],
-    [{ date: undefined }, 'Missing date'],
+    [{ date: undefined, year: undefined }, 'Missing date'],
   ])('rejects when %o is invalid', (common, message) => {
     expect(() => extractRequiredTags(buildMetadata(common))).toThrow(message);
   });
 
-  it('rejects a missing bit depth', () => {
-    expect(() =>
-      extractRequiredTags(buildMetadata({}, { bitsPerSample: undefined })),
-    ).toThrow('Missing bit depth');
+  it('uses the year when there is no date, as in ID3v2.3 tags', () => {
+    const tags = extractRequiredTags(
+      buildMetadata({ date: undefined, year: 2016 }),
+    );
+    expect(tags.date).toEqual(new Date('2016'));
+  });
+
+  it.each(['20160501', '2016-00-00'])(
+    'falls back to the year when the date %s does not parse',
+    (date) => {
+      const tags = extractRequiredTags(buildMetadata({ date, year: 2016 }));
+      expect(tags.date).toEqual(new Date('2016'));
+    },
+  );
+
+  it('allows a missing bit depth', () => {
+    const tags = extractRequiredTags(
+      buildMetadata({}, { bitsPerSample: undefined }),
+    );
+    expect(tags.bitDepth).toBeNull();
+  });
+
+  it('drops the bit depth of lossy audio, such as AAC in MP4', () => {
+    const tags = extractRequiredTags(
+      buildMetadata({}, { lossless: false, bitsPerSample: 16 }),
+    );
+    expect(tags.bitDepth).toBeNull();
   });
 
   it('rejects an unparseable date', () => {

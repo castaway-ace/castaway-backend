@@ -1,15 +1,26 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
-import { IPicture, parseFile } from 'music-metadata';
-import { unlink } from 'fs/promises';
+import {
+  IAudioMetadata,
+  IPicture,
+  parseFile,
+  parseStream,
+} from 'music-metadata';
+import { open, unlink } from 'fs/promises';
+import { extname } from 'path';
 import { TracksService } from '../tracks/tracks.service.js';
 import { ArtistsService } from '../artists/artists.service.js';
 import { AlbumsService } from '../albums/albums.service.js';
 import { ParsedFile } from './admin.types.js';
-import { extractRequiredTags, resolveSuffix } from './metadata.js';
+import {
+  extractRequiredTags,
+  isUnreadableAudioError,
+  resolveAudioFormat,
+} from './metadata.js';
 import { buildAlbumIdentity } from '../common/album-identity.js';
 import { ArtistRef } from '../common/entities/references.entity.js';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { detectImageFileType, detectImageType } from '../common/image-type.js';
 
 const TRACK_UPLOAD_CONCURRENCY = 4;
 
@@ -47,17 +58,15 @@ export class AdminService {
     file?: Express.Multer.File,
   ): Promise<ArtistRef> {
     try {
-      if (file && !file.mimetype.startsWith('image/')) {
-        throw new BadRequestException('Artist art must be an image');
-      }
+      const image = file && (await this.requireImage(file));
       const artist = await this.artistService.create({
         id: randomUUID(),
         name,
       });
 
-      if (file) {
+      if (image) {
         try {
-          await this.artistService.uploadImage(artist.id, file);
+          await this.artistService.uploadImage(artist.id, image);
         } catch (error) {
           await this.artistService
             .delete(artist.id)
@@ -100,11 +109,10 @@ export class AdminService {
     }
 
     try {
-      if (!file.mimetype.startsWith('image/')) {
-        throw new BadRequestException('Artist art must be an image');
-      }
-
-      await this.artistService.uploadImage(artistId, file);
+      await this.artistService.uploadImage(
+        artistId,
+        await this.requireImage(file),
+      );
     } finally {
       await this.cleanupFile(file);
     }
@@ -149,9 +157,8 @@ export class AdminService {
 
     const albumId = randomUUID();
 
-    const cover = firstTags.picture;
-    const hasCover = cover !== undefined && cover.format.startsWith('image/');
-    const coverKey = hasCover ? this.albumService.buildCoverKey(albumId) : null;
+    const cover = this.embeddedCover(firstTags.picture);
+    const coverKey = cover ? this.albumService.buildCoverKey(albumId) : null;
 
     const tracks: TrackUploadPlan[] = parsedFiles.map((parsed) => ({
       ...parsed,
@@ -173,7 +180,7 @@ export class AdminService {
       releaseDate: firstTags.date,
       albumArtistIds,
       coverKey,
-      cover: hasCover ? cover : undefined,
+      cover,
       tracks,
     };
   }
@@ -298,9 +305,9 @@ export class AdminService {
         const index = nextIndex++;
         if (index >= plans.length) return;
 
-        const { file, fileKey } = plans[index];
+        const { file, fileKey, contentType } = plans[index];
         try {
-          await this.trackService.uploadTrackFile(file, fileKey);
+          await this.trackService.uploadTrackFile(file, fileKey, contentType);
           results[index] = { status: 'fulfilled', value: undefined };
         } catch (reason) {
           results[index] = { status: 'rejected', reason };
@@ -335,14 +342,89 @@ export class AdminService {
   ): Promise<ParsedFile[]> {
     return Promise.all(
       files.map(async (file) => {
-        const suffix = resolveSuffix(file.mimetype);
-        return {
-          file,
-          tags: extractRequiredTags(await parseFile(file.path)),
-          suffix,
-        };
+        try {
+          const metadata = await this.parseAudioFile(file.path);
+          return {
+            file,
+            tags: extractRequiredTags(metadata),
+            ...resolveAudioFormat(metadata.format),
+          };
+        } catch (error) {
+          // Name the file, since an album can have up to 200 of them.
+          if (error instanceof BadRequestException) {
+            throw new BadRequestException(
+              `${file.originalname}: ${error.message}`,
+              { cause: error },
+            );
+          }
+          throw error;
+        }
       }),
     );
+  }
+
+  /**
+   * Parses an uploaded temp file. Its extension, kept from the client's
+   * filename, lets music-metadata pick the right parser. A mislabeled file
+   * fails that parser, so it is parsed again from its contents alone. Only
+   * content that can't be read becomes a 400; I/O errors stay server errors.
+   */
+  private async parseAudioFile(path: string): Promise<IAudioMetadata> {
+    let error: unknown;
+    try {
+      return await parseFile(path);
+    } catch (parseError) {
+      error = parseError;
+    }
+
+    if (isUnreadableAudioError(error) && extname(path)) {
+      // A stream opened from a path would hand music-metadata the extension
+      // again, so it reads from a file handle and only gets the size.
+      const file = await open(path);
+      const stream = file.createReadStream({ autoClose: false });
+      try {
+        const { size } = await file.stat();
+        return await parseStream(stream, { size });
+      } catch (retryError) {
+        error = retryError;
+      } finally {
+        stream.destroy();
+        await file.close();
+      }
+    }
+
+    if (isUnreadableAudioError(error)) {
+      throw new BadRequestException('Not a readable audio file', {
+        cause: error,
+      });
+    }
+    throw error;
+  }
+
+  /**
+   * Checks that an uploaded artist image really is an image, whatever type the
+   * client declared, and returns the file labeled with its detected type.
+   */
+  private async requireImage(
+    file: Express.Multer.File,
+  ): Promise<Express.Multer.File> {
+    const mimetype = await detectImageFileType(file.path);
+    if (!mimetype) {
+      throw new BadRequestException(
+        'Artist art must be an image (JPEG, PNG, GIF or WebP)',
+      );
+    }
+    return { ...file, mimetype };
+  }
+
+  /**
+   * Returns the embedded cover labeled with its detected type, or `undefined`
+   * when there is none or it isn't a supported image. Tags can declare any
+   * type, so the album is imported without a cover rather than storing it.
+   */
+  private embeddedCover(picture: IPicture | undefined): IPicture | undefined {
+    const format = picture && detectImageType(picture.data);
+    return picture && format ? { ...picture, format } : undefined;
   }
 
   private async resolveArtistMap(

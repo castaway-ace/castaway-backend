@@ -1,0 +1,14 @@
+$kind: http-request
+url: "{{baseUrl}}/interactions"
+method: GET
+headers:
+  Accept: application/json
+queryParams:
+  - key: limit
+    value: "20"
+    disabled: true
+auth:
+  type: bearer
+  credentials:
+    token: "{{accessToken}}"
+order: 1000

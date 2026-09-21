@@ -1,0 +1,8 @@
+$kind: http-request
+url: "{{baseUrl}}/user/me"
+method: DELETE
+auth:
+  type: bearer
+  credentials:
+    token: "{{accessToken}}"
+order: 2000

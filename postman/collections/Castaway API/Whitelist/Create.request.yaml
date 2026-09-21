@@ -1,0 +1,18 @@
+$kind: http-request
+url: "{{baseUrl}}/admin/whitelist"
+method: POST
+headers:
+  Content-Type: application/json
+  Accept: application/json
+body:
+  type: json
+  content: |-
+    {
+      "email": "<email>",
+      "note": "<string>"
+    }
+auth:
+  type: bearer
+  credentials:
+    token: "{{accessToken}}"
+order: 1000

@@ -1,0 +1,46 @@
+name: Postman
+
+on:
+  push:
+    branches: [main]
+    paths: ['postman/**', '.postman/**']
+
+concurrency:
+  group: postman-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish to Postman Cloud
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # The publish step runs a third-party package; keep the token out of .git.
+          persist-credentials: false
+      - name: Check that publishing is set up
+        id: setup
+        # Secrets can't be read in `if` conditions, so the key goes through env.
+        env:
+          POSTMAN_API_KEY: ${{ secrets.POSTMAN_API_KEY }}
+        run: |
+          if [ -n "$POSTMAN_API_KEY" ] && [ -f .postman/resources.yaml ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Skipped publishing: set the POSTMAN_API_KEY secret and commit .postman/resources.yaml (see README)." >> "$GITHUB_STEP_SUMMARY"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v5
+        if: steps.setup.outputs.ready == 'true'
+        with:
+          node-version-file: .nvmrc
+      - name: Push postman/ to the workspace
+        if: steps.setup.outputs.ready == 'true'
+        env:
+          POSTMAN_API_KEY: ${{ secrets.POSTMAN_API_KEY }}
+        run: |
+          npx --yes postman-cli@1.60.0 login --with-api-key "$POSTMAN_API_KEY"
+          npx --yes postman-cli@1.60.0 workspace push -y

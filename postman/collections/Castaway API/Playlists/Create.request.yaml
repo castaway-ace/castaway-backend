@@ -1,0 +1,17 @@
+$kind: http-request
+url: "{{baseUrl}}/playlists"
+method: POST
+headers:
+  Content-Type: application/json
+  Accept: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "<string>"
+    }
+auth:
+  type: bearer
+  credentials:
+    token: "{{accessToken}}"
+order: 2000

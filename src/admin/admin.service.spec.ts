@@ -8,11 +8,15 @@ import { join } from 'path';
 import type { MetadataTags } from './admin.types.js';
 import type { ArtistRef } from '../common/entities/references.entity.js';
 
-// `music-metadata`'s `parseFile` reads the disk; mock it so tests supply tags
+// `music-metadata`'s parsers read the disk; mock them so tests supply tags
 // directly. Everything else (real temp files, real `unlink`) stays genuine so
 // the cleanup paths are exercised end to end.
 const parseFile = jest.fn<(path: string) => Promise<IAudioMetadata>>();
-jest.unstable_mockModule('music-metadata', () => ({ parseFile }));
+const parseStream =
+  jest.fn<
+    (stream: { path?: unknown }, fileInfo?: unknown) => Promise<IAudioMetadata>
+  >();
+jest.unstable_mockModule('music-metadata', () => ({ parseFile, parseStream }));
 
 const { AdminService } = await import('./admin.service.js');
 const { TracksService } = await import('../tracks/tracks.service.js');
@@ -28,6 +32,8 @@ function buildMetadata(overrides: {
   trackNo?: number;
   discNo?: number;
   picture?: IPicture[];
+  container?: string;
+  codec?: string;
 }): IAudioMetadata {
   const albumArtist = overrides.albumArtist ?? 'Album Artist';
   return {
@@ -43,6 +49,9 @@ function buildMetadata(overrides: {
       picture: overrides.picture,
     },
     format: {
+      container: overrides.container ?? 'FLAC',
+      codec: overrides.codec,
+      lossless: true,
       duration: 200,
       sampleRate: 44100,
       bitsPerSample: 16,
@@ -51,10 +60,18 @@ function buildMetadata(overrides: {
   } as unknown as IAudioMetadata;
 }
 
+// The leading bytes are all the service's image type detection reads.
+const JPEG_BYTES = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
+const PNG_BYTES = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
 const cover: IPicture = {
   format: 'image/jpeg',
-  data: Buffer.from('cover'),
+  data: JPEG_BYTES,
 };
+
+/** An error as music-metadata raises it for content it can't parse. */
+const unreadableAudio = (name = 'CouldNotDetermineFileTypeError') =>
+  Object.assign(new Error('Failed to determine audio format'), { name });
 
 describe('AdminService', () => {
   let adminService: InstanceType<typeof AdminService>;
@@ -202,15 +219,37 @@ describe('AdminService', () => {
 
     it('uploads the image and cleans up the temp file', async () => {
       const file = imageFile();
-      await writeFile(file.path, 'img');
+      await writeFile(file.path, JPEG_BYTES);
 
       await adminService.uploadArtist('Nina', file);
 
       expect(mockArtistService.uploadImage).toHaveBeenCalledWith(
         expect.any(String),
-        file,
+        expect.objectContaining({ path: file.path, mimetype: 'image/jpeg' }),
       );
       expect(await fileExists(file.path)).toBe(false);
+    });
+
+    it('stores the image under its detected type, not the declared one', async () => {
+      const file = imageFile('application/octet-stream');
+      await writeFile(file.path, PNG_BYTES);
+
+      await adminService.uploadArtist('Nina', file);
+
+      expect(mockArtistService.uploadImage).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ mimetype: 'image/png' }),
+      );
+    });
+
+    it('rejects an SVG, which can carry script', async () => {
+      const file = imageFile('image/svg+xml');
+      await writeFile(file.path, '<svg xmlns="http://www.w3.org/2000/svg"/>');
+
+      await expect(adminService.uploadArtist('Nina', file)).rejects.toThrow(
+        'Artist art must be an image',
+      );
+      expect(mockArtistService.create).not.toHaveBeenCalled();
     });
 
     it('rejects a non-image file before creating anything', async () => {
@@ -226,7 +265,7 @@ describe('AdminService', () => {
 
     it('rolls back the artist when the image upload fails', async () => {
       const file = imageFile();
-      await writeFile(file.path, 'img');
+      await writeFile(file.path, JPEG_BYTES);
       mockArtistService.uploadImage.mockRejectedValue(new Error('s3 down'));
 
       await expect(adminService.uploadArtist('Nina', file)).rejects.toThrow(
@@ -261,13 +300,13 @@ describe('AdminService', () => {
 
     it('delegates to the artist service and cleans up', async () => {
       const file = imageFile();
-      await writeFile(file.path, 'img');
+      await writeFile(file.path, JPEG_BYTES);
 
       await adminService.uploadArtistImage('artist-1', file);
 
       expect(mockArtistService.uploadImage).toHaveBeenCalledWith(
         'artist-1',
-        file,
+        expect.objectContaining({ path: file.path, mimetype: 'image/jpeg' }),
       );
       expect(await fileExists(file.path)).toBe(false);
     });
@@ -301,14 +340,97 @@ describe('AdminService', () => {
       );
     });
 
-    it('rejects an unsupported file type and cleans up', async () => {
-      const file = await audioFile('01.txt', buildMetadata({}), 'text/plain');
+    it('rejects a file that is not audio and cleans up', async () => {
+      const file = await audioFile('notes.txt', buildMetadata({}));
+      parseFile.mockRejectedValue(unreadableAudio());
+      parseStream.mockRejectedValue(unreadableAudio());
 
       await expect(adminService.uploadAlbum([file])).rejects.toThrow(
-        'Unsupported file type: text/plain',
+        'notes.txt: Not a readable audio file',
       );
-      expect(parseFile).not.toHaveBeenCalled();
+      expect(mockTrackService.uploadTrackFile).not.toHaveBeenCalled();
       expect(await fileExists(file.path)).toBe(false);
+    });
+
+    it('rejects an unsupported audio format and cleans up', async () => {
+      const file = await audioFile(
+        '01.aiff',
+        buildMetadata({ container: 'AIFF' }),
+      );
+
+      await expect(adminService.uploadAlbum([file])).rejects.toThrow(
+        'Unsupported audio format: AIFF',
+      );
+      expect(mockTrackService.uploadTrackFile).not.toHaveBeenCalled();
+      expect(await fileExists(file.path)).toBe(false);
+    });
+
+    it('takes the suffix from the parsed format, not the name or MIME type', async () => {
+      const file = await audioFile(
+        '01.flac',
+        buildMetadata({ container: 'MPEG', codec: 'MPEG 1 Layer 3' }),
+        'application/octet-stream',
+      );
+
+      await adminService.uploadAlbum([file]);
+
+      expect(mockTrackService.buildFileKey).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.anything(),
+        'mp3',
+      );
+      expect(mockTrackService.uploadTrackFile).toHaveBeenCalledWith(
+        file,
+        'file-1-1',
+        'audio/mpeg',
+      );
+    });
+
+    it('parses a mislabeled file again from its contents', async () => {
+      const file = await audioFile('01.flac', buildMetadata({}));
+      parseFile.mockRejectedValue(
+        unreadableAudio('UnexpectedFileContentError'),
+      );
+      parseStream.mockResolvedValue(
+        buildMetadata({ container: 'MPEG', codec: 'MPEG 1 Layer 3' }),
+      );
+
+      await adminService.uploadAlbum([file]);
+
+      // Without a path on the stream, music-metadata can't reuse the extension.
+      expect(parseStream).toHaveBeenCalledTimes(1);
+      const [stream, fileInfo] = parseStream.mock.calls[0];
+      expect(stream.path).toBeUndefined();
+      expect(fileInfo).toEqual({ size: 'audio-bytes'.length });
+      expect(mockTrackService.uploadTrackFile).toHaveBeenCalledWith(
+        file,
+        'file-1-1',
+        'audio/mpeg',
+      );
+    });
+
+    it('keeps I/O errors as server errors', async () => {
+      const file = await audioFile('01.flac', buildMetadata({}));
+      const ioError = Object.assign(new Error('EMFILE: too many open files'), {
+        code: 'EMFILE',
+      });
+      parseFile.mockRejectedValue(ioError);
+
+      const result = adminService.uploadAlbum([file]);
+
+      await expect(result).rejects.toBe(ioError);
+      expect(parseStream).not.toHaveBeenCalled();
+      expect(await fileExists(file.path)).toBe(false);
+    });
+
+    it('names the file whose tags are invalid', async () => {
+      const metadata = buildMetadata({});
+      metadata.common.genre = [];
+      const file = await audioFile('07 Song.flac', metadata);
+
+      await expect(adminService.uploadAlbum([file])).rejects.toThrow(
+        '07 Song.flac: Missing genres',
+      );
     });
 
     it('rejects when referenced artists do not exist yet', async () => {
@@ -386,6 +508,7 @@ describe('AdminService', () => {
       expect(mockTrackService.uploadTrackFile).toHaveBeenCalledWith(
         file,
         'file-1-1',
+        'audio/flac',
       );
       expect(mockAlbumService.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -408,6 +531,25 @@ describe('AdminService', () => {
       expect(mockTrackService.deleteTrackObjects).not.toHaveBeenCalled();
       expect(mockAlbumService.deleteCoverObject).not.toHaveBeenCalled();
       expect(await fileExists(file.path)).toBe(false);
+    });
+
+    it('skips an embedded cover that is not a supported image', async () => {
+      const svg: IPicture = {
+        format: 'image/svg+xml',
+        data: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>'),
+      };
+      const file = await audioFile(
+        '01.flac',
+        buildMetadata({ picture: [svg] }),
+      );
+
+      await adminService.uploadAlbum([file]);
+
+      expect(mockAlbumService.uploadCover).not.toHaveBeenCalled();
+      expect(mockAlbumService.create).toHaveBeenCalledWith(
+        expect.objectContaining({ imageKey: null }),
+        expect.anything(),
+      );
     });
 
     it('persists without a cover when the tags carry no image', async () => {

@@ -193,7 +193,6 @@ export class ArtistsService {
       {
         contentType: file.mimetype,
         size: file.size,
-        metadata: { originalName: file.originalname },
         cacheControl: PUBLIC_IMAGE_CACHE_CONTROL,
       },
     );

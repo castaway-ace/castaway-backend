@@ -1,0 +1,24 @@
+$kind: http-request
+url: "{{baseUrl}}/admin/users/:id/roles"
+method: PUT
+headers:
+  Content-Type: application/json
+  Accept: application/json
+pathVariables:
+  - key: id
+    value: <string>
+    description: "(Required) "
+body:
+  type: json
+  content: |-
+    {
+      "roles": [
+        "USER",
+        "USER"
+      ]
+    }
+auth:
+  type: bearer
+  credentials:
+    token: "{{accessToken}}"
+order: 3000

@@ -1,0 +1,21 @@
+$kind: http-request
+url: "{{baseUrl}}/library"
+method: GET
+headers:
+  Accept: application/json
+queryParams:
+  - key: type
+    value: artist
+    disabled: true
+    description: " (This can only be one of album,artist,playlist)"
+  - key: limit
+    value: "100"
+    disabled: true
+  - key: offset
+    value: "0"
+    disabled: true
+auth:
+  type: bearer
+  credentials:
+    token: "{{accessToken}}"
+order: 1000

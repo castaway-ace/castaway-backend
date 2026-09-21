@@ -317,6 +317,8 @@ describe('ArtistService', () => {
         contentType: 'image/jpeg',
         cacheControl: 'public, max-age=31536000, immutable',
       });
+      // The client's filename can be non-ASCII, which breaks signed S3 headers.
+      expect(putArgs[3]).not.toHaveProperty('metadata');
 
       expect(mockPrismaService.artist.update).toHaveBeenCalledTimes(1);
       const updateArgs = mockPrismaService.artist.update.mock.calls[0][0];

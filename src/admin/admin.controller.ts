@@ -50,8 +50,9 @@ export class AdminController {
   @ApiBody({
     schema: {
       type: 'object',
-      required: ['file'],
+      required: ['name'],
       properties: {
+        name: { type: 'string', minLength: 1, maxLength: 100 },
         file: { type: 'string', format: 'binary' },
       },
     },
