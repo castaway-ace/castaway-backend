@@ -23,6 +23,10 @@ services:
     volumes:
       - /mnt/data/castaway/tmp:/mnt/data/castaway/tmp
 
+  storage-perms:
+    volumes:
+      - /mnt/data/castaway/storage_data:/data
+
   storage:
     restart: unless-stopped
     volumes:

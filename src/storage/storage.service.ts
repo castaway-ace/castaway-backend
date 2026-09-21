@@ -213,7 +213,7 @@ export class StorageService implements OnApplicationBootstrap {
 
   /**
    * Ensure the required buckets exist once the app has started. Retries to
-   * absorb MinIO/S3 startup lag; on final failure it logs and lets the app
+   * absorb storage startup lag; on final failure it logs and lets the app
    * start anyway (the /health check reports storage status).
    */
   async onApplicationBootstrap(): Promise<void> {
