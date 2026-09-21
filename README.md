@@ -104,8 +104,9 @@ through the Cloudflare tunnel.
 
 4. The API is now at **http://localhost:3000**, with docs at
    **http://localhost:3000/docs** (dev only). Prisma Studio is available via
-   `make studio` on port `5555`, and the MinIO console at
-   **http://localhost:9001**.
+   `make studio` on port `5556`, and the MinIO console at
+   **http://localhost:9001**. Studio runs on the host rather than in a
+   container, so it needs host dependencies installed (`npm ci`).
 
 When you change the Prisma schema, create and apply a migration with
 `make migrate`.
@@ -126,7 +127,7 @@ Run `make help` to list every target. **Bare targets act on dev**; the
 | `make rebuild` | Rebuild dev images from scratch (no cache) |
 | `make seed` | Seed the dev database (`prisma db seed`) |
 | `make migrate` | Create + apply a dev migration (interactive) |
-| `make studio` | Open Prisma Studio on `:5555` |
+| `make studio` | Open Prisma Studio on `:5556` |
 | `make logs` | Tail dev app logs |
 | `make shell` | Shell into the dev app container |
 

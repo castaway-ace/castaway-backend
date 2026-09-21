@@ -30,8 +30,9 @@ seed: ## Seed the dev database
 migrate: ## Create + apply a dev migration (interactive)
 	$(DEV) exec app npx prisma migrate dev
 
-studio: ## Open Prisma Studio on :5555 (dev)
-	$(DEV) exec app npx prisma studio --port 5555 --browser none
+studio: ## Open Prisma Studio on :5555 (dev, runs on the host)
+	DATABASE_URL="$$(grep '^DATABASE_URL=' .env | cut -d= -f2- | tr -d '"' | sed 's/@db:/@localhost:/')" \
+		npx prisma studio --port 5555 --browser none
 
 logs: ## Tail dev app logs
 	$(DEV) logs -f app
