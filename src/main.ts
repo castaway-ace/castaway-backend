@@ -4,6 +4,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import basicAuth from 'express-basic-auth';
 import { PrismaClientExceptionFilter } from './prisma/prisma.filter.js';
+import { readEnvOrFile } from './common/env.js';
 
 const ENVS = ['development'];
 
@@ -22,7 +23,7 @@ const bootstrap = async () => {
 
   if (ENVS.includes(env)) {
     const swaggerUsername = process.env.SWAGGER_USERNAME as string;
-    const swaggerPassword = process.env.SWAGGER_PASSWORD as string;
+    const swaggerPassword = readEnvOrFile('SWAGGER_PASSWORD') as string;
 
     app.use(
       ['/docs', '/docs-json', '/docs-yaml'],
