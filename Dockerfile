@@ -3,6 +3,8 @@ FROM node:24-alpine AS base
 
 WORKDIR /usr/src/app
 
+RUN mkdir -p /mnt/data/castaway/tmp && chown -R node:node /mnt/data/castaway
+
 # ---- deps: full dependency tree --------------------------------
 FROM base AS deps
 
@@ -30,7 +32,7 @@ FROM base AS prod-deps
 
 COPY package*.json ./
 
-RUN npm ci --omit=dev && npm cache clean --force
+RUN npm ci --omit=dev
 
 # ---- production -------------------------------------------------------------
 FROM base AS production
@@ -43,8 +45,6 @@ COPY --from=build /usr/src/app/prisma ./prisma
 COPY --from=build /usr/src/app/prisma.config.ts ./
 
 COPY package*.json ./
-
-RUN mkdir -p /mnt/data/castaway/tmp && chown -R node:node /mnt/data/castaway
 
 # Drop root privileges.
 USER node

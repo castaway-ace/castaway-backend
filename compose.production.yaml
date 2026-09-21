@@ -1,3 +1,5 @@
+name: castaway
+
 services:
   db:
     restart: unless-stopped

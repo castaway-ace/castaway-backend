@@ -57,7 +57,7 @@ prod-migrate: ## Apply pending migrations (prisma migrate deploy)
 	$(PROD) run --rm migrate
 
 prod-seed: ## Seed the prod database (compiled seed)
-	$(PROD) exec app node dist/prisma/seed.js
+	$(PROD) exec app npm run seed:prod
 
 prod-logs: ## Tail prod app logs
 	$(PROD) logs -f app

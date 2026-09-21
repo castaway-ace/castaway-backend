@@ -104,7 +104,7 @@ through the Cloudflare tunnel.
 
 4. The API is now at **http://localhost:3000**, with docs at
    **http://localhost:3000/docs** (dev only). Prisma Studio is available via
-   `make studio` on port `5556`, and the MinIO console at
+   `make studio` on port `5555`, and the MinIO console at
    **http://localhost:9001**. Studio runs on the host rather than in a
    container, so it needs host dependencies installed (`npm ci`).
 
@@ -127,7 +127,7 @@ Run `make help` to list every target. **Bare targets act on dev**; the
 | `make rebuild` | Rebuild dev images from scratch (no cache) |
 | `make seed` | Seed the dev database (`prisma db seed`) |
 | `make migrate` | Create + apply a dev migration (interactive) |
-| `make studio` | Open Prisma Studio on `:5556` |
+| `make studio` | Open Prisma Studio on `:5555` |
 | `make logs` | Tail dev app logs |
 | `make shell` | Shell into the dev app container |
 
@@ -148,8 +148,8 @@ Run `make help` to list every target. **Bare targets act on dev**; the
 
 - Dev and prod use different migrate/seed mechanisms: prod runs
   `migrate deploy` via the dedicated `migrate` service (the prod app image is
-  built without dev dependencies, so it has no Prisma CLI), and seeds by running
-  the compiled `dist/prisma/seed.js` directly.
+  built without dev dependencies, so it has no Prisma CLI), and seeds through
+  `npm run seed:prod`.
 - `make migrate` is interactive — it prompts for a migration name.
 - Prisma Studio and Swagger docs are dev-only; prod publishes just
   `127.0.0.1:3000`.
@@ -221,6 +221,13 @@ Range support.
 | `SWAGGER_PASSWORD` | Basic-auth password for `/docs` (dev) |
 | `CLOUDFLARE_TUNNEL_TOKEN` | Cloudflare Tunnel token (prod ingress) |
 | `UPLOAD_TMP_DIR` | Scratch dir for artist-image and album uploads (defaults to `/mnt/data/castaway/tmp`) |
+
+### Development
+
+| Variable | Description |
+| --- | --- |
+| `DOCKER_UID` | **Required for dev.** uid the dev app container runs as, so files written through the bind mount stay owned by you. Set to `id -u` |
+| `DOCKER_GID` | **Required for dev.** gid to match. Set to `id -g` |
 
 ## Data model
 
