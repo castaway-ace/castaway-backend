@@ -10,7 +10,9 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - postgres_password
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 10s
@@ -24,7 +26,9 @@ services:
       dockerfile: Dockerfile
     command: ["npx", "prisma", "migrate", "deploy"]
     environment:
-      - DATABASE_URL=${DATABASE_URL}
+      - DATABASE_URL_FILE=/run/secrets/database_url
+    secrets:
+      - database_url
     depends_on:
       db:
         condition: service_healthy
@@ -36,24 +40,31 @@ services:
       context: .
       dockerfile: Dockerfile
     environment:
-      - DATABASE_URL=${DATABASE_URL}
+      - DATABASE_URL_FILE=/run/secrets/database_url
       - UPLOAD_TMP_DIR=/mnt/data/castaway/tmp
-      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET}
+      - JWT_ACCESS_SECRET_FILE=/run/secrets/jwt_access_secret
       - JWT_ACCESS_EXPIRATION=${JWT_ACCESS_EXPIRATION}
       - JWT_REFRESH_EXPIRATION=${JWT_REFRESH_EXPIRATION}
       - STORAGE_ENDPOINT=${STORAGE_ENDPOINT}
       - STORAGE_PRESIGNED_ENDPOINT=${STORAGE_PRESIGNED_ENDPOINT}
       - STORAGE_REGION=${STORAGE_REGION}
-      - STORAGE_ACCESS_KEY=${STORAGE_ACCESS_KEY}
-      - STORAGE_SECRET_ACCESS_KEY=${STORAGE_SECRET_ACCESS_KEY}
+      - STORAGE_ACCESS_KEY_FILE=/run/secrets/storage_access_key
+      - STORAGE_SECRET_ACCESS_KEY_FILE=/run/secrets/storage_secret_key
       - STORAGE_TRACKS_BUCKET=${STORAGE_TRACKS_BUCKET}
       - STORAGE_ALBUM_ART_BUCKET=${STORAGE_ALBUM_ART_BUCKET}
       - STORAGE_ARTIST_IMAGE_BUCKET=${STORAGE_ARTIST_IMAGE_BUCKET}
       - ADMIN_EMAIL=${ADMIN_EMAIL}
       - ADMIN_USERNAME=${ADMIN_USERNAME}
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - ADMIN_PASSWORD_FILE=/run/secrets/admin_password
       - SWAGGER_USERNAME=${SWAGGER_USERNAME}
-      - SWAGGER_PASSWORD=${SWAGGER_PASSWORD}
+      - SWAGGER_PASSWORD_FILE=/run/secrets/swagger_password
+    secrets:
+      - database_url
+      - jwt_access_secret
+      - storage_access_key
+      - storage_secret_key
+      - admin_password
+      - swagger_password
     depends_on:
       db:
         condition: service_healthy
@@ -83,12 +94,15 @@ services:
       storage-perms:
         condition: service_completed_successfully
     environment:
-      - RUSTFS_ACCESS_KEY=${STORAGE_ACCESS_KEY}
-      - RUSTFS_SECRET_KEY=${STORAGE_SECRET_ACCESS_KEY}
+      - RUSTFS_ACCESS_KEY_FILE=/run/secrets/storage_access_key # plain RUSTFS_ACCESS_KEY alongside this fails startup
+      - RUSTFS_SECRET_KEY_FILE=/run/secrets/storage_secret_key
       - RUSTFS_VOLUMES=${STORAGE_VOLUMES}
       - RUSTFS_ADDRESS=${STORAGE_ADDRESS}
       - RUSTFS_CONSOLE_ADDRESS=${STORAGE_CONSOLE_ADDRESS}
       - RUSTFS_CONSOLE_ENABLE=${STORAGE_CONSOLE_ENABLE}
+    secrets:
+      - storage_access_key
+      - storage_secret_key
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:9000/health"]
       interval: 10s
@@ -124,3 +138,17 @@ services:
 secrets:
   cloudflare_tunnel_token:
     environment: CLOUDFLARE_TUNNEL_TOKEN
+  postgres_password:
+    environment: POSTGRES_PASSWORD
+  database_url:
+    environment: DATABASE_URL
+  jwt_access_secret:
+    environment: JWT_ACCESS_SECRET
+  storage_access_key:
+    environment: STORAGE_ACCESS_KEY
+  storage_secret_key:
+    environment: STORAGE_SECRET_ACCESS_KEY
+  admin_password:
+    environment: ADMIN_PASSWORD
+  swagger_password:
+    environment: SWAGGER_PASSWORD

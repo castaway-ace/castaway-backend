@@ -5,6 +5,7 @@ import { HealthModule } from './health/health.module.js';
 import { UsersModule } from './users/users.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { ConfigModule } from '@nestjs/config';
+import { loadFileSecrets } from './common/env.js';
 import { TracksModule } from './tracks/tracks.module.js';
 import { AlbumsModule } from './albums/albums.module.js';
 import { ArtistsModule } from './artists/artists.module.js';
@@ -22,7 +23,7 @@ import { RolesModule } from './roles/roles.module.js';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({ isGlobal: true, load: [loadFileSecrets] }),
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 20 }]),
     ScheduleModule.forRoot(),
     PrismaModule,

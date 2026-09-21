@@ -6,9 +6,10 @@ import {
   Role,
 } from '../src/generated/prisma/client.js';
 import { VARIOUS_ARTISTS_NAME } from '../src/common/constants.js';
+import { readEnvOrFile } from '../src/common/env.js';
 
 const adapter = new PrismaPg({
-  connectionString: process.env.DATABASE_URL!,
+  connectionString: readEnvOrFile('DATABASE_URL')!,
 });
 
 const prisma = new PrismaClient({ adapter });
@@ -16,7 +17,7 @@ const prisma = new PrismaClient({ adapter });
 async function main() {
   const email = process.env.ADMIN_EMAIL as string;
   const userName = process.env.ADMIN_USERNAME as string;
-  const providedPassword = process.env.ADMIN_PASSWORD as string;
+  const providedPassword = readEnvOrFile('ADMIN_PASSWORD') as string;
 
   const passwordHash = await argon2.hash(providedPassword);
 

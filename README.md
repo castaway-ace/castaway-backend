@@ -168,6 +168,13 @@ Run `make help` to list every target. **Bare targets act on dev**; the
 
 Define these in a `.env` file at the repo root. Do **not** commit it.
 
+Secrets (passwords, keys, `DATABASE_URL`, the tunnel token) still live in `.env`,
+but Compose hands them to containers as [secrets](https://docs.docker.com/compose/how-tos/use-secrets/)
+mounted under `/run/secrets/` rather than as environment variables, so they stay out
+of `docker inspect` and `docker compose config`. Services receive a `<NAME>_FILE`
+path instead of `<NAME>`; app code reads these through `readEnvOrFile` /
+`ConfigService` (see `src/common/env.ts`). On the prod host, keep `.env` at `chmod 600`.
+
 ### Database
 
 | Variable | Description |
