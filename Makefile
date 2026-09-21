@@ -1,5 +1,5 @@
-DEV  := docker compose -f docker-compose.dev.yml
-PROD := docker compose -f docker-compose.prod.yml
+DEV  := docker compose
+PROD := docker compose -f compose.yaml -f compose.production.yaml
 
 .DEFAULT_GOAL := help
 
@@ -11,7 +11,7 @@ help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
 		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
 
-## ---- Development (docker-compose.dev.yml) ----
+## ---- Development (compose.yaml + compose.override.yaml) ----
 
 up: ## Start the dev stack (detached)
 	$(DEV) up -d
@@ -39,7 +39,7 @@ logs: ## Tail dev app logs
 shell: ## Shell into the dev app container
 	$(DEV) exec app sh
 
-## ---- Production (docker-compose.prod.yml) ----
+## ---- Production (compose.yaml + compose.production.yaml) ----
 
 prod-up: ## Start the prod stack (runs pending migrations on boot)
 	$(PROD) up -d
@@ -56,7 +56,7 @@ prod-migrate: ## Apply pending migrations (prisma migrate deploy)
 	$(PROD) run --rm migrate
 
 prod-seed: ## Seed the prod database (compiled seed)
-	$(PROD) exec app npm run seed:prod
+	$(PROD) exec app node dist/prisma/seed.js
 
 prod-logs: ## Tail prod app logs
 	$(PROD) logs -f app

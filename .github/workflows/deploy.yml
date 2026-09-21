@@ -28,9 +28,9 @@ jobs:
       packages: read
     env:
       APP_IMAGE_TAG: ${{ inputs.image-tag }}
-      COMPOSE: docker compose --env-file /opt/castaway/.env -f docker-compose.prod.yml
+      COMPOSE: docker compose --env-file /opt/castaway/.env -f compose.yaml -f compose.production.yaml
     steps:
-      # Provides docker-compose.prod.yml in the runner workdir; the compose
+      # Provides compose.yaml + compose.production.yaml in the runner workdir; the
       # project name is pinned to "castaway" so this drives the same stack
       # regardless of checkout path.
       - uses: actions/checkout@v5

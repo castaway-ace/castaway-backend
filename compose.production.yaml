@@ -1,0 +1,30 @@
+services:
+  db:
+    restart: unless-stopped
+    volumes:
+      - /mnt/data/castaway/db_data:/var/lib/postgresql/data
+
+  migrate:
+    image: ghcr.io/castaway-ace/castaway-backend:migrate-${APP_IMAGE_TAG:-latest}
+    build:
+      target: build
+
+  app:
+    image: ghcr.io/castaway-ace/castaway-backend:${APP_IMAGE_TAG:-latest}
+    build:
+      target: production
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - /mnt/data/castaway/tmp:/mnt/data/castaway/tmp
+
+  storage:
+    restart: unless-stopped
+    volumes:
+      - /mnt/data/castaway/storage_data:/data
+
+  cloudflared:
+    restart: unless-stopped

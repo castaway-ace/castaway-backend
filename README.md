@@ -116,7 +116,7 @@ Common database and stack tasks are wrapped in the [`Makefile`](Makefile).
 Run `make help` to list every target. **Bare targets act on dev**; the
 **`prod-` prefix acts on production**.
 
-### Development (`docker-compose.dev.yml`)
+### Development (`compose.yaml` + `compose.override.yaml`)
 
 | Command | Does |
 | --- | --- |
@@ -130,7 +130,7 @@ Run `make help` to list every target. **Bare targets act on dev**; the
 | `make logs` | Tail dev app logs |
 | `make shell` | Shell into the dev app container |
 
-### Production (`docker-compose.prod.yml`)
+### Production (`compose.yaml` + `compose.production.yaml`)
 
 | Command | Does |
 | --- | --- |
@@ -147,11 +147,19 @@ Run `make help` to list every target. **Bare targets act on dev**; the
 
 - Dev and prod use different migrate/seed mechanisms: prod runs
   `migrate deploy` via the dedicated `migrate` service (the prod app image is
-  built without dev dependencies, so it has no Prisma CLI), and seeds through
-  `npm run seed:prod`.
+  built without dev dependencies, so it has no Prisma CLI), and seeds by running
+  the compiled `dist/prisma/seed.js` directly.
 - `make migrate` is interactive — it prompts for a migration name.
 - Prisma Studio and Swagger docs are dev-only; prod publishes just
   `127.0.0.1:3000`.
+- **Host directory ownership.** The prod stack bind-mounts
+  `/mnt/data/castaway/tmp` for uploads, and the app container runs as `node`
+  (uid 1000). A bind mount carries the *host* directory's ownership, so the
+  image's own `chown` does not apply — if that directory is root-owned (e.g.
+  created with `sudo mkdir`), uploads fail with `EACCES`. Check with
+  `stat -c '%u:%g' /mnt/data/castaway/tmp` and `chown 1000:1000` if needed.
+  `db_data` and `storage_data` are fine: Postgres and MinIO chown their own
+  data directories on first start.
 
 ## Environment variables
 
@@ -180,7 +188,6 @@ Define these in a `.env` file at the repo root. Do **not** commit it.
 | --- | --- |
 | `STORAGE_ENDPOINT` | S3 endpoint used by the server |
 | `STORAGE_PRESIGNED_ENDPOINT` | Endpoint baked into presigned URLs (client-reachable) |
-| `CDN_BASE_URL` | Public base host for cover-art URLs (defaults to `STORAGE_PRESIGNED_ENDPOINT`); point at a CDN hostname to edge-cache album/artist art |
 | `STORAGE_REGION` | S3 region |
 | `STORAGE_ACCESS_KEY` | Access key (also the MinIO root user) |
 | `STORAGE_SECRET_ACCESS_KEY` | Secret key (also the MinIO root password) |
@@ -192,12 +199,12 @@ Bucket names are optional: when unset they fall back to the conventional
 names above, and all three are created automatically at startup.
 
 Album cover art and artist images are served as **stable, unsigned public URLs**
-(`<CDN_BASE_URL>/<bucket>/<id>/cover.jpg?v=<updatedAt>`) so they can be cached at
-a CDN/edge. The `album-art` and `artist-image` buckets are made anonymous-read
+(`<STORAGE_PRESIGNED_ENDPOINT>/<bucket>/<id>/cover.jpg?v=<updatedAt>`) so they can be
+cached at a CDN/edge. The `album-art` and `artist-image` buckets are made anonymous-read
 automatically at startup, objects are written with a long `immutable`
 `Cache-Control`, and the `?v=` timestamp busts the cache when an image is
 replaced. The `tracks` bucket stays private. To turn on
-edge caching, front `CDN_BASE_URL` with a Cloudflare cache rule covering
+edge caching, front `STORAGE_PRESIGNED_ENDPOINT` with a Cloudflare cache rule covering
 `/album-art/*` and `/artist-image/*` (keep the `v` query param in the cache
 key). Audio streaming is unaffected — it still proxies through the API with HTTP
 Range support.

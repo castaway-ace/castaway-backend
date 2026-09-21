@@ -69,7 +69,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: Dockerfile.prod
+          file: Dockerfile
           target: build
           push: ${{ github.ref == 'refs/heads/main' }}
           tags: |
@@ -82,7 +82,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: Dockerfile.prod
+          file: Dockerfile
           target: production
           push: ${{ github.ref == 'refs/heads/main' }}
           tags: |

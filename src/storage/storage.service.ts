@@ -42,7 +42,6 @@ export const PUBLIC_IMAGE_CACHE_CONTROL = 'public, max-age=31536000, immutable';
 interface StorageConfig {
   endpoint: string;
   presignedEndpoint: string;
-  publicBaseUrl: string;
   region: string;
   accessKey: string;
   secretKey: string;
@@ -175,7 +174,7 @@ export class StorageService implements OnApplicationBootstrap {
   ): string {
     this.assertKey(key);
     const encodedKey = key.split('/').map(encodeURIComponent).join('/');
-    const base = this.storageConfig.publicBaseUrl.replace(/\/+$/, '');
+    const base = this.storageConfig.presignedEndpoint.replace(/\/+$/, '');
     const url = `${base}/${bucket}/${encodedKey}`;
     return version ? `${url}?v=${version.getTime()}` : url;
   }
@@ -405,16 +404,9 @@ export class StorageService implements OnApplicationBootstrap {
       throw new Error('Storage configuration is incomplete');
     }
 
-    // Public (unsigned) base host for edge-cacheable cover art. Defaults to the
-    // presigned endpoint so a single storage host works out of the box; set
-    // CDN_BASE_URL to point cover-art URLs at a dedicated CDN hostname.
-    const publicBaseUrl =
-      configService.get<string>('CDN_BASE_URL') || presignedEndpoint;
-
     return {
       endpoint,
       presignedEndpoint,
-      publicBaseUrl,
       region,
       accessKey,
       secretKey,

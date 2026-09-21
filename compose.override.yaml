@@ -1,0 +1,42 @@
+name: castaway-dev
+
+services:
+  db:
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+  migrate:
+    build:
+      target: development
+    volumes:
+      - ./prisma:/usr/src/app/prisma
+
+  app:
+    build:
+      target: development
+    user: "${DOCKER_UID}:${DOCKER_GID}"
+    command: sh -c "npx prisma generate && npm run start:dev"
+    environment:
+      - NODE_ENV=development
+    ports:
+      - "3000:3000"
+      # Prisma Studio
+      - "5555:5555"
+    volumes:
+      - .:/usr/src/app
+      - /usr/src/app/node_modules
+      - tmp:/mnt/data/castaway/tmp
+
+  storage:
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - storage_data:/data
+
+volumes:
+  db_data:
+  storage_data:
+  tmp:
