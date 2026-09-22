@@ -1,0 +1,125 @@
+$kind: collection
+name: Castaway API
+scripts:
+  - type: 'http:beforeRequest'
+    language: text/javascript
+    code: |-
+      // Refresh the access token before it expires, so requests never fail
+      // with 401 because of it. Sign in, Signup and Refresh issue tokens
+      // themselves, so they are skipped.
+
+      // Refresh this long before the token expires, to allow for clock skew
+      // and slow requests.
+      const EXPIRY_MARGIN_MS = 30 * 1000;
+
+      function expiresAt(token) {
+        try {
+          const payload = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+          const { exp } = JSON.parse(atob(payload + '='.repeat((4 - (payload.length % 4)) % 4)));
+          return typeof exp === 'number' ? exp * 1000 : 0;
+        } catch (e) {
+          return 0;
+        }
+      }
+
+      function refreshIfExpiring() {
+        if (/\/auth\/(login|signup|refresh)$/.test(pm.request.url.getPath())) {
+          return;
+        }
+
+        const accessToken = pm.variables.get('accessToken');
+        const refreshToken = pm.variables.get('refreshToken');
+        if (!refreshToken || (accessToken && expiresAt(accessToken) - Date.now() > EXPIRY_MARGIN_MS)) {
+          return;
+        }
+
+        const baseUrl = pm.variables.get('baseUrl');
+        if (!baseUrl) {
+          console.warn('Could not refresh the access token: baseUrl is not set. Select the Castaway Local environment.');
+          return;
+        }
+
+        // Responses to pm.sendRequest skip the afterResponse script below, so
+        // the tokens are stored here.
+        pm.sendRequest({
+          url: baseUrl + '/auth/refresh',
+          method: 'POST',
+          header: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: { mode: 'raw', raw: JSON.stringify({ refreshToken }) }
+        }, function (err, res) {
+          if (err) {
+            console.warn('Could not refresh the access token:', err);
+            return;
+          }
+          if (res.code === 401) {
+            pm.environment.unset('accessToken');
+            pm.environment.unset('refreshToken');
+            console.warn('The refresh token was rejected, so the tokens were cleared. Send Auth > Sign in again.');
+            return;
+          }
+          if (res.code !== 200) {
+            console.warn('Could not refresh the access token: /auth/refresh returned', res.code);
+            return;
+          }
+
+          let body = null;
+          try {
+            body = res.json();
+          } catch (e) {}
+          if (!body || typeof body.accessToken !== 'string' || typeof body.refreshToken !== 'string') {
+            console.warn('Could not refresh the access token: the /auth/refresh response has no tokens.');
+          } else if (!pm.environment.name) {
+            console.warn('Could not store the refreshed tokens: no environment is selected.');
+          } else {
+            pm.environment.set('accessToken', body.accessToken);
+            pm.environment.set('refreshToken', body.refreshToken);
+            console.log('Refreshed the access token.');
+          }
+        });
+      }
+
+      refreshIfExpiring();
+  - type: 'http:afterResponse'
+    language: text/javascript
+    code: |-
+      // Keep accessToken and refreshToken in step with the auth endpoints:
+      // store the tokens Sign in, Signup and Refresh return, and clear them
+      // once Logout or a rejected refresh ends the session.
+      function syncTokens() {
+        const match = pm.request.url.getPath().match(/\/auth\/(login|signup|refresh|logout)$/);
+        if (!match) {
+          return;
+        }
+        const endpoint = match[1];
+
+        if ((endpoint === 'logout' && pm.response.code === 204) ||
+            (endpoint === 'refresh' && pm.response.code === 401)) {
+          pm.environment.unset('accessToken');
+          pm.environment.unset('refreshToken');
+          console.log(endpoint === 'logout'
+            ? 'Logged out and cleared the tokens.'
+            : 'The refresh token was rejected, so the tokens were cleared. Send Auth > Sign in again.');
+          return;
+        }
+
+        const successCode = endpoint === 'signup' ? 201 : 200;
+        if (endpoint === 'logout' || pm.response.code !== successCode) {
+          return;
+        }
+
+        let body = null;
+        try {
+          body = pm.response.json();
+        } catch (e) {}
+        if (!body || typeof body.accessToken !== 'string' || typeof body.refreshToken !== 'string') {
+          console.warn('Did not store any tokens: the response has no accessToken and refreshToken.');
+        } else if (!pm.environment.name) {
+          console.warn('Did not store the tokens: no environment is selected. Select the Castaway Local environment.');
+        } else {
+          pm.environment.set('accessToken', body.accessToken);
+          pm.environment.set('refreshToken', body.refreshToken);
+          console.log('Stored the new access and refresh tokens.');
+        }
+      }
+
+      syncTokens();

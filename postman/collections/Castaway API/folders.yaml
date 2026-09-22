@@ -1,6 +1,7 @@
 # What each folder in this collection covers. Every request except Health and
 # Sign in / Signup / Refresh sends the environment's accessToken as a bearer
-# token; get one from Auth > Sign in or scripts/login.sh.
+# token. Auth > Sign in stores one, and the collection's scripts refresh it
+# before it expires.
 
 Admin: >-
   Create artists (optionally with an image), replace an artist's image, upload
@@ -15,9 +16,10 @@ Artists: >-
   and star or unstar them.
 
 Auth: >-
-  Sign up, sign in, refresh the access token, and log out. Sign in returns the
-  accessToken and refreshToken the other requests use. Only Logout needs a
-  token.
+  Sign up, sign in, refresh the access token, and log out. Sign in and Signup
+  store the accessToken and refreshToken the other requests use, Refresh
+  replaces them, and Logout revokes the session and clears them. Only Logout
+  needs a token.
 
 Health: >-
   Checks that the API can reach its database and storage. Needs no token.
