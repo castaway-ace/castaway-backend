@@ -304,11 +304,16 @@ To use it:
    folder (Native Git doesn't work with the web app or personal workspaces),
    and commit the `.postman/resources.yaml` it creates.
 2. Select the **Castaway Local** environment and set local values for `email`
-   and `password`, marking `password` as secure. Keep shared values empty:
-   they are what gets committed.
-3. Send **Auth > Sign in** (or run `scripts/login.sh`) and set the
-   `accessToken` local value to the token it returns. Requests send it as a
-   bearer token until it expires after 15 minutes.
+   and `password`, marking `password`, `accessToken` and `refreshToken` as
+   secure. Keep shared values empty: they are what gets committed.
+3. Send **Auth > Sign in** (or **Auth > Signup**). The collection's scripts
+   store the `accessToken` and `refreshToken` it returns as local values, and
+   refresh the access token shortly before it expires after 15 minutes, so
+   requests keep working without copying tokens by hand. Each refresh extends
+   the session by another 30 days, so send **Auth > Logout** when you're done:
+   it revokes the session and clears both tokens. If a refresh is rejected, the
+   tokens are cleared and you sign in again. The scripts log what they do to
+   the Postman console.
 
 Pushes to `main` that change `postman/` publish it to the connected cloud
 workspace once the `POSTMAN_API_KEY` repository secret holds a
