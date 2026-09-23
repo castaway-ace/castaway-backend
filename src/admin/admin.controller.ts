@@ -86,6 +86,9 @@ export class AdminController {
   })
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiNoContentResponse()
+  @ApiBadRequestResponse({
+    description: 'Artist id is not a UUID, or no image was provided.',
+  })
   @ApiNotFoundResponse({ description: 'Artist not found.' })
   async uploadArtistImage(
     @Param('id', ParseUUIDPipe) id: string,
@@ -98,6 +101,7 @@ export class AdminController {
   @RequirePermissions(Permission.CatalogDelete)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiNoContentResponse()
+  @ApiBadRequestResponse({ description: 'Artist id is not a UUID.' })
   @ApiNotFoundResponse({ description: 'Artist not found.' })
   async deleteArtist(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
     await this.adminService.deleteArtist(id);
@@ -133,6 +137,7 @@ export class AdminController {
   @RequirePermissions(Permission.CatalogDelete)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiNoContentResponse()
+  @ApiBadRequestResponse({ description: 'Album id is not a UUID.' })
   @ApiNotFoundResponse({ description: 'Album not found.' })
   async deleteAlbum(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
     await this.adminService.deleteAlbum(id);
